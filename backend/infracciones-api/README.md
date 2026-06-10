@@ -86,3 +86,9 @@ npm run migration:show
 - `liberacion_vehiculo` registra la liberacion posterior al pago de una infraccion
 - La liberacion queda ligada a la infraccion, al pago y al usuario que libera
 - El cambio de estatus a `LIBERACION_GENERADA` se implementara despues en la logica de servicio
+
+## Salida vehicular
+
+- `salida_vehiculo` registra la entrega fisica del vehiculo en el encierro
+- La salida queda ligada a la retencion vehicular, a la liberacion y al usuario que valida la salida
+- El cambio de estatus a `VEHICULO_ENTREGADO` se implementara despues en la logica de servicio
