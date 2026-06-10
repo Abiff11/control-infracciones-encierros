@@ -1,18 +1,42 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, In, Repository, SelectQueryBuilder } from 'typeorm';
+import {
+  Brackets,
+  DataSource,
+  EntityManager,
+  In,
+  Repository,
+  SelectQueryBuilder,
+} from 'typeorm';
 
 import { EstatusInfraccion } from '../catalogos/entities/estatus-infraccion.entity';
+import { type ClaseVehiculo } from '../catalogos/entities/clase-vehiculo.entity';
+import { type Delegacion } from '../catalogos/entities/delegacion.entity';
+import { type LineaVehiculo } from '../catalogos/entities/linea-vehiculo.entity';
+import { LugarInfraccion } from '../catalogos/entities/lugar-infraccion.entity';
+import { Operativo } from '../catalogos/entities/operativo.entity';
+import { type Servicio } from '../catalogos/entities/servicio.entity';
+import { type TipoProcedimiento } from '../catalogos/entities/tipo-procedimiento.entity';
 import { normalizeDate } from '../../common/utils/normalize-date';
+import { Infractor } from '../infractores/entities/infractor.entity';
+import { type Sexo } from '../catalogos/entities/sexo.entity';
 import { LiberacionVehiculo } from '../liberaciones/entities/liberacion-vehiculo.entity';
 import { PagoInfraccion } from '../pagos/entities/pago-infraccion.entity';
 import { Usuario } from '../usuarios/entities/usuario.entity';
+import { Vehiculo } from '../vehiculos/entities/vehiculo.entity';
 import { type EstatusInfraccionNombre } from './constants/estatus-infraccion.constants';
+import { ACCION_MOVIMIENTO } from './constants/accion-movimiento.constants';
+import { CreateInfraccionCompletaDto } from './dto/create-infraccion-completa.dto';
 import { FindInfraccionesQueryDto } from './dto/find-infracciones-query.dto';
 import { InfraccionFlujoResponseDto } from './dto/infraccion-flujo-response.dto';
 import { InfraccionMotivo } from './entities/infraccion-motivo.entity';
 import { InfraccionMovimiento } from './entities/infraccion-movimiento.entity';
 import { Infraccion } from './entities/infraccion.entity';
+import { Motivo } from '../motivos/entities/motivo.entity';
 import { RetencionVehiculo } from '../encierros/entities/retencion-vehiculo.entity';
 import { SalidaVehiculo } from '../encierros/entities/salida-vehiculo.entity';
 
@@ -37,6 +61,7 @@ interface ActualizarEstatusYRegistrarMovimientoParams {
 @Injectable()
 export class InfraccionesService {
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(Infraccion)
     private readonly infraccionesRepository: Repository<Infraccion>,
     @InjectRepository(InfraccionMotivo)
@@ -241,6 +266,142 @@ export class InfraccionesService {
     }));
   }
 
+  async crearInfraccionCompleta(
+    dto: CreateInfraccionCompletaDto,
+  ): Promise<InfraccionFlujoResponseDto> {
+    const createdInfraccionId = await this.dataSource.transaction(
+      async (manager) => {
+        const infraccionRepo = manager.getRepository(Infraccion);
+        const infractorRepo = manager.getRepository(Infractor);
+        const vehiculoRepo = manager.getRepository(Vehiculo);
+        const lugarRepo = manager.getRepository(LugarInfraccion);
+        const infraccionMotivoRepo = manager.getRepository(InfraccionMotivo);
+        const movimientoRepo = manager.getRepository(InfraccionMovimiento);
+
+        const existingFolio = await infraccionRepo.findOneBy({
+          folioInfraccion: dto.infraccion.folioInfraccion,
+        });
+
+        if (existingFolio) {
+          throw new ConflictException(
+            'Ya existe una infraccion con el folio indicado',
+          );
+        }
+
+        const estatusInfraccion = await this.findEstatusByIdOrFail(
+          manager,
+          dto.infraccion.idEstatusInfraccion,
+        );
+        const usuarioCaptura = await this.findUsuarioByIdOrFail(
+          manager,
+          dto.infraccion.idUsuarioCaptura,
+        );
+        const motivos = await this.findMotivosByIdsOrFail(
+          manager,
+          dto.infraccion.motivos,
+        );
+
+        const savedInfractor = await infractorRepo.save(
+          infractorRepo.create({
+            sexo: { idSexo: dto.infractor.idSexo } as Sexo,
+            nombre: dto.infractor.nombre,
+            apellidoPaterno: dto.infractor.apellidoPaterno,
+            apellidoMaterno: dto.infractor.apellidoMaterno ?? null,
+            licencia: dto.infractor.licencia ?? null,
+            curp: dto.infractor.curp ?? null,
+          }),
+        );
+
+        const savedVehiculo = await vehiculoRepo.save(
+          vehiculoRepo.create({
+            claseVehiculo: {
+              idClaseVehiculo: dto.vehiculo.idClaseVehiculo,
+            } as ClaseVehiculo,
+            lineaVehiculo: {
+              idLineaVehiculo: dto.vehiculo.idLineaVehiculo,
+            } as LineaVehiculo,
+            servicio: { idServicio: dto.vehiculo.idServicio } as Servicio,
+            anioModelo: dto.vehiculo.anioModelo ?? null,
+            sitioServicioPublico: dto.vehiculo.sitioServicioPublico ?? null,
+            color: dto.vehiculo.color ?? null,
+            placas: dto.vehiculo.placas ?? null,
+            estadoPlacas: dto.vehiculo.estadoPlacas ?? null,
+            serie: dto.vehiculo.serie ?? null,
+            motor: dto.vehiculo.motor ?? null,
+          }),
+        );
+
+        const operativo =
+          dto.infraccion.idOperativo === null ||
+          dto.infraccion.idOperativo === undefined
+            ? null
+            : manager.getRepository(Operativo).create({
+                idOperativo: dto.infraccion.idOperativo,
+              });
+
+        const lugarNombre = this.buildLugarInfraccionNombre(
+          dto.lugarInfraccion,
+        );
+        const savedLugar =
+          (await lugarRepo.findOneBy({
+            nombreLugarInfraccion: lugarNombre,
+          })) ??
+          (await lugarRepo.save(
+            lugarRepo.create({
+              nombreLugarInfraccion: lugarNombre,
+            }),
+          ));
+
+        const savedInfraccion = await infraccionRepo.save(
+          infraccionRepo.create({
+            infractor: savedInfractor,
+            vehiculo: savedVehiculo,
+            lugarInfraccion: savedLugar,
+            delegacion: {
+              idDelegacion: dto.infraccion.idDelegacion,
+            } as Delegacion,
+            tipoProcedimiento: {
+              idTipoProcedimiento: dto.infraccion.idTipoProcedimiento,
+            } as TipoProcedimiento,
+            estatusInfraccion,
+            usuarioCaptura,
+            operativo,
+            folioInfraccion: dto.infraccion.folioInfraccion,
+            fechaInfraccion: dto.infraccion.fechaInfraccion,
+            horaInfraccion: dto.infraccion.horaInfraccion,
+            observaciones: dto.infraccion.observaciones ?? null,
+            clavePolicia: dto.infraccion.clavePolicia ?? null,
+            numParteInformativo: dto.infraccion.numParteInformativo ?? null,
+          }),
+        );
+
+        await infraccionMotivoRepo.save(
+          motivos.map((motivo) =>
+            infraccionMotivoRepo.create({
+              infraccion: savedInfraccion,
+              motivo,
+            }),
+          ),
+        );
+
+        await movimientoRepo.save(
+          movimientoRepo.create({
+            infraccion: savedInfraccion,
+            estatusInfraccion,
+            usuario: usuarioCaptura,
+            accion: ACCION_MOVIMIENTO.INFRACCION_CAPTURADA,
+            observaciones: 'Infraccion capturada',
+            fechaMovimiento: new Date(),
+          }),
+        );
+
+        return savedInfraccion.idInfraccion;
+      },
+    );
+
+    return this.findFlujoByInfraccion(createdInfraccionId);
+  }
+
   async actualizarEstatusYRegistrarMovimiento(
     params: ActualizarEstatusYRegistrarMovimientoParams,
   ): Promise<InfraccionMovimiento> {
@@ -382,5 +543,74 @@ export class InfraccionesService {
     }
 
     return estatusInfraccion;
+  }
+
+  private async findEstatusByIdOrFail(
+    manager: EntityManager,
+    idEstatusInfraccion: number,
+  ): Promise<EstatusInfraccion> {
+    const estatusInfraccion = await manager
+      .getRepository(EstatusInfraccion)
+      .findOneBy({
+        idEstatusInfraccion,
+      });
+
+    if (!estatusInfraccion) {
+      throw new NotFoundException(
+        `Estatus ${idEstatusInfraccion} no encontrado`,
+      );
+    }
+
+    return estatusInfraccion;
+  }
+
+  private async findUsuarioByIdOrFail(
+    manager: EntityManager,
+    idUsuario: number,
+  ): Promise<Usuario> {
+    const usuario = await manager.getRepository(Usuario).findOneBy({
+      idUsuario,
+    });
+
+    if (!usuario) {
+      throw new NotFoundException(`Usuario ${idUsuario} no encontrado`);
+    }
+
+    return usuario;
+  }
+
+  private async findMotivosByIdsOrFail(
+    manager: EntityManager,
+    motivosIds: number[],
+  ): Promise<Motivo[]> {
+    const motivos = await manager.getRepository(Motivo).find({
+      where: {
+        idMotivo: In(motivosIds),
+      },
+    });
+
+    if (motivos.length !== motivosIds.length) {
+      const foundIds = new Set(motivos.map((motivo) => motivo.idMotivo));
+      const missingIds = motivosIds.filter(
+        (motivoId) => !foundIds.has(motivoId),
+      );
+      throw new NotFoundException(
+        `Motivos no encontrados: ${missingIds.join(', ')}`,
+      );
+    }
+
+    return motivos;
+  }
+
+  private buildLugarInfraccionNombre(dto: {
+    municipio: string;
+    colonia?: string | null;
+    calle?: string | null;
+    numero?: string | null;
+  }): string {
+    return [dto.municipio, dto.colonia, dto.calle, dto.numero]
+      .map((value) => value?.trim())
+      .filter((value): value is string => Boolean(value))
+      .join(', ');
   }
 }

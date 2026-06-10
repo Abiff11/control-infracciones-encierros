@@ -8,6 +8,7 @@ import {
   Query,
 } from '@nestjs/common';
 
+import { CreateInfraccionCompletaDto } from './dto/create-infraccion-completa.dto';
 import { FindInfraccionesQueryDto } from './dto/find-infracciones-query.dto';
 import { RegistrarMovimientoDto } from './dto/registrar-movimiento.dto';
 import { InfraccionesService } from './infracciones.service';
@@ -44,6 +45,15 @@ export class InfraccionesController {
   @Get(':idInfraccion')
   findById(@Param('idInfraccion', ParseIntPipe) idInfraccion: number) {
     return this.infraccionesService.findByIdOrFail(idInfraccion);
+  }
+
+  @Post()
+  crearInfraccionCompleta(
+    @Body() createInfraccionCompletaDto: CreateInfraccionCompletaDto,
+  ) {
+    return this.infraccionesService.crearInfraccionCompleta(
+      createInfraccionCompletaDto,
+    );
   }
 
   @Post('movimientos')

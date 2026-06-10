@@ -79,6 +79,61 @@ npm run seed:estatus
 - `clave_policia` queda como texto por ahora, no como FK
 - Los motivos se integran con la tabla puente `infraccion_motivo`
 
+## Captura completa de infraccion
+
+- Endpoint: `POST /infracciones`
+- Crea en una sola transaccion `infractor`, `vehiculo`, `lugar_infraccion`, `infraccion`, `infraccion_motivo` y el movimiento inicial
+- `fecha_infraccion` debe llegar como string ISO
+- Los IDs numericos se validan y transforman desde el payload
+- El flujo de estatus queda preparado para bloques posteriores
+
+Payload de ejemplo:
+
+```json
+{
+  "infractor": {
+    "idSexo": 1,
+    "nombre": "Juan",
+    "apellidoPaterno": "Perez",
+    "apellidoMaterno": "Lopez",
+    "licencia": "ABC123",
+    "curp": "PEPJ800101HDFXXX01"
+  },
+  "vehiculo": {
+    "idClaseVehiculo": 1,
+    "idLineaVehiculo": 1,
+    "idServicio": 1,
+    "anioModelo": 2020,
+    "sitioServicioPublico": null,
+    "color": "Blanco",
+    "placas": "ABC123A",
+    "estadoPlacas": "Oaxaca",
+    "serie": "1HGCM82633A123456",
+    "motor": "D4BA1234567"
+  },
+  "lugarInfraccion": {
+    "municipio": "Oaxaca de Juarez",
+    "colonia": "Centro",
+    "calle": "Macedonio Alcala",
+    "numero": "100"
+  },
+  "infraccion": {
+    "idDelegacion": 1,
+    "idTipoProcedimiento": 1,
+    "idEstatusInfraccion": 1,
+    "idUsuarioCaptura": 1,
+    "idOperativo": null,
+    "folioInfraccion": "INF-2026-0001",
+    "fechaInfraccion": "2026-06-10",
+    "horaInfraccion": "10:30",
+    "observaciones": "Captura inicial",
+    "clavePolicia": "P-123",
+    "numParteInformativo": "PARTE-01",
+    "motivos": [1, 2]
+  }
+}
+```
+
 ## Consultas operativas
 
 ### Listado de infracciones
