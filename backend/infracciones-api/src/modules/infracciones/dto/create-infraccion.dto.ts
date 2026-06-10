@@ -47,7 +47,13 @@ export class CreateInfraccionDto {
   idUsuarioCaptura!: number;
 
   @IsOptional()
-  @Transform(({ value }) => (value === null || value === undefined ? value : Number(value)))
+  @Transform(({ value }): number | null | undefined => {
+    if (value === null || value === undefined || value === '') {
+      return value;
+    }
+
+    return Number(value);
+  })
   @IsInt()
   @Min(1)
   idOperativo?: number | null;

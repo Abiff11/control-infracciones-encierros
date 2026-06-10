@@ -79,6 +79,44 @@ npm run seed:estatus
 - `clave_policia` queda como texto por ahora, no como FK
 - Los motivos se integran con la tabla puente `infraccion_motivo`
 
+## Consultas operativas
+
+### Listado de infracciones
+
+GET /infracciones
+
+Filtros disponibles:
+- folioInfraccion
+- fechaInicio
+- fechaFin
+- idEstatusInfraccion
+- idDelegacion
+- placas
+- nombreInfractor
+- page
+- limit
+
+### Flujo operativo
+
+GET /infracciones/:idInfraccion/flujo
+
+Devuelve:
+- infraccion
+- motivos
+- pagos
+- liberaciones
+- retenciones
+- salidas
+- movimientos
+
+### Movimientos
+
+GET /infracciones/:idInfraccion/movimientos
+
+### Resumen por estatus
+
+GET /infracciones/resumen/estatus
+
 ## Motivos de infraccion
 
 - Una infraccion puede tener uno o varios motivos

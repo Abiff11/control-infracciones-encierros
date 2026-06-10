@@ -19,4 +19,7 @@ async function bootstrap() {
 
   await app.listen(port);
 }
-bootstrap();
+bootstrap().catch((error: unknown) => {
+  console.error(error);
+  process.exit(1);
+});
