@@ -72,3 +72,4 @@ git status
 - Las migraciones del backend viven en `backend/infracciones-api/src/database/migrations`
 - Los scripts SQL generales viven en `database/sql`
 - `DB_SYNCHRONIZE` debe permanecer en `false` para trabajo formal
+- Los catalogos vehiculares y operativos se modelan por migraciones

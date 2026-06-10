@@ -40,6 +40,7 @@ npm run migration:revert
 
 - Las migraciones viven en `src/database/migrations`
 - El CLI usa `typeorm-ts-node-commonjs` para correr archivos TypeScript con el module resolution actual del backend
+- Ejecutar migraciones con `DB_SYNCHRONIZE=false`
 - Comandos utiles:
 
 ```bash
@@ -47,3 +48,8 @@ npm run migration:show
 npm run migration:run
 npm run migration:revert
 ```
+
+## Catalogos operativos
+
+- Los catalogos operativos y vehiculares se modelan por migraciones
+- La carga de datos se deja para seed o interfaz administrativa posterior
