@@ -66,3 +66,9 @@ git status
 - `AppModule` no debe concentrar logica de negocio.
 - El frontend se organiza por features, shared, services y routes.
 - No usar URLs ni credenciales reales en el repositorio.
+
+## Base de datos
+
+- Las migraciones del backend viven en `backend/infracciones-api/src/database/migrations`
+- Los scripts SQL generales viven en `database/sql`
+- `DB_SYNCHRONIZE` debe permanecer en `false` para trabajo formal
