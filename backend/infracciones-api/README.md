@@ -55,6 +55,19 @@ npm run migration:show
 - `lugar_infraccion`
 - `motivo`
 
+## Seeds de catalogos
+
+- Para que el flujo automatico funcione, `estatus_infraccion` debe contener `PAGADA`, `LIBERACION_GENERADA` y `VEHICULO_ENTREGADO`
+- Ejecutar con:
+
+```bash
+npm run seed:estatus
+```
+
+- El seed es idempotente
+- No crea tablas ni modifica la estructura
+- Solo inserta los registros faltantes del catalogo
+
 ## Vehiculos
 
 - `vehiculo` depende de `clase_vehiculo`, `linea_vehiculo` y `servicio`
