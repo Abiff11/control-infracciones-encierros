@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
+import { normalizeDate } from '../../common/utils/normalize-date';
 import { Infraccion } from '../infracciones/entities/infraccion.entity';
 import { PagoInfraccion } from '../pagos/entities/pago-infraccion.entity';
 import { Usuario } from '../usuarios/entities/usuario.entity';
@@ -14,7 +15,7 @@ interface GenerarLiberacionParams {
   folioLiberacion: string;
   liberadoPor: string;
   nombreRecibeLiberacion: string;
-  fechaLiberacion?: Date;
+  fechaLiberacion?: string | Date;
   observacion?: string | null;
 }
 
@@ -59,12 +60,15 @@ export class LiberacionesService {
       pagoInfraccion: { idPagoInfraccion: params.idPagoInfraccion } as PagoInfraccion,
       usuarioLibera: { idUsuario: params.idUsuarioLibera } as Usuario,
       folioLiberacion: params.folioLiberacion,
-      fechaLiberacion: params.fechaLiberacion ?? new Date(),
+      fechaLiberacion: normalizeDate(params.fechaLiberacion),
       liberadoPor: params.liberadoPor,
       nombreRecibeLiberacion: params.nombreRecibeLiberacion,
       observacion: params.observacion ?? null,
     });
 
-    return this.liberacionesRepository.save(liberacion);
+    const savedLiberacion = await this.liberacionesRepository.save(liberacion);
+
+    // El cambio automatico de estatus a LIBERACION_GENERADA se conectara despues.
+    return savedLiberacion;
   }
 }

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { EstatusInfraccion } from '../catalogos/entities/estatus-infraccion.entity';
+import { normalizeDate } from '../../common/utils/normalize-date';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { InfraccionMotivo } from './entities/infraccion-motivo.entity';
 import { InfraccionMovimiento } from './entities/infraccion-movimiento.entity';
@@ -14,7 +15,7 @@ interface RegistrarMovimientoParams {
   idUsuario: number;
   accion: string;
   observaciones?: string | null;
-  fechaMovimiento?: Date;
+  fechaMovimiento?: string | Date;
 }
 
 @Injectable()
@@ -60,7 +61,7 @@ export class InfraccionesService {
       usuario: { idUsuario: params.idUsuario } as Usuario,
       accion: params.accion,
       observaciones: params.observaciones ?? null,
-      fechaMovimiento: params.fechaMovimiento ?? new Date(),
+      fechaMovimiento: normalizeDate(params.fechaMovimiento),
     });
 
     return this.infraccionMovimientosRepository.save(movimiento);
