@@ -1,4 +1,11 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+} from '@nestjs/common';
 
 import { RegistrarRetencionDto } from './dto/registrar-retencion.dto';
 import { RegistrarSalidaDto } from './dto/registrar-salida.dto';
@@ -8,14 +15,16 @@ import { EncierrosService } from './encierros.service';
 export class EncierrosController {
   constructor(private readonly encierrosService: EncierrosService) {}
 
+  @Get('retenciones/:idRetencionVehiculo')
+  findRetencionById(
+    @Param('idRetencionVehiculo', ParseIntPipe) idRetencionVehiculo: number,
+  ) {
+    return this.encierrosService.findRetencionByIdOrFail(idRetencionVehiculo);
+  }
+
   @Get(':idEncierro')
   findEncierroById(@Param('idEncierro', ParseIntPipe) idEncierro: number) {
     return this.encierrosService.findEncierroByIdOrFail(idEncierro);
-  }
-
-  @Get('retenciones/:idRetencionVehiculo')
-  findRetencionById(@Param('idRetencionVehiculo', ParseIntPipe) idRetencionVehiculo: number) {
-    return this.encierrosService.findRetencionByIdOrFail(idRetencionVehiculo);
   }
 
   @Post('retenciones')

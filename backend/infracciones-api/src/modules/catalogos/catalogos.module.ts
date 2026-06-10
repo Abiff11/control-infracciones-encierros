@@ -12,6 +12,11 @@ import { Region } from './entities/region.entity';
 import { Sexo } from './entities/sexo.entity';
 import { Servicio } from './entities/servicio.entity';
 import { TipoProcedimiento } from './entities/tipo-procedimiento.entity';
+import { Motivo } from '../motivos/entities/motivo.entity';
+import { Encierro } from '../encierros/entities/encierro.entity';
+import { Rol } from '../roles/entities/rol.entity';
+import { CatalogosController } from './catalogos.controller';
+import { CatalogosService } from './catalogos.service';
 
 @Module({
   imports: [
@@ -27,7 +32,13 @@ import { TipoProcedimiento } from './entities/tipo-procedimiento.entity';
       TipoProcedimiento,
       Operativo,
       LugarInfraccion,
+      Motivo,
+      Encierro,
+      Rol,
     ]),
   ],
+  controllers: [CatalogosController],
+  providers: [CatalogosService],
+  exports: [CatalogosService],
 })
 export class CatalogosModule {}

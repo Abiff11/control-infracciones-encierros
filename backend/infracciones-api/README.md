@@ -55,6 +55,30 @@ npm run migration:show
 - `lugar_infraccion`
 - `motivo`
 
+## Catalogos
+
+Endpoints disponibles:
+
+- GET /catalogos/regiones
+- GET /catalogos/delegaciones
+- GET /catalogos/delegaciones?idRegion=1
+- GET /catalogos/sexos
+- GET /catalogos/servicios
+- GET /catalogos/clases-vehiculo
+- GET /catalogos/marcas-vehiculo
+- GET /catalogos/lineas-vehiculo
+- GET /catalogos/lineas-vehiculo?idMarcaVehiculo=1
+- GET /catalogos/tipos-procedimiento
+- GET /catalogos/operativos
+- GET /catalogos/estatus-infraccion
+- GET /catalogos/motivos
+- GET /catalogos/encierros
+- GET /catalogos/roles
+
+Estos endpoints alimentan formularios, filtros y pantallas del frontend.
+No crean registros, solo exponen consultas de lectura.
+No modifican estructura de base de datos.
+
 ## Seeds de catalogos
 
 - Para que el flujo automatico funcione, `estatus_infraccion` debe contener `PAGADA`, `LIBERACION_GENERADA` y `VEHICULO_ENTREGADO`
