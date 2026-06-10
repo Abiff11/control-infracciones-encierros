@@ -8,14 +8,23 @@ node_modules/
 
 # Builds
 dist/
+build/
 coverage/
 
 # Logs
+logs/
 *.log
 npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Sistema / editor
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+
+# Temporales
+.tmp/
+.temp/
