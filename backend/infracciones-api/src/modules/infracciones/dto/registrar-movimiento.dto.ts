@@ -1,13 +1,20 @@
-import { IsDate, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 
 export class RegistrarMovimientoDto {
+  @Type(() => Number)
   @IsInt()
+  @Min(1)
   idInfraccion!: number;
 
+  @Type(() => Number)
   @IsInt()
+  @Min(1)
   idEstatusInfraccion!: number;
 
+  @Type(() => Number)
   @IsInt()
+  @Min(1)
   idUsuario!: number;
 
   @IsString()
@@ -19,6 +26,6 @@ export class RegistrarMovimientoDto {
   observaciones?: string | null;
 
   @IsOptional()
-  @IsDate()
-  fechaMovimiento?: Date;
+  @IsDateString()
+  fechaMovimiento?: string;
 }

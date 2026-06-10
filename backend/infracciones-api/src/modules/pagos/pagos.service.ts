@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
+import { normalizeDate } from '../../common/utils/normalize-date';
 import { Infraccion } from '../infracciones/entities/infraccion.entity';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { PagoInfraccion } from './entities/pago-infraccion.entity';
@@ -11,7 +12,7 @@ interface RegistrarPagoParams {
   idUsuarioRegistraPago: number;
   folioPago: string;
   monto: string;
-  fechaPago?: Date;
+  fechaPago?: string | Date;
   observaciones?: string | null;
 }
 
@@ -55,10 +56,13 @@ export class PagosService {
       usuarioRegistraPago: { idUsuario: params.idUsuarioRegistraPago } as Usuario,
       folioPago: params.folioPago,
       monto: params.monto,
-      fechaPago: params.fechaPago ?? new Date(),
+      fechaPago: normalizeDate(params.fechaPago),
       observaciones: params.observaciones ?? null,
     });
 
-    return this.pagosRepository.save(pago);
+    const savedPago = await this.pagosRepository.save(pago);
+
+    // El cambio automatico de estatus a PAGADA se conectara en un bloque posterior.
+    return savedPago;
   }
 }

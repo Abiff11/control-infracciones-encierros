@@ -1,13 +1,20 @@
-import { IsDate, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 
 export class RegistrarSalidaDto {
+  @Type(() => Number)
   @IsInt()
+  @Min(1)
   idRetencionVehiculo!: number;
 
+  @Type(() => Number)
   @IsInt()
+  @Min(1)
   idLiberacionVehiculo!: number;
 
+  @Type(() => Number)
   @IsInt()
+  @Min(1)
   idUsuarioValidaSalida!: number;
 
   @IsString()
@@ -23,8 +30,8 @@ export class RegistrarSalidaDto {
   estadoSalida!: string;
 
   @IsOptional()
-  @IsDate()
-  fechaSalida?: Date;
+  @IsDateString()
+  fechaSalida?: string;
 
   @IsOptional()
   @IsString()

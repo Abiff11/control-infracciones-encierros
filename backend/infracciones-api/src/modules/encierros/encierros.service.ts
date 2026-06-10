@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
+import { normalizeDate } from '../../common/utils/normalize-date';
 import { LiberacionVehiculo } from '../liberaciones/entities/liberacion-vehiculo.entity';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { Encierro } from './entities/encierro.entity';
@@ -12,7 +13,7 @@ interface RegistrarRetencionParams {
   idInfraccion: number;
   idEncierro: number;
   recibidoPor: string;
-  fechaIngreso?: Date;
+  fechaIngreso?: string | Date;
   folioResguardo?: string | null;
   observacionesIngreso?: string | null;
   estadoIngreso?: string | null;
@@ -24,7 +25,7 @@ interface RegistrarSalidaParams {
   idUsuarioValidaSalida: number;
   validadoPor: string;
   personaRecibeVehiculo: string;
-  fechaSalida?: Date;
+  fechaSalida?: string | Date;
   observacionesSalida?: string | null;
   estadoSalida: string;
 }
@@ -72,7 +73,7 @@ export class EncierrosService {
     const retencion = this.retencionesRepository.create({
       infraccion: { idInfraccion: params.idInfraccion },
       encierro: { idEncierro: params.idEncierro },
-      fechaIngreso: params.fechaIngreso ?? new Date(),
+      fechaIngreso: normalizeDate(params.fechaIngreso),
       recibidoPor: params.recibidoPor,
       folioResguardo: params.folioResguardo ?? null,
       observacionesIngreso: params.observacionesIngreso ?? null,
@@ -91,13 +92,16 @@ export class EncierrosService {
         idLiberacionVehiculo: params.idLiberacionVehiculo,
       } as LiberacionVehiculo,
       usuarioValidaSalida: { idUsuario: params.idUsuarioValidaSalida } as Usuario,
-      fechaSalida: params.fechaSalida ?? new Date(),
+      fechaSalida: normalizeDate(params.fechaSalida),
       validadoPor: params.validadoPor,
       personaRecibeVehiculo: params.personaRecibeVehiculo,
       observacionesSalida: params.observacionesSalida ?? null,
       estadoSalida: params.estadoSalida,
     });
 
-    return this.salidasRepository.save(salida);
+    const savedSalida = await this.salidasRepository.save(salida);
+
+    // El cambio automatico de estatus a VEHICULO_ENTREGADO se conectara despues.
+    return savedSalida;
   }
 }

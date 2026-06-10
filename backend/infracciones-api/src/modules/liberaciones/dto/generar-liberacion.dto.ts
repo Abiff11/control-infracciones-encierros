@@ -1,13 +1,20 @@
-import { IsDate, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 
 export class GenerarLiberacionDto {
+  @Type(() => Number)
   @IsInt()
+  @Min(1)
   idInfraccion!: number;
 
+  @Type(() => Number)
   @IsInt()
+  @Min(1)
   idPagoInfraccion!: number;
 
+  @Type(() => Number)
   @IsInt()
+  @Min(1)
   idUsuarioLibera!: number;
 
   @IsString()
@@ -23,8 +30,8 @@ export class GenerarLiberacionDto {
   nombreRecibeLiberacion!: string;
 
   @IsOptional()
-  @IsDate()
-  fechaLiberacion?: Date;
+  @IsDateString()
+  fechaLiberacion?: string;
 
   @IsOptional()
   @IsString()

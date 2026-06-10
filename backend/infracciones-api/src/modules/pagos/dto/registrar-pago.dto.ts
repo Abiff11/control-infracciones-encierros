@@ -1,10 +1,15 @@
-import { IsDate, IsInt, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Min } from 'class-validator';
 
 export class RegistrarPagoDto {
+  @Type(() => Number)
   @IsInt()
+  @Min(1)
   idInfraccion!: number;
 
+  @Type(() => Number)
   @IsInt()
+  @Min(1)
   idUsuarioRegistraPago!: number;
 
   @IsString()
@@ -16,8 +21,8 @@ export class RegistrarPagoDto {
   monto!: string;
 
   @IsOptional()
-  @IsDate()
-  fechaPago?: Date;
+  @IsDateString()
+  fechaPago?: string;
 
   @IsOptional()
   @IsString()
