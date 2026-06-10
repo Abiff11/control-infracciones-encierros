@@ -64,3 +64,8 @@ npm run migration:revert
 - La captura inicial arranca con `infractor` e `infracciones`
 - `clave_policia` queda como texto por ahora, no como FK
 - Los motivos se integraran despues con la tabla puente `infraccion_motivo`
+
+## Motivos de infraccion
+
+- Una infraccion puede tener uno o varios motivos
+- La relacion se modela con la tabla puente `infraccion_motivo`
