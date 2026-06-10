@@ -8,6 +8,11 @@ Base del sistema de control de infracciones y encierros.
 - Frontend: Vite, React, TypeScript
 - Infraestructura local: Docker Compose
 
+## Versiones recomendadas
+
+- Node: `>=22.13`
+- npm: `>=10`
+
 ## Estructura
 
 ```text
