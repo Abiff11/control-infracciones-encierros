@@ -1,81 +1,98 @@
-# control-infracciones-encierros
+# Control de infracciones y encierros
 
-Base del sistema de control de infracciones y encierros.
-
-## Stack
-
-- Backend: NestJS, TypeScript, PostgreSQL, TypeORM
-- Frontend: Vite, React, TypeScript
-- Infraestructura local: Docker Compose
-
-## Versiones recomendadas
-
-- Node: `>=22.13`
-- npm: `>=10`
+Sistema para registrar, consultar y controlar infracciones de tránsito, retención vehicular, encierros, pagos, liberaciones y salida de vehículos.
 
 ## Estructura
 
 ```text
 control-infracciones-encierros/
-|-- backend/
-|   `-- infracciones-api/
-|-- frontend/
-|   `-- infracciones-web/
-|-- docs/
-|   |-- DER/
-|   |-- diccionario-datos/
-|   `-- flujo-operativo/
-|-- database/
-|   |-- sql/
-|   `-- backups/
-|-- docker-compose.yml
-|-- .env.example
-|-- .gitignore
-`-- README.md
+├── backend/
+│   └── infracciones-api/
+├── frontend/
+│   └── infracciones-web/
+├── database/
+│   ├── migrations/
+│   ├── seeds/
+│   └── sql/
+├── docs/
+│   ├── DER/
+│   ├── diccionario-datos/
+│   └── especificaciones/
+└── docker-compose.yml
 ```
 
-## Comandos
+## Stack previsto
 
-Backend:
+- Backend: NestJS
+- Frontend: React
+- Base de datos: PostgreSQL
+- ORM: TypeORM
+- Contenedores: Docker Compose
+
+## Backend
+
+Ruta:
 
 ```bash
-cd backend/infracciones-api
+backend/infracciones-api
+```
+
+Comandos base:
+
+```bash
 npm install
 npm run build
 npm run test
 ```
 
-Frontend:
+## Frontend
+
+Ruta:
 
 ```bash
-cd frontend/infracciones-web
+frontend/infracciones-web
+```
+
+Comandos base:
+
+```bash
 npm install
-npm run build
+npm run dev
 ```
 
-Estado del repositorio:
+## Docker local
 
-```bash
-git status
-```
+Servicio actual:
 
-## Reglas del scaffold
+- `postgres_infracciones`
 
-- No implementar CRUD, auth, entidades completas ni pantallas funcionales en este bloque.
-- `DB_SYNCHRONIZE` debe venir de variables de entorno.
-- `AppModule` no debe concentrar logica de negocio.
-- El frontend se organiza por features, shared, services y routes.
-- No usar URLs ni credenciales reales en el repositorio.
+Base de datos local:
+
+- `control_infracciones_db`
+
+Puerto local:
+
+- `5434`
+
+## Reglas de desarrollo
+
+- No usar credenciales reales en el repositorio.
+- No tocar la base de datos del sistema de Personal.
+- No usar `synchronize: true` fijo en código.
+- `DB_SYNCHRONIZE` debe controlarse por variable de entorno.
+- Durante desarrollo, las entidades se modelan en codigo fuente y las migraciones definitivas se generan o consolidan al final.
+- No agregar migraciones nuevas por cada bloque de entidad mientras el modelo siga en construcción.
 
 ## Base de datos
 
-- Las migraciones del backend viven en `backend/infracciones-api/src/database/migrations`
-- Los scripts SQL generales viven en `database/sql`
-- `DB_SYNCHRONIZE` debe permanecer en `false` para trabajo formal
-- Durante desarrollo, las entidades se modelan en codigo fuente y las migraciones definitivas se generan o consolidan al final
-- Los catalogos vehiculares y operativos se modelan por migraciones
-- El modelo vehicular se construye por migraciones
-- El nucleo de captura inicia con `infractor` e `infracciones`
-- Los motivos se conectan a las infracciones mediante `infraccion_motivo`
-- La entrada a encierro se modela con `retencion_vehiculo`
-- Los pagos se modelan con `pago_infraccion`
+- Las migraciones del backend viven en `backend/infracciones-api/src/database/migrations`.
+- Los scripts SQL generales viven en `database/sql`.
+- `DB_SYNCHRONIZE` debe permanecer en `false` para trabajo formal.
+- Las migraciones ya existentes se conservarán por ahora y podrán consolidarse al cierre del modelo.
+- Los catalogos vehiculares y operativos ya están modelados.
+- El modelo vehicular ya está modelado.
+- El nucleo de captura inicia con `infractor` e `infracciones`.
+- Los motivos se conectan a las infracciones mediante `infraccion_motivo`.
+- La entrada a encierro se modela con `retencion_vehiculo`.
+- Los pagos se modelan con `pago_infraccion`.
+- Las liberaciones se modelan con `liberacion_vehiculo`.
