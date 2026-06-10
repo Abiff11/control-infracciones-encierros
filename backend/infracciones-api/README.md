@@ -53,3 +53,8 @@ npm run migration:revert
 
 - Los catalogos operativos y vehiculares se modelan por migraciones
 - La carga de datos se deja para seed o interfaz administrativa posterior
+
+## Vehiculo
+
+- La entidad `vehiculo` depende de `servicio`, `clase_vehiculo` y `linea_vehiculo`
+- La marca se resuelve por `linea_vehiculo`
