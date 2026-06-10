@@ -3,6 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { normalizeDate } from '../../common/utils/normalize-date';
+import { ACCION_MOVIMIENTO } from '../infracciones/constants/accion-movimiento.constants';
+import { ESTATUS_INFRACCION } from '../infracciones/constants/estatus-infraccion.constants';
+import { InfraccionesService } from '../infracciones/infracciones.service';
 import { Infraccion } from '../infracciones/entities/infraccion.entity';
 import { PagoInfraccion } from '../pagos/entities/pago-infraccion.entity';
 import { Usuario } from '../usuarios/entities/usuario.entity';
@@ -24,6 +27,7 @@ export class LiberacionesService {
   constructor(
     @InjectRepository(LiberacionVehiculo)
     private readonly liberacionesRepository: Repository<LiberacionVehiculo>,
+    private readonly infraccionesService: InfraccionesService,
   ) {}
 
   async findByIdOrFail(idLiberacionVehiculo: number): Promise<LiberacionVehiculo> {
@@ -68,7 +72,15 @@ export class LiberacionesService {
 
     const savedLiberacion = await this.liberacionesRepository.save(liberacion);
 
-    // El cambio automatico de estatus a LIBERACION_GENERADA se conectara despues.
+    await this.infraccionesService.actualizarEstatusYRegistrarMovimiento({
+      idInfraccion: params.idInfraccion,
+      nombreEstatus: ESTATUS_INFRACCION.LIBERACION_GENERADA,
+      idUsuario: params.idUsuarioLibera,
+      accion: ACCION_MOVIMIENTO.LIBERACION_GENERADA,
+      observaciones: `Liberacion generada con folio ${params.folioLiberacion}`,
+      fechaMovimiento: params.fechaLiberacion,
+    });
+
     return savedLiberacion;
   }
 }

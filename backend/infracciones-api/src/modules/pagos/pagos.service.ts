@@ -3,6 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { normalizeDate } from '../../common/utils/normalize-date';
+import { ACCION_MOVIMIENTO } from '../infracciones/constants/accion-movimiento.constants';
+import { ESTATUS_INFRACCION } from '../infracciones/constants/estatus-infraccion.constants';
+import { InfraccionesService } from '../infracciones/infracciones.service';
 import { Infraccion } from '../infracciones/entities/infraccion.entity';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { PagoInfraccion } from './entities/pago-infraccion.entity';
@@ -21,6 +24,7 @@ export class PagosService {
   constructor(
     @InjectRepository(PagoInfraccion)
     private readonly pagosRepository: Repository<PagoInfraccion>,
+    private readonly infraccionesService: InfraccionesService,
   ) {}
 
   async findByIdOrFail(idPagoInfraccion: number): Promise<PagoInfraccion> {
@@ -62,7 +66,15 @@ export class PagosService {
 
     const savedPago = await this.pagosRepository.save(pago);
 
-    // El cambio automatico de estatus a PAGADA se conectara en un bloque posterior.
+    await this.infraccionesService.actualizarEstatusYRegistrarMovimiento({
+      idInfraccion: params.idInfraccion,
+      nombreEstatus: ESTATUS_INFRACCION.PAGADA,
+      idUsuario: params.idUsuarioRegistraPago,
+      accion: ACCION_MOVIMIENTO.PAGO_REGISTRADO,
+      observaciones: `Pago registrado con folio ${params.folioPago}`,
+      fechaMovimiento: params.fechaPago,
+    });
+
     return savedPago;
   }
 }

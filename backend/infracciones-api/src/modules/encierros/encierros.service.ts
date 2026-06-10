@@ -3,6 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { normalizeDate } from '../../common/utils/normalize-date';
+import { ACCION_MOVIMIENTO } from '../infracciones/constants/accion-movimiento.constants';
+import { ESTATUS_INFRACCION } from '../infracciones/constants/estatus-infraccion.constants';
+import { InfraccionesService } from '../infracciones/infracciones.service';
 import { LiberacionVehiculo } from '../liberaciones/entities/liberacion-vehiculo.entity';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { Encierro } from './entities/encierro.entity';
@@ -39,6 +42,7 @@ export class EncierrosService {
     private readonly retencionesRepository: Repository<RetencionVehiculo>,
     @InjectRepository(SalidaVehiculo)
     private readonly salidasRepository: Repository<SalidaVehiculo>,
+    private readonly infraccionesService: InfraccionesService,
   ) {}
 
   async findEncierroByIdOrFail(idEncierro: number): Promise<Encierro> {
@@ -101,7 +105,17 @@ export class EncierrosService {
 
     const savedSalida = await this.salidasRepository.save(salida);
 
-    // El cambio automatico de estatus a VEHICULO_ENTREGADO se conectara despues.
+    const retencion = await this.findRetencionByIdOrFail(params.idRetencionVehiculo);
+
+    await this.infraccionesService.actualizarEstatusYRegistrarMovimiento({
+      idInfraccion: retencion.infraccion.idInfraccion,
+      nombreEstatus: ESTATUS_INFRACCION.VEHICULO_ENTREGADO,
+      idUsuario: params.idUsuarioValidaSalida,
+      accion: ACCION_MOVIMIENTO.VEHICULO_ENTREGADO,
+      observaciones: 'Salida vehicular registrada',
+      fechaMovimiento: params.fechaSalida,
+    });
+
     return savedSalida;
   }
 }

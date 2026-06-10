@@ -79,16 +79,22 @@ npm run migration:show
 ## Pago de infraccion
 
 - `pago_infraccion` registra el pago asociado a una infraccion
-- El cambio de estatus a `PAGADA` se implementara despues en la logica de servicio
+- El cambio de estatus a `PAGADA` ya se ejecuta automaticamente al registrar el pago
+- El catalogo `estatus_infraccion` debe contener `PAGADA`, `LIBERACION_GENERADA` y `VEHICULO_ENTREGADO`
+- No se agregan migraciones en este bloque
 
 ## Liberacion vehicular
 
 - `liberacion_vehiculo` registra la liberacion posterior al pago de una infraccion
 - La liberacion queda ligada a la infraccion, al pago y al usuario que libera
-- El cambio de estatus a `LIBERACION_GENERADA` se implementara despues en la logica de servicio
+- El cambio de estatus a `LIBERACION_GENERADA` ya se ejecuta automaticamente al generar la liberacion
+- El catalogo `estatus_infraccion` debe contener `PAGADA`, `LIBERACION_GENERADA` y `VEHICULO_ENTREGADO`
+- No se agregan migraciones en este bloque
 
 ## Salida vehicular
 
 - `salida_vehiculo` registra la entrega fisica del vehiculo en el encierro
 - La salida queda ligada a la retencion vehicular, a la liberacion y al usuario que valida la salida
-- El cambio de estatus a `VEHICULO_ENTREGADO` se implementara despues en la logica de servicio
+- El cambio de estatus a `VEHICULO_ENTREGADO` ya se ejecuta automaticamente al registrar la salida
+- El catalogo `estatus_infraccion` debe contener `PAGADA`, `LIBERACION_GENERADA` y `VEHICULO_ENTREGADO`
+- No se agregan migraciones en este bloque

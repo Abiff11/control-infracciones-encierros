@@ -1,0 +1,8 @@
+export const ESTATUS_INFRACCION = {
+  PAGADA: 'PAGADA',
+  LIBERACION_GENERADA: 'LIBERACION_GENERADA',
+  VEHICULO_ENTREGADO: 'VEHICULO_ENTREGADO',
+} as const;
+
+export type EstatusInfraccionNombre =
+  (typeof ESTATUS_INFRACCION)[keyof typeof ESTATUS_INFRACCION];
