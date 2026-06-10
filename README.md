@@ -77,3 +77,4 @@ git status
 - El nucleo de captura inicia con `infractor` e `infracciones`
 - Los motivos se conectan a las infracciones mediante `infraccion_motivo`
 - La entrada a encierro se modela con `retencion_vehiculo`
+- Los pagos se modelan con `pago_infraccion`

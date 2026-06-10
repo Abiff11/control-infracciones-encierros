@@ -74,3 +74,8 @@ npm run migration:revert
 
 - `retencion_vehiculo` registra la entrada fisica del vehiculo al encierro
 - El vehiculo se obtiene mediante la infraccion asociada
+
+## Pago de infraccion
+
+- `pago_infraccion` registra el pago asociado a una infraccion
+- El cambio de estatus a `PAGADA` se implementara despues en la logica de servicio
