@@ -76,3 +76,4 @@ git status
 - El modelo vehicular se construye por migraciones
 - El nucleo de captura inicia con `infractor` e `infracciones`
 - Los motivos se conectan a las infracciones mediante `infraccion_motivo`
+- La entrada a encierro se modela con `retencion_vehiculo`
