@@ -97,3 +97,4 @@ Puerto local:
 - Los pagos se modelan con `pago_infraccion`.
 - Las liberaciones se modelan con `liberacion_vehiculo`.
 - La salida del vehículo se modela con `salida_vehiculo`.
+- El historial del flujo se modela con `infraccion_movimiento`.
