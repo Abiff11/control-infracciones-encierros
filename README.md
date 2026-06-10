@@ -74,3 +74,4 @@ git status
 - `DB_SYNCHRONIZE` debe permanecer en `false` para trabajo formal
 - Los catalogos vehiculares y operativos se modelan por migraciones
 - El modelo vehicular se construye por migraciones
+- El nucleo de captura inicia con `infractor` e `infracciones`

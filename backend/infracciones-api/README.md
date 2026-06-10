@@ -58,3 +58,9 @@ npm run migration:revert
 
 - La entidad `vehiculo` depende de `servicio`, `clase_vehiculo` y `linea_vehiculo`
 - La marca se resuelve por `linea_vehiculo`
+
+## Infracciones base
+
+- La captura inicial arranca con `infractor` e `infracciones`
+- `clave_policia` queda como texto por ahora, no como FK
+- Los motivos se integraran despues con la tabla puente `infraccion_motivo`
