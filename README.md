@@ -73,3 +73,4 @@ git status
 - Los scripts SQL generales viven en `database/sql`
 - `DB_SYNCHRONIZE` debe permanecer en `false` para trabajo formal
 - Los catalogos vehiculares y operativos se modelan por migraciones
+- El modelo vehicular se construye por migraciones
