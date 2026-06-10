@@ -6,13 +6,16 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateInfraccionCompletaDto } from './dto/create-infraccion-completa.dto';
 import { FindInfraccionesQueryDto } from './dto/find-infracciones-query.dto';
 import { RegistrarMovimientoDto } from './dto/registrar-movimiento.dto';
 import { InfraccionesService } from './infracciones.service';
 
+@UseGuards(JwtAuthGuard)
 @Controller('infracciones')
 export class InfraccionesController {
   constructor(private readonly infraccionesService: InfraccionesService) {}

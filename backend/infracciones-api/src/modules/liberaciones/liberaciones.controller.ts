@@ -5,11 +5,14 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GenerarLiberacionDto } from './dto/generar-liberacion.dto';
 import { LiberacionesService } from './liberaciones.service';
 
+@UseGuards(JwtAuthGuard)
 @Controller('liberaciones')
 export class LiberacionesController {
   constructor(private readonly liberacionesService: LiberacionesService) {}

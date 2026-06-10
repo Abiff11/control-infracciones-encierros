@@ -5,11 +5,14 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RegistrarPagoDto } from './dto/registrar-pago.dto';
 import { PagosService } from './pagos.service';
 
+@UseGuards(JwtAuthGuard)
 @Controller('pagos')
 export class PagosController {
   constructor(private readonly pagosService: PagosService) {}

@@ -133,6 +133,31 @@ Authorization: Bearer <token>
 
 No se devuelve `passwordHash`.
 
+## Proteccion de endpoints
+
+A partir de este bloque, los endpoints operativos requieren JWT.
+
+Enviar header:
+
+```txt
+Authorization: Bearer <token>
+```
+
+Endpoints publicos:
+
+- POST /auth/login
+- GET /catalogos/*
+
+Endpoints protegidos:
+
+- GET /auth/profile
+- /infracciones/*
+- /pagos/*
+- /liberaciones/*
+- /encierros/*
+
+En este bloque todavia no se validan permisos por rol; solo se exige un token JWT valido.
+
 ## Seeds de catalogos
 
 - Para que el flujo automatico funcione, `estatus_infraccion` debe contener `PAGADA`, `LIBERACION_GENERADA` y `VEHICULO_ENTREGADO`
