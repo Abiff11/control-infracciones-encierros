@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 
 export class RegistrarMovimientoDto {
   @Type(() => Number)
@@ -18,6 +18,7 @@ export class RegistrarMovimientoDto {
   idUsuario!: number;
 
   @IsString()
+  @IsNotEmpty()
   accion!: string;
 
   @IsOptional()

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsOptional, IsString, Matches, Min } from 'class-validator';
+import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Min } from 'class-validator';
 
 export class RegistrarPagoDto {
   @Type(() => Number)
@@ -13,6 +13,7 @@ export class RegistrarPagoDto {
   idUsuarioRegistraPago!: number;
 
   @IsString()
+  @IsNotEmpty()
   folioPago!: string;
 
   @IsString()

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 
 export class RegistrarSalidaDto {
   @Type(() => Number)
@@ -18,12 +18,15 @@ export class RegistrarSalidaDto {
   idUsuarioValidaSalida!: number;
 
   @IsString()
+  @IsNotEmpty()
   validadoPor!: string;
 
   @IsString()
+  @IsNotEmpty()
   personaRecibeVehiculo!: string;
 
   @IsString()
+  @IsNotEmpty()
   estadoSalida!: string;
 
   @IsOptional()

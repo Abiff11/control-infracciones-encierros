@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 
 export class RegistrarRetencionDto {
   @Type(() => Number)
@@ -13,6 +13,7 @@ export class RegistrarRetencionDto {
   idEncierro!: number;
 
   @IsString()
+  @IsNotEmpty()
   recibidoPor!: string;
 
   @IsOptional()

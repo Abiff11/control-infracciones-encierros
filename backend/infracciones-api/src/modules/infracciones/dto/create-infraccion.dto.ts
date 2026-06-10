@@ -3,6 +3,7 @@ import {
   IsArray,
   IsDateString,
   IsInt,
+  IsNotEmpty,
   IsOptional,
   IsString,
   Matches,
@@ -52,6 +53,7 @@ export class CreateInfraccionDto {
   idOperativo?: number | null;
 
   @IsString()
+  @IsNotEmpty()
   folioInfraccion!: string;
 
   @IsDateString()

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 
 export class GenerarLiberacionDto {
   @Type(() => Number)
@@ -18,12 +18,15 @@ export class GenerarLiberacionDto {
   idUsuarioLibera!: number;
 
   @IsString()
+  @IsNotEmpty()
   folioLiberacion!: string;
 
   @IsString()
+  @IsNotEmpty()
   liberadoPor!: string;
 
   @IsString()
+  @IsNotEmpty()
   nombreRecibeLiberacion!: string;
 
   @IsOptional()
