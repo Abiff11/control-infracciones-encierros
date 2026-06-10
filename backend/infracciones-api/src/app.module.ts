@@ -3,22 +3,17 @@ import { ConfigModule } from '@nestjs/config';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import appConfig from './config/app.config';
 import databaseConfig from './config/database.config';
 import { DatabaseModule } from './database/database.module';
-import { CatalogosModule } from './modules/catalogos/catalogos.module';
-import { RolesModule } from './modules/roles/roles.module';
-import { UsuariosModule } from './modules/usuarios/usuarios.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig],
+      load: [appConfig, databaseConfig],
     }),
     DatabaseModule,
-    RolesModule,
-    UsuariosModule,
-    CatalogosModule,
   ],
   controllers: [AppController],
   providers: [AppService],
