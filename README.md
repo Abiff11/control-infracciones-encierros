@@ -75,3 +75,4 @@ git status
 - Los catalogos vehiculares y operativos se modelan por migraciones
 - El modelo vehicular se construye por migraciones
 - El nucleo de captura inicia con `infractor` e `infracciones`
+- Los motivos se conectan a las infracciones mediante `infraccion_motivo`
