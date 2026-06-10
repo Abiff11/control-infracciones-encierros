@@ -1,25 +1,22 @@
-# infracciones-api
+# Infracciones API
 
-API NestJS del sistema de control de infracciones y encierros.
+Backend NestJS para el sistema Control de infracciones y encierros.
 
-## Stack
-
-- NestJS
-- TypeScript
-- PostgreSQL
-- TypeORM
-
-## Estructura base
-
-- `src/config`: configuracion centralizada de aplicacion y base de datos
-- `src/database`: modulo de conexion, `data-source` y carpetas de migraciones y seeds
-- `src/common`: utilidades compartidas para futuras capas transversales
-- `src/modules`: modulos funcionales separados por dominio
-
-## Comandos
+## Instalacion
 
 ```bash
 npm install
+```
+
+## Ejecucion local
+
+```bash
+npm run start:dev
+```
+
+## Validacion
+
+```bash
 npm run build
 npm run test
 npm run migration:show
@@ -27,12 +24,13 @@ npm run migration:show
 
 ## Reglas del scaffold
 
-- `ConfigModule` se carga de forma global.
-- `DatabaseModule` vive separado de `AppModule`.
-- `TypeORM` lee `synchronize` desde `DB_SYNCHRONIZE`.
-- Para trabajo formal, dejar `DB_SYNCHRONIZE=false`.
-- No se agrega logica de negocio en este bloque.
-- No se toca la base de datos de Personal.
+- La configuracion se centraliza en `src/config`
+- Los modulos viven en `src/modules`
+- Las migraciones viven en `src/database/migrations`
+- Los seeds viven en `src/database/seeds`
+- No usar `synchronize: true` fijo en codigo
+- `DB_SYNCHRONIZE` se controla por variable de entorno
+- No usar credenciales reales en archivos versionados
 
 ## Migraciones
 
@@ -48,19 +46,25 @@ npm run migration:show
 
 ## Catalogos operativos
 
-- Los catalogos operativos y vehiculares se modelan por migraciones
-- La carga de datos se deja para seed o interfaz administrativa posterior
+- `servicio`
+- `clase_vehiculo`
+- `marca_vehiculo`
+- `linea_vehiculo`
+- `tipo_procedimiento`
+- `operativo`
+- `lugar_infraccion`
+- `motivo`
 
-## Vehiculo
+## Vehiculos
 
-- La entidad `vehiculo` depende de `servicio`, `clase_vehiculo` y `linea_vehiculo`
-- La marca se resuelve por `linea_vehiculo`
+- `vehiculo` depende de `clase_vehiculo`, `linea_vehiculo` y `servicio`
+- La marca del vehiculo se obtiene por medio de `linea_vehiculo`
 
-## Infracciones base
+## Captura base
 
 - La captura inicial arranca con `infractor` e `infracciones`
 - `clave_policia` queda como texto por ahora, no como FK
-- Los motivos se integraran despues con la tabla puente `infraccion_motivo`
+- Los motivos se integran con la tabla puente `infraccion_motivo`
 
 ## Motivos de infraccion
 
@@ -76,3 +80,9 @@ npm run migration:show
 
 - `pago_infraccion` registra el pago asociado a una infraccion
 - El cambio de estatus a `PAGADA` se implementara despues en la logica de servicio
+
+## Liberacion vehicular
+
+- `liberacion_vehiculo` registra la liberacion posterior al pago de una infraccion
+- La liberacion queda ligada a la infraccion, al pago y al usuario que libera
+- El cambio de estatus a `LIBERACION_GENERADA` se implementara despues en la logica de servicio
