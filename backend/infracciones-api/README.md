@@ -79,6 +79,60 @@ Estos endpoints alimentan formularios, filtros y pantallas del frontend.
 No crean registros, solo exponen consultas de lectura.
 No modifican estructura de base de datos.
 
+## Autenticacion JWT
+
+Variables necesarias:
+
+```env
+JWT_SECRET=change_me_in_local_dev
+JWT_EXPIRES_IN=8h
+```
+
+### Login
+
+POST /auth/login
+
+Body:
+
+```json
+{
+  "email": "admin@example.com",
+  "password": "password"
+}
+```
+
+Respuesta:
+
+```json
+{
+  "accessToken": "jwt",
+  "tokenType": "Bearer",
+  "expiresIn": "8h",
+  "usuario": {
+    "idUsuario": 1,
+    "nombreUsuario": "Administrador",
+    "email": "admin@example.com",
+    "activo": true,
+    "rol": {
+      "idRol": 1,
+      "nombreRol": "ADMIN"
+    }
+  }
+}
+```
+
+### Perfil autenticado
+
+GET /auth/profile
+
+Header:
+
+```txt
+Authorization: Bearer <token>
+```
+
+No se devuelve `passwordHash`.
+
 ## Seeds de catalogos
 
 - Para que el flujo automatico funcione, `estatus_infraccion` debe contener `PAGADA`, `LIBERACION_GENERADA` y `VEHICULO_ENTREGADO`
