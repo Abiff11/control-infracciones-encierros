@@ -72,6 +72,7 @@ git status
 - Las migraciones del backend viven en `backend/infracciones-api/src/database/migrations`
 - Los scripts SQL generales viven en `database/sql`
 - `DB_SYNCHRONIZE` debe permanecer en `false` para trabajo formal
+- Durante desarrollo, las entidades se modelan en codigo fuente y las migraciones definitivas se generan o consolidan al final
 - Los catalogos vehiculares y operativos se modelan por migraciones
 - El modelo vehicular se construye por migraciones
 - El nucleo de captura inicia con `infractor` e `infracciones`
