@@ -22,6 +22,9 @@ API NestJS del sistema de control de infracciones y encierros.
 npm install
 npm run build
 npm run test
+npm run migration:show
+npm run migration:run
+npm run migration:revert
 ```
 
 ## Reglas del scaffold
@@ -29,5 +32,18 @@ npm run test
 - `ConfigModule` se carga de forma global.
 - `DatabaseModule` vive separado de `AppModule`.
 - `TypeORM` lee `synchronize` desde `DB_SYNCHRONIZE`.
+- Para trabajo formal, dejar `DB_SYNCHRONIZE=false`.
 - No se agrega logica de negocio en este bloque.
 - No se toca la base de datos de Personal.
+
+## Migraciones
+
+- Las migraciones viven en `src/database/migrations`
+- El CLI usa `typeorm-ts-node-commonjs` para correr archivos TypeScript con el module resolution actual del backend
+- Comandos utiles:
+
+```bash
+npm run migration:show
+npm run migration:run
+npm run migration:revert
+```

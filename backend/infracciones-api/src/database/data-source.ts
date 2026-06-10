@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 import { join } from 'node:path';
 import { DataSource, type DataSourceOptions } from 'typeorm';
 
