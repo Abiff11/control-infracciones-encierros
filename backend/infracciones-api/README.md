@@ -69,3 +69,8 @@ npm run migration:revert
 
 - Una infraccion puede tener uno o varios motivos
 - La relacion se modela con la tabla puente `infraccion_motivo`
+
+## Retencion vehicular
+
+- `retencion_vehiculo` registra la entrada fisica del vehiculo al encierro
+- El vehiculo se obtiene mediante la infraccion asociada
