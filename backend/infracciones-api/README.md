@@ -23,8 +23,6 @@ npm install
 npm run build
 npm run test
 npm run migration:show
-npm run migration:run
-npm run migration:revert
 ```
 
 ## Reglas del scaffold
@@ -40,13 +38,12 @@ npm run migration:revert
 
 - Las migraciones viven en `src/database/migrations`
 - El CLI usa `typeorm-ts-node-commonjs` para correr archivos TypeScript con el module resolution actual del backend
-- Ejecutar migraciones con `DB_SYNCHRONIZE=false`
-- Comandos utiles:
+- Durante desarrollo, las entidades se modelan en codigo fuente y las migraciones definitivas se generan o consolidan al final
+- Ejecutar migraciones con `DB_SYNCHRONIZE=false` cuando corresponda a una etapa formal de persistencia
+- Comando util:
 
 ```bash
 npm run migration:show
-npm run migration:run
-npm run migration:revert
 ```
 
 ## Catalogos operativos
@@ -74,3 +71,8 @@ npm run migration:revert
 
 - `retencion_vehiculo` registra la entrada fisica del vehiculo al encierro
 - El vehiculo se obtiene mediante la infraccion asociada
+
+## Pago de infraccion
+
+- `pago_infraccion` registra el pago asociado a una infraccion
+- El cambio de estatus a `PAGADA` se implementara despues en la logica de servicio
