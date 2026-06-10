@@ -96,3 +96,4 @@ Puerto local:
 - La entrada a encierro se modela con `retencion_vehiculo`.
 - Los pagos se modelan con `pago_infraccion`.
 - Las liberaciones se modelan con `liberacion_vehiculo`.
+- La salida del vehículo se modela con `salida_vehiculo`.
