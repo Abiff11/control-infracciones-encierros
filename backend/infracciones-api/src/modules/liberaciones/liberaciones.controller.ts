@@ -7,6 +7,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { WRITE_ROLES } from '../auth/constants/roles.constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -17,17 +18,21 @@ import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
 import { GenerarLiberacionDto } from './dto/generar-liberacion.dto';
 import { LiberacionesService } from './liberaciones.service';
 
+@ApiTags('liberaciones')
+@ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RoleAuthGuard)
 @Controller('liberaciones')
 export class LiberacionesController {
   constructor(private readonly liberacionesService: LiberacionesService) {}
 
   @Get('infraccion/:idInfraccion')
+  @ApiOperation({ summary: 'Listar liberaciones por infracción' })
   findByInfraccion(@Param('idInfraccion', ParseIntPipe) idInfraccion: number) {
     return this.liberacionesService.findByInfraccion(idInfraccion);
   }
 
   @Get(':idLiberacionVehiculo')
+  @ApiOperation({ summary: 'Obtener liberación por id' })
   findById(
     @Param('idLiberacionVehiculo', ParseIntPipe) idLiberacionVehiculo: number,
   ) {
@@ -36,6 +41,7 @@ export class LiberacionesController {
 
   @Roles(...WRITE_ROLES)
   @Post()
+  @ApiOperation({ summary: 'Generar liberación vehicular' })
   generarLiberacion(
     @Body() generarLiberacionDto: GenerarLiberacionDto,
     @CurrentUser() currentUser: LoginResponseUsuarioDto,

@@ -22,6 +22,27 @@ npm run test
 npm run migration:show
 ```
 
+## Swagger / OpenAPI
+
+La documentacion interactiva esta disponible en:
+
+```txt
+http://localhost:3000/docs
+```
+
+Para probar endpoints protegidos:
+
+1. Ejecutar `POST /auth/login`.
+2. Copiar `accessToken`.
+3. Presionar `Authorize`.
+4. Ingresar:
+
+```txt
+Bearer <accessToken>
+```
+
+Swagger conserva el token durante la sesion por `persistAuthorization`.
+
 ## Reglas del scaffold
 
 - La configuracion se centraliza en `src/config`

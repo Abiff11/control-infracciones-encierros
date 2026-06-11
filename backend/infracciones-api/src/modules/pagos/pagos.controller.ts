@@ -7,6 +7,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { WRITE_ROLES } from '../auth/constants/roles.constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -17,23 +18,28 @@ import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
 import { RegistrarPagoDto } from './dto/registrar-pago.dto';
 import { PagosService } from './pagos.service';
 
+@ApiTags('pagos')
+@ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RoleAuthGuard)
 @Controller('pagos')
 export class PagosController {
   constructor(private readonly pagosService: PagosService) {}
 
   @Get('infraccion/:idInfraccion')
+  @ApiOperation({ summary: 'Listar pagos por infracción' })
   findByInfraccion(@Param('idInfraccion', ParseIntPipe) idInfraccion: number) {
     return this.pagosService.findByInfraccion(idInfraccion);
   }
 
   @Get(':idPagoInfraccion')
+  @ApiOperation({ summary: 'Obtener pago por id' })
   findById(@Param('idPagoInfraccion', ParseIntPipe) idPagoInfraccion: number) {
     return this.pagosService.findByIdOrFail(idPagoInfraccion);
   }
 
   @Roles(...WRITE_ROLES)
   @Post()
+  @ApiOperation({ summary: 'Registrar pago de infracción' })
   registrarPago(
     @Body() registrarPagoDto: RegistrarPagoDto,
     @CurrentUser() currentUser: LoginResponseUsuarioDto,
