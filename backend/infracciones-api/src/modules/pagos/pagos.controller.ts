@@ -8,11 +8,14 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
+import { WRITE_ROLES } from '../auth/constants/roles.constants';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
 import { RegistrarPagoDto } from './dto/registrar-pago.dto';
 import { PagosService } from './pagos.service';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RoleAuthGuard)
 @Controller('pagos')
 export class PagosController {
   constructor(private readonly pagosService: PagosService) {}
@@ -27,6 +30,7 @@ export class PagosController {
     return this.pagosService.findByIdOrFail(idPagoInfraccion);
   }
 
+  @Roles(...WRITE_ROLES)
   @Post()
   registrarPago(@Body() registrarPagoDto: RegistrarPagoDto) {
     return this.pagosService.registrarPago(registrarPagoDto);
