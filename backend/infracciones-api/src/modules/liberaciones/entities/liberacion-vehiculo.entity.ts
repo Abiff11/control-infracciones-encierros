@@ -1,4 +1,10 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 
 import { Infraccion } from '../../infracciones/entities/infraccion.entity';
 import { PagoInfraccion } from '../../pagos/entities/pago-infraccion.entity';

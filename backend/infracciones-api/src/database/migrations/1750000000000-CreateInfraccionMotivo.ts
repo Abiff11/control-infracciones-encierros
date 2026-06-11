@@ -1,9 +1,17 @@
-import { MigrationInterface, QueryRunner, Table, TableForeignKey, TableIndex } from 'typeorm';
+import {
+  MigrationInterface,
+  QueryRunner,
+  Table,
+  TableForeignKey,
+  TableIndex,
+} from 'typeorm';
 
 const TABLE_NAME = 'infraccion_motivo';
 
-const FK_INFRACCION_MOTIVO_INFRACCION = 'FK_infraccion_motivo_id_infraccion_infracciones_id_infraccion';
-const FK_INFRACCION_MOTIVO_MOTIVO = 'FK_infraccion_motivo_id_motivo_motivo_id_motivo';
+const FK_INFRACCION_MOTIVO_INFRACCION =
+  'FK_infraccion_motivo_id_infraccion_infracciones_id_infraccion';
+const FK_INFRACCION_MOTIVO_MOTIVO =
+  'FK_infraccion_motivo_id_motivo_motivo_id_motivo';
 
 const IDX_INFRACCION_MOTIVO_INFRACCION = 'IDX_infraccion_motivo_id_infraccion';
 const IDX_INFRACCION_MOTIVO_MOTIVO = 'IDX_infraccion_motivo_id_motivo';
@@ -89,10 +97,15 @@ export class CreateInfraccionMotivo1750000000000 implements MigrationInterface {
     await queryRunner.dropIndex(TABLE_NAME, IDX_INFRACCION_MOTIVO_INFRACCION);
 
     const table = await queryRunner.getTable(TABLE_NAME);
-    const foreignKeys = [FK_INFRACCION_MOTIVO_MOTIVO, FK_INFRACCION_MOTIVO_INFRACCION];
+    const foreignKeys = [
+      FK_INFRACCION_MOTIVO_MOTIVO,
+      FK_INFRACCION_MOTIVO_INFRACCION,
+    ];
 
     for (const foreignKeyName of foreignKeys) {
-      const foreignKey = table?.foreignKeys.find((candidate) => candidate.name === foreignKeyName);
+      const foreignKey = table?.foreignKeys.find(
+        (candidate) => candidate.name === foreignKeyName,
+      );
       if (foreignKey) {
         await queryRunner.dropForeignKey(TABLE_NAME, foreignKey);
       }

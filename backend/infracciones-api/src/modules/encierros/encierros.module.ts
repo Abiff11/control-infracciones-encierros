@@ -9,7 +9,10 @@ import { RetencionVehiculo } from './entities/retencion-vehiculo.entity';
 import { SalidaVehiculo } from './entities/salida-vehiculo.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Encierro, RetencionVehiculo, SalidaVehiculo]), InfraccionesModule],
+  imports: [
+    TypeOrmModule.forFeature([Encierro, RetencionVehiculo, SalidaVehiculo]),
+    InfraccionesModule,
+  ],
   controllers: [EncierrosController],
   providers: [EncierrosService],
   exports: [EncierrosService],

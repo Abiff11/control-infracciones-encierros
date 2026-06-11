@@ -1,4 +1,9 @@
-import { MigrationInterface, QueryRunner, Table, TableForeignKey } from 'typeorm';
+import {
+  MigrationInterface,
+  QueryRunner,
+  Table,
+  TableForeignKey,
+} from 'typeorm';
 
 const ROLES_TABLE = 'rol';
 const USERS_TABLE = 'usuarios';
@@ -233,7 +238,9 @@ export class CreateBaseCatalogsAndUsers1710000000000 implements MigrationInterfa
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     const usersTable = await queryRunner.getTable(USERS_TABLE);
-    const usersForeignKey = usersTable?.foreignKeys.find((foreignKey) => foreignKey.name === FK_USERS_ROLE);
+    const usersForeignKey = usersTable?.foreignKeys.find(
+      (foreignKey) => foreignKey.name === FK_USERS_ROLE,
+    );
     if (usersForeignKey) {
       await queryRunner.dropForeignKey(USERS_TABLE, usersForeignKey);
     }

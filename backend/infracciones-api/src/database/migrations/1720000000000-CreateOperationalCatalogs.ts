@@ -1,4 +1,9 @@
-import { MigrationInterface, QueryRunner, Table, TableForeignKey } from 'typeorm';
+import {
+  MigrationInterface,
+  QueryRunner,
+  Table,
+  TableForeignKey,
+} from 'typeorm';
 
 const SERVICE_TABLE = 'servicio';
 const VEHICLE_CLASS_TABLE = 'clase_vehiculo';
@@ -9,7 +14,8 @@ const OPERATION_TABLE = 'operativo';
 const INCIDENT_PLACE_TABLE = 'lugar_infraccion';
 const REASON_TABLE = 'motivo';
 
-const FK_VEHICLE_LINE_BRAND = 'FK_linea_vehiculo_id_marca_vehiculo_marca_vehiculo_id_marca_vehiculo';
+const FK_VEHICLE_LINE_BRAND =
+  'FK_linea_vehiculo_id_marca_vehiculo_marca_vehiculo_id_marca_vehiculo';
 
 export class CreateOperationalCatalogs1720000000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {

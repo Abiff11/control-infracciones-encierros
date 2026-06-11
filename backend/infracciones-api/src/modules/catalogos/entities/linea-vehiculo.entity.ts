@@ -1,4 +1,11 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  Unique,
+} from 'typeorm';
 
 import { MarcaVehiculo } from './marca-vehiculo.entity';
 

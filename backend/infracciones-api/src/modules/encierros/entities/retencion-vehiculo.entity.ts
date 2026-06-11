@@ -1,4 +1,10 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 
 import { Infraccion } from '../../infracciones/entities/infraccion.entity';
 import { Encierro } from './encierro.entity';
@@ -22,12 +28,22 @@ export class RetencionVehiculo {
   @Column({ name: 'recibido_por', type: 'varchar', length: 100 })
   recibidoPor!: string;
 
-  @Column({ name: 'folio_resguardo', type: 'varchar', length: 30, nullable: true })
+  @Column({
+    name: 'folio_resguardo',
+    type: 'varchar',
+    length: 30,
+    nullable: true,
+  })
   folioResguardo!: string | null;
 
   @Column({ name: 'observaciones_ingreso', type: 'text', nullable: true })
   observacionesIngreso!: string | null;
 
-  @Column({ name: 'estado_ingreso', type: 'varchar', length: 50, nullable: true })
+  @Column({
+    name: 'estado_ingreso',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
   estadoIngreso!: string | null;
 }

@@ -1,4 +1,10 @@
-import { MigrationInterface, QueryRunner, Table, TableForeignKey, TableIndex } from 'typeorm';
+import {
+  MigrationInterface,
+  QueryRunner,
+  Table,
+  TableForeignKey,
+  TableIndex,
+} from 'typeorm';
 
 const ENCIERRO_TABLE = 'encierro';
 const RETENCION_VEHICULO_TABLE = 'retencion_vehiculo';
@@ -7,12 +13,16 @@ const UQ_ENCIERRO_NOMBRE = 'UQ_encierro_nombre_encierro';
 
 const FK_RETENCION_VEHICULO_INFRACCION =
   'FK_retencion_vehiculo_id_infraccion_infracciones_id_infraccion';
-const FK_RETENCION_VEHICULO_ENCIERRO = 'FK_retencion_vehiculo_id_encierro_encierro_id_encierro';
+const FK_RETENCION_VEHICULO_ENCIERRO =
+  'FK_retencion_vehiculo_id_encierro_encierro_id_encierro';
 
-const IDX_RETENCION_VEHICULO_INFRACCION = 'IDX_retencion_vehiculo_id_infraccion';
+const IDX_RETENCION_VEHICULO_INFRACCION =
+  'IDX_retencion_vehiculo_id_infraccion';
 const IDX_RETENCION_VEHICULO_ENCIERRO = 'IDX_retencion_vehiculo_id_encierro';
-const IDX_RETENCION_VEHICULO_FECHA_INGRESO = 'IDX_retencion_vehiculo_fecha_ingreso';
-const IDX_RETENCION_VEHICULO_FOLIO_RESGUARDO = 'IDX_retencion_vehiculo_folio_resguardo';
+const IDX_RETENCION_VEHICULO_FECHA_INGRESO =
+  'IDX_retencion_vehiculo_fecha_ingreso';
+const IDX_RETENCION_VEHICULO_FOLIO_RESGUARDO =
+  'IDX_retencion_vehiculo_folio_resguardo';
 
 export class CreateEncierroAndRetencionVehiculo1760000000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -154,12 +164,26 @@ export class CreateEncierroAndRetencionVehiculo1760000000000 implements Migratio
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropIndex(RETENCION_VEHICULO_TABLE, IDX_RETENCION_VEHICULO_FOLIO_RESGUARDO);
-    await queryRunner.dropIndex(RETENCION_VEHICULO_TABLE, IDX_RETENCION_VEHICULO_FECHA_INGRESO);
-    await queryRunner.dropIndex(RETENCION_VEHICULO_TABLE, IDX_RETENCION_VEHICULO_ENCIERRO);
-    await queryRunner.dropIndex(RETENCION_VEHICULO_TABLE, IDX_RETENCION_VEHICULO_INFRACCION);
+    await queryRunner.dropIndex(
+      RETENCION_VEHICULO_TABLE,
+      IDX_RETENCION_VEHICULO_FOLIO_RESGUARDO,
+    );
+    await queryRunner.dropIndex(
+      RETENCION_VEHICULO_TABLE,
+      IDX_RETENCION_VEHICULO_FECHA_INGRESO,
+    );
+    await queryRunner.dropIndex(
+      RETENCION_VEHICULO_TABLE,
+      IDX_RETENCION_VEHICULO_ENCIERRO,
+    );
+    await queryRunner.dropIndex(
+      RETENCION_VEHICULO_TABLE,
+      IDX_RETENCION_VEHICULO_INFRACCION,
+    );
 
-    const retencionVehiculoTable = await queryRunner.getTable(RETENCION_VEHICULO_TABLE);
+    const retencionVehiculoTable = await queryRunner.getTable(
+      RETENCION_VEHICULO_TABLE,
+    );
     const retencionVehiculoForeignKeys = [
       FK_RETENCION_VEHICULO_ENCIERRO,
       FK_RETENCION_VEHICULO_INFRACCION,
