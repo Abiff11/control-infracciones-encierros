@@ -268,6 +268,7 @@ export class InfraccionesService {
 
   async crearInfraccionCompleta(
     dto: CreateInfraccionCompletaDto,
+    idUsuarioCaptura: number,
   ): Promise<InfraccionFlujoResponseDto> {
     const createdInfraccionId = await this.dataSource.transaction(
       async (manager) => {
@@ -294,7 +295,7 @@ export class InfraccionesService {
         );
         const usuarioCaptura = await this.findUsuarioByIdOrFail(
           manager,
-          dto.infraccion.idUsuarioCaptura,
+          idUsuarioCaptura,
         );
         const motivos = await this.findMotivosByIdsOrFail(
           manager,

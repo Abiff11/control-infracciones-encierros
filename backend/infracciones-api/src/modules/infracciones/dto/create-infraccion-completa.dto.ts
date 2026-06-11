@@ -127,11 +127,6 @@ export class CreateInfraccionCapturaDto {
   @Min(1)
   idEstatusInfraccion!: number;
 
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  idUsuarioCaptura!: number;
-
   @IsOptional()
   @Transform(({ value }): number | null | undefined => {
     if (value === null || value === undefined || value === '') {

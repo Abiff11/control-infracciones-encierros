@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 
 import { WRITE_ROLES } from '../auth/constants/roles.constants';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { LoginResponseUsuarioDto } from '../auth/dto/login-response.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
@@ -34,7 +36,13 @@ export class LiberacionesController {
 
   @Roles(...WRITE_ROLES)
   @Post()
-  generarLiberacion(@Body() generarLiberacionDto: GenerarLiberacionDto) {
-    return this.liberacionesService.generarLiberacion(generarLiberacionDto);
+  generarLiberacion(
+    @Body() generarLiberacionDto: GenerarLiberacionDto,
+    @CurrentUser() currentUser: LoginResponseUsuarioDto,
+  ) {
+    return this.liberacionesService.generarLiberacion({
+      ...generarLiberacionDto,
+      idUsuarioLibera: currentUser.idUsuario,
+    });
   }
 }

@@ -1,5 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 
 export class GenerarLiberacionDto {
   @Type(() => Number)
@@ -11,11 +18,6 @@ export class GenerarLiberacionDto {
   @IsInt()
   @Min(1)
   idPagoInfraccion!: number;
-
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  idUsuarioLibera!: number;
 
   @IsString()
   @IsNotEmpty()

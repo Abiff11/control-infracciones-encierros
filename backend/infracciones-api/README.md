@@ -224,7 +224,6 @@ Payload de ejemplo:
     "idDelegacion": 1,
     "idTipoProcedimiento": 1,
     "idEstatusInfraccion": 1,
-    "idUsuarioCaptura": 1,
     "idOperativo": null,
     "folioInfraccion": "INF-2026-0001",
     "fechaInfraccion": "2026-06-10",
@@ -284,6 +283,9 @@ GET /infracciones/resumen/estatus
 
 - `retencion_vehiculo` registra la entrada fisica del vehiculo al encierro
 - El vehiculo se obtiene mediante la infraccion asociada
+
+Los IDs de usuario operativo ya no se reciben desde el body.
+El backend los toma del JWT mediante el usuario autenticado.
 
 ## Pago de infraccion
 

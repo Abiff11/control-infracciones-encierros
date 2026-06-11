@@ -9,6 +9,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { LoginResponseUsuarioDto } from '../auth/dto/login-response.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
@@ -57,15 +59,23 @@ export class InfraccionesController {
   @Post()
   crearInfraccionCompleta(
     @Body() createInfraccionCompletaDto: CreateInfraccionCompletaDto,
+    @CurrentUser() currentUser: LoginResponseUsuarioDto,
   ) {
     return this.infraccionesService.crearInfraccionCompleta(
       createInfraccionCompletaDto,
+      currentUser.idUsuario,
     );
   }
 
   @Roles(...WRITE_ROLES)
   @Post('movimientos')
-  registrarMovimiento(@Body() registrarMovimientoDto: RegistrarMovimientoDto) {
-    return this.infraccionesService.registrarMovimiento(registrarMovimientoDto);
+  registrarMovimiento(
+    @Body() registrarMovimientoDto: RegistrarMovimientoDto,
+    @CurrentUser() currentUser: LoginResponseUsuarioDto,
+  ) {
+    return this.infraccionesService.registrarMovimiento({
+      ...registrarMovimientoDto,
+      idUsuario: currentUser.idUsuario,
+    });
   }
 }

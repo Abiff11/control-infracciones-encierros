@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 
 import { WRITE_ROLES } from '../auth/constants/roles.constants';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { LoginResponseUsuarioDto } from '../auth/dto/login-response.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
@@ -41,7 +43,13 @@ export class EncierrosController {
 
   @Roles(...WRITE_ROLES)
   @Post('salidas')
-  registrarSalida(@Body() registrarSalidaDto: RegistrarSalidaDto) {
-    return this.encierrosService.registrarSalida(registrarSalidaDto);
+  registrarSalida(
+    @Body() registrarSalidaDto: RegistrarSalidaDto,
+    @CurrentUser() currentUser: LoginResponseUsuarioDto,
+  ) {
+    return this.encierrosService.registrarSalida({
+      ...registrarSalidaDto,
+      idUsuarioValidaSalida: currentUser.idUsuario,
+    });
   }
 }

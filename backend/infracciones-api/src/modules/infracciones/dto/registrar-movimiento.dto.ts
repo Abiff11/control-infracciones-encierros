@@ -1,5 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 
 export class RegistrarMovimientoDto {
   @Type(() => Number)
@@ -11,11 +18,6 @@ export class RegistrarMovimientoDto {
   @IsInt()
   @Min(1)
   idEstatusInfraccion!: number;
-
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  idUsuario!: number;
 
   @IsString()
   @IsNotEmpty()

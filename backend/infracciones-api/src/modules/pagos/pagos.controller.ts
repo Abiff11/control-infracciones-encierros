@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 
 import { WRITE_ROLES } from '../auth/constants/roles.constants';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { LoginResponseUsuarioDto } from '../auth/dto/login-response.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
@@ -32,7 +34,13 @@ export class PagosController {
 
   @Roles(...WRITE_ROLES)
   @Post()
-  registrarPago(@Body() registrarPagoDto: RegistrarPagoDto) {
-    return this.pagosService.registrarPago(registrarPagoDto);
+  registrarPago(
+    @Body() registrarPagoDto: RegistrarPagoDto,
+    @CurrentUser() currentUser: LoginResponseUsuarioDto,
+  ) {
+    return this.pagosService.registrarPago({
+      ...registrarPagoDto,
+      idUsuarioRegistraPago: currentUser.idUsuario,
+    });
   }
 }
