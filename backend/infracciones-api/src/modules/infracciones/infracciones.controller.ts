@@ -9,13 +9,16 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
+import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
+import { WRITE_ROLES } from '../auth/constants/roles.constants';
 import { CreateInfraccionCompletaDto } from './dto/create-infraccion-completa.dto';
 import { FindInfraccionesQueryDto } from './dto/find-infracciones-query.dto';
 import { RegistrarMovimientoDto } from './dto/registrar-movimiento.dto';
 import { InfraccionesService } from './infracciones.service';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RoleAuthGuard)
 @Controller('infracciones')
 export class InfraccionesController {
   constructor(private readonly infraccionesService: InfraccionesService) {}
@@ -50,6 +53,7 @@ export class InfraccionesController {
     return this.infraccionesService.findByIdOrFail(idInfraccion);
   }
 
+  @Roles(...WRITE_ROLES)
   @Post()
   crearInfraccionCompleta(
     @Body() createInfraccionCompletaDto: CreateInfraccionCompletaDto,
@@ -59,6 +63,7 @@ export class InfraccionesController {
     );
   }
 
+  @Roles(...WRITE_ROLES)
   @Post('movimientos')
   registrarMovimiento(@Body() registrarMovimientoDto: RegistrarMovimientoDto) {
     return this.infraccionesService.registrarMovimiento(registrarMovimientoDto);
