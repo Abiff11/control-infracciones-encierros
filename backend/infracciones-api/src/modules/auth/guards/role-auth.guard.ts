@@ -4,6 +4,14 @@ import { Reflector } from '@nestjs/core';
 import { RoleName } from '../constants/roles.constants';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
+type AuthenticatedRequest = {
+  user?: {
+    rol?: {
+      nombreRol?: RoleName;
+    };
+  };
+};
+
 @Injectable()
 export class RoleAuthGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
@@ -18,9 +26,8 @@ export class RoleAuthGuard implements CanActivate {
       return true;
     }
 
-    const http = context.switchToHttp();
-    const req = http.getRequest();
-    const role = req?.user?.rol?.nombreRol;
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const role = request.user?.rol?.nombreRol;
 
     return Boolean(role && required.includes(role));
   }
