@@ -1,32 +1,20 @@
-import {
-  MigrationInterface,
-  QueryRunner,
-  Table,
-  TableForeignKey,
-  TableIndex,
-} from 'typeorm';
+import { MigrationInterface, QueryRunner, Table, TableForeignKey, TableIndex } from 'typeorm';
 
 const INFRACTOR_TABLE = 'infractor';
 const INFRACCIONES_TABLE = 'infracciones';
 
 const FK_INFRACTOR_SEXO = 'FK_infractor_id_sexo_sexo_id_sexo';
 
-const FK_INFRACCIONES_INFRACTOR =
-  'FK_infracciones_id_infractor_infractor_id_infractor';
-const FK_INFRACCIONES_DELEGACION =
-  'FK_infracciones_id_delegacion_delegacion_id_delegacion';
-const FK_INFRACCIONES_VEHICULO =
-  'FK_infracciones_id_vehiculo_vehiculo_id_vehiculo';
-const FK_INFRACCIONES_LUGAR =
-  'FK_infracciones_id_lugar_infraccion_lugar_infraccion_id_lugar_infraccion';
+const FK_INFRACCIONES_INFRACTOR = 'FK_infracciones_id_infractor_infractor_id_infractor';
+const FK_INFRACCIONES_DELEGACION = 'FK_infracciones_id_delegacion_delegacion_id_delegacion';
+const FK_INFRACCIONES_VEHICULO = 'FK_infracciones_id_vehiculo_vehiculo_id_vehiculo';
+const FK_INFRACCIONES_LUGAR = 'FK_infracciones_id_lugar_infraccion_lugar_infraccion_id_lugar_infraccion';
 const FK_INFRACCIONES_TIPO_PROCEDIMIENTO =
   'FK_infracciones_id_tipo_procedimiento_tipo_procedimiento_id_tipo_procedimiento';
-const FK_INFRACCIONES_OPERATIVO =
-  'FK_infracciones_id_operativo_operativo_id_operativo';
+const FK_INFRACCIONES_OPERATIVO = 'FK_infracciones_id_operativo_operativo_id_operativo';
 const FK_INFRACCIONES_ESTATUS =
   'FK_infracciones_id_estatus_infraccion_estatus_infraccion_id_estatus_infraccion';
-const FK_INFRACCIONES_USUARIO =
-  'FK_infracciones_id_usuario_captura_usuarios_id_usuario';
+const FK_INFRACCIONES_USUARIO = 'FK_infracciones_id_usuario_captura_usuarios_id_usuario';
 
 const IDX_INFRACTOR_SEXO = 'IDX_infractor_id_sexo';
 const IDX_INFRACTOR_CURP = 'IDX_infractor_curp';
@@ -381,10 +369,7 @@ export class CreateInfractorAndInfracciones1740000000000 implements MigrationInt
     await queryRunner.dropIndex(INFRACCIONES_TABLE, IDX_INFRACCIONES_USUARIO);
     await queryRunner.dropIndex(INFRACCIONES_TABLE, IDX_INFRACCIONES_ESTATUS);
     await queryRunner.dropIndex(INFRACCIONES_TABLE, IDX_INFRACCIONES_VEHICULO);
-    await queryRunner.dropIndex(
-      INFRACCIONES_TABLE,
-      IDX_INFRACCIONES_DELEGACION,
-    );
+    await queryRunner.dropIndex(INFRACCIONES_TABLE, IDX_INFRACCIONES_DELEGACION);
     await queryRunner.dropIndex(INFRACCIONES_TABLE, IDX_INFRACCIONES_INFRACTOR);
 
     const infraccionesTable = await queryRunner.getTable(INFRACCIONES_TABLE);

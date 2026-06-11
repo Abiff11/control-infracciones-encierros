@@ -1,17 +1,9 @@
-import {
-  MigrationInterface,
-  QueryRunner,
-  Table,
-  TableForeignKey,
-  TableIndex,
-} from 'typeorm';
+import { MigrationInterface, QueryRunner, Table, TableForeignKey, TableIndex } from 'typeorm';
 
 const VEHICULO_TABLE = 'vehiculo';
 
-const FK_VEHICULO_CLASE =
-  'FK_vehiculo_id_clase_vehiculo_clase_vehiculo_id_clase_vehiculo';
-const FK_VEHICULO_LINEA =
-  'FK_vehiculo_id_linea_vehiculo_linea_vehiculo_id_linea_vehiculo';
+const FK_VEHICULO_CLASE = 'FK_vehiculo_id_clase_vehiculo_clase_vehiculo_id_clase_vehiculo';
+const FK_VEHICULO_LINEA = 'FK_vehiculo_id_linea_vehiculo_linea_vehiculo_id_linea_vehiculo';
 const FK_VEHICULO_SERVICIO = 'FK_vehiculo_id_servicio_servicio_id_servicio';
 
 const IDX_VEHICULO_CLASE = 'IDX_vehiculo_id_clase_vehiculo';
@@ -187,10 +179,7 @@ export class CreateVehiculo1730000000000 implements MigrationInterface {
     }
 
     if (vehiculoServicioForeignKey) {
-      await queryRunner.dropForeignKey(
-        VEHICULO_TABLE,
-        vehiculoServicioForeignKey,
-      );
+      await queryRunner.dropForeignKey(VEHICULO_TABLE, vehiculoServicioForeignKey);
     }
 
     await queryRunner.dropTable(VEHICULO_TABLE);

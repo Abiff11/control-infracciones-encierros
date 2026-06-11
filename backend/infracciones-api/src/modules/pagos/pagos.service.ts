@@ -37,9 +37,7 @@ export class PagosService {
     });
 
     if (!pago) {
-      throw new NotFoundException(
-        `Pago de infraccion ${idPagoInfraccion} no encontrado`,
-      );
+      throw new NotFoundException(`Pago de infraccion ${idPagoInfraccion} no encontrado`);
     }
 
     return pago;
@@ -59,9 +57,7 @@ export class PagosService {
   async registrarPago(params: RegistrarPagoParams): Promise<PagoInfraccion> {
     const pago = this.pagosRepository.create({
       infraccion: { idInfraccion: params.idInfraccion } as Infraccion,
-      usuarioRegistraPago: {
-        idUsuario: params.idUsuarioRegistraPago,
-      } as Usuario,
+      usuarioRegistraPago: { idUsuario: params.idUsuarioRegistraPago } as Usuario,
       folioPago: params.folioPago,
       monto: params.monto,
       fechaPago: normalizeDate(params.fechaPago),

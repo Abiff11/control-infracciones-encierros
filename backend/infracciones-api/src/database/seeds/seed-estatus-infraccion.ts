@@ -3,11 +3,7 @@ import 'dotenv/config';
 import dataSource from '../data-source';
 import { EstatusInfraccion } from '../../modules/catalogos/entities/estatus-infraccion.entity';
 
-const ESTATUS_REQUERIDOS = [
-  'PAGADA',
-  'LIBERACION_GENERADA',
-  'VEHICULO_ENTREGADO',
-] as const;
+const ESTATUS_REQUERIDOS = ['PAGADA', 'LIBERACION_GENERADA', 'VEHICULO_ENTREGADO'] as const;
 
 async function seedEstatusInfraccion(): Promise<void> {
   await dataSource.initialize();

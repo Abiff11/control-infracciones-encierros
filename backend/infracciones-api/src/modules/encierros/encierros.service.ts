@@ -57,9 +57,7 @@ export class EncierrosService {
     return encierro;
   }
 
-  async findRetencionByIdOrFail(
-    idRetencionVehiculo: number,
-  ): Promise<RetencionVehiculo> {
+  async findRetencionByIdOrFail(idRetencionVehiculo: number): Promise<RetencionVehiculo> {
     const retencion = await this.retencionesRepository.findOne({
       where: { idRetencionVehiculo },
       relations: {
@@ -69,17 +67,13 @@ export class EncierrosService {
     });
 
     if (!retencion) {
-      throw new NotFoundException(
-        `Retencion vehicular ${idRetencionVehiculo} no encontrada`,
-      );
+      throw new NotFoundException(`Retencion vehicular ${idRetencionVehiculo} no encontrada`);
     }
 
     return retencion;
   }
 
-  async registrarRetencion(
-    params: RegistrarRetencionParams,
-  ): Promise<RetencionVehiculo> {
+  async registrarRetencion(params: RegistrarRetencionParams): Promise<RetencionVehiculo> {
     const retencion = this.retencionesRepository.create({
       infraccion: { idInfraccion: params.idInfraccion },
       encierro: { idEncierro: params.idEncierro },
@@ -93,9 +87,7 @@ export class EncierrosService {
     return this.retencionesRepository.save(retencion);
   }
 
-  async registrarSalida(
-    params: RegistrarSalidaParams,
-  ): Promise<SalidaVehiculo> {
+  async registrarSalida(params: RegistrarSalidaParams): Promise<SalidaVehiculo> {
     const salida = this.salidasRepository.create({
       retencionVehiculo: {
         idRetencionVehiculo: params.idRetencionVehiculo,
@@ -103,9 +95,7 @@ export class EncierrosService {
       liberacionVehiculo: {
         idLiberacionVehiculo: params.idLiberacionVehiculo,
       } as LiberacionVehiculo,
-      usuarioValidaSalida: {
-        idUsuario: params.idUsuarioValidaSalida,
-      } as Usuario,
+      usuarioValidaSalida: { idUsuario: params.idUsuarioValidaSalida } as Usuario,
       fechaSalida: normalizeDate(params.fechaSalida),
       validadoPor: params.validadoPor,
       personaRecibeVehiculo: params.personaRecibeVehiculo,
@@ -115,9 +105,7 @@ export class EncierrosService {
 
     const savedSalida = await this.salidasRepository.save(salida);
 
-    const retencion = await this.findRetencionByIdOrFail(
-      params.idRetencionVehiculo,
-    );
+    const retencion = await this.findRetencionByIdOrFail(params.idRetencionVehiculo);
 
     await this.infraccionesService.actualizarEstatusYRegistrarMovimiento({
       idInfraccion: retencion.infraccion.idInfraccion,

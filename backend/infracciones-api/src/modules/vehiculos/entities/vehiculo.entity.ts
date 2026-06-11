@@ -1,10 +1,4 @@
-import {
-  Column,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 
 import { ClaseVehiculo } from '../../catalogos/entities/clase-vehiculo.entity';
 import { LineaVehiculo } from '../../catalogos/entities/linea-vehiculo.entity';
@@ -30,12 +24,7 @@ export class Vehiculo {
   @Column({ name: 'anio_modelo', type: 'int', nullable: true })
   anioModelo!: number | null;
 
-  @Column({
-    name: 'sitio_servicio_publico',
-    type: 'varchar',
-    length: 80,
-    nullable: true,
-  })
+  @Column({ name: 'sitio_servicio_publico', type: 'varchar', length: 80, nullable: true })
   sitioServicioPublico!: string | null;
 
   @Column({ name: 'color', type: 'varchar', length: 20, nullable: true })
@@ -44,12 +33,7 @@ export class Vehiculo {
   @Column({ name: 'placas', type: 'varchar', length: 20, nullable: true })
   placas!: string | null;
 
-  @Column({
-    name: 'estado_placas',
-    type: 'varchar',
-    length: 20,
-    nullable: true,
-  })
+  @Column({ name: 'estado_placas', type: 'varchar', length: 20, nullable: true })
   estadoPlacas!: string | null;
 
   @Column({ name: 'serie', type: 'varchar', length: 20, nullable: true })

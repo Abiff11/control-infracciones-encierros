@@ -17,7 +17,9 @@ function getRequiredSeedConfig() {
     .trim()
     .toLowerCase();
   const password = process.env.ADMIN_PASSWORD ?? DEFAULT_ADMIN_PASSWORD;
-  const nombreUsuario = (process.env.ADMIN_NOMBRE ?? DEFAULT_ADMIN_NAME).trim();
+  const nombreUsuario = (
+    process.env.ADMIN_NOMBRE ?? DEFAULT_ADMIN_NAME
+  ).trim();
   const nombreRol = (process.env.ADMIN_ROL ?? DEFAULT_ADMIN_ROLE).trim();
 
   if (!email) {
@@ -48,8 +50,7 @@ async function seedAdminUser(): Promise<void> {
   await dataSource.initialize();
 
   try {
-    const { email, password, nombreUsuario, nombreRol } =
-      getRequiredSeedConfig();
+    const { email, password, nombreUsuario, nombreRol } = getRequiredSeedConfig();
     const rolesRepository = dataSource.getRepository(Rol);
     const usuariosRepository = dataSource.getRepository(Usuario);
 
