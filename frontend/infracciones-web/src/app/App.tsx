@@ -3,29 +3,30 @@ import { useEffect, useState } from 'react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { Sidebar } from '../components/layout/Sidebar';
 import { Button } from '../components/ui/Button';
+import { ErrorMessage } from '../components/ui/ErrorMessage';
 import { useAuth } from '../hooks/useAuth';
 import { useCatalogos } from '../hooks/useCatalogos';
+import { swaggerUrl } from '../services/api/apiClient';
+import { createRetencion, createSalida } from '../services/api/encierros.api';
+import { createLiberacion } from '../services/api/liberaciones.api';
+import { createPago } from '../services/api/pagos.api';
 import {
   createInfraccion,
   getInfraccionFlujo,
   getInfracciones,
 } from '../services/api/infracciones.api';
-import { createLiberacion } from '../services/api/liberaciones.api';
-import { createPago } from '../services/api/pagos.api';
-import { createRetencion, createSalida } from '../services/api/encierros.api';
-import { swaggerUrl } from '../services/api/apiClient';
 import CatalogosPage from '../pages/CatalogosPage';
 import DashboardPage from '../pages/DashboardPage';
+import EncierrosVehiculosPage from '../modules/encierros/EncierrosVehiculosPage';
+import FlujoOperativoPage from '../pages/FlujoOperativoPage';
+import ImportacionesPage from '../pages/ImportacionesPage';
 import InfraccionCreatePage from '../pages/InfraccionCreatePage';
 import InfraccionesListPage from '../pages/InfraccionesListPage';
 import LiberacionCreatePage from '../pages/LiberacionCreatePage';
 import LoginPage from '../pages/LoginPage';
 import PagoCreatePage from '../pages/PagoCreatePage';
-import FlujoOperativoPage from '../pages/FlujoOperativoPage';
 import RetencionCreatePage from '../pages/RetencionCreatePage';
 import SalidaCreatePage from '../pages/SalidaCreatePage';
-import ImportacionesPage from '../pages/ImportacionesPage';
-import EncierrosVehiculosPage from '../modules/encierros/EncierrosVehiculosPage';
 import type { PageKey } from './app.types';
 import { NAV_ITEMS } from './navigation';
 import type {
@@ -83,7 +84,7 @@ function App() {
 
     let mounted = true;
 
-    async function loadDashboard(token: string): Promise<void> {
+    async function loadDashboard(): Promise<void> {
       setDashboardState((current) => ({
         ...current,
         status: 'loading',
@@ -91,7 +92,10 @@ function App() {
       }));
 
       try {
-        const response = await getInfracciones(token, { page: 1, limit: 5 });
+        const response = await runProtectedRequest((token) =>
+          getInfracciones(token, { page: 1, limit: 5 }),
+        );
+
         if (!mounted) {
           return;
         }
@@ -114,12 +118,12 @@ function App() {
       }
     }
 
-    void loadDashboard(session.token);
+    void loadDashboard();
 
     return () => {
       mounted = false;
     };
-  }, [session?.token, refreshKey]);
+  }, [refreshKey, runProtectedRequest, session?.token]);
 
   function bumpRefresh(): void {
     setRefreshKey((current) => current + 1);
@@ -134,7 +138,7 @@ function App() {
       throw new Error('Sesion no valida');
     }
 
-    const response = await runProtectedRequest(() => createInfraccion(session.token, payload));
+    const response = await runProtectedRequest((token) => createInfraccion(token, payload));
     bumpRefresh();
     setCurrentPage('infracciones');
     return response;
@@ -145,9 +149,9 @@ function App() {
       throw new Error('Sesion no valida');
     }
 
-    const response = await runProtectedRequest(() => createPago(session.token, payload));
+    const response = await runProtectedRequest((token) => createPago(token, payload));
     bumpRefresh();
-    setCurrentPage('flujo');
+    setCurrentPage('encierros-vehiculos');
     return response;
   }
 
@@ -156,9 +160,9 @@ function App() {
       throw new Error('Sesion no valida');
     }
 
-    const response = await runProtectedRequest(() => createLiberacion(session.token, payload));
+    const response = await runProtectedRequest((token) => createLiberacion(token, payload));
     bumpRefresh();
-    setCurrentPage('flujo');
+    setCurrentPage('encierros-vehiculos');
     return response;
   }
 
@@ -167,9 +171,9 @@ function App() {
       throw new Error('Sesion no valida');
     }
 
-    const response = await runProtectedRequest(() => createRetencion(session.token, payload));
+    const response = await runProtectedRequest((token) => createRetencion(token, payload));
     bumpRefresh();
-    setCurrentPage('vehiculos-encierro');
+    setCurrentPage('encierros-vehiculos');
     return response;
   }
 
@@ -178,9 +182,9 @@ function App() {
       throw new Error('Sesion no valida');
     }
 
-    const response = await runProtectedRequest(() => createSalida(session.token, payload));
+    const response = await runProtectedRequest((token) => createSalida(token, payload));
     bumpRefresh();
-    setCurrentPage('vehiculos-encierro');
+    setCurrentPage('encierros-vehiculos');
     return response;
   }
 
@@ -189,26 +193,29 @@ function App() {
       throw new Error('Sesion no valida');
     }
 
-    return runProtectedRequest(() => getInfraccionFlujo(session.token, idInfraccion));
+    return runProtectedRequest((token) => getInfraccionFlujo(token, idInfraccion));
   }
 
   if (authLoading || bootstrapping) {
-    return <LoginPage loading message="Validando sesion..." onSubmit={login} />;
+    return <LoginPage loading error={authMessage} onSubmit={login} />;
   }
 
   if (!session) {
-    return <LoginPage loading={authLoading} message={authMessage} onSubmit={login} />;
+    return <LoginPage loading={authLoading} error={authMessage} onSubmit={login} />;
   }
 
-  const protectedProps = {
-    catalogs,
-    token: session.token,
-    refreshKey,
-  };
+  const apiStatusLabel =
+    dashboardState.status === 'ready'
+      ? 'En linea'
+      : dashboardState.status === 'loading'
+        ? 'Consultando'
+        : dashboardState.status === 'error'
+          ? 'Error'
+          : 'Inactivo';
 
   return (
     <AppLayout
-      sidebar={<Sidebar currentPage={currentPage} items={NAV_ITEMS} onNavigate={handleNavigate} />}
+      sidebar={<Sidebar currentPage={currentPage} items={NAV_ITEMS} onNavigate={handleNavigate} swaggerUrl={swaggerUrl} />}
       header={
         <div className="shell-header">
           <div>
@@ -222,11 +229,11 @@ function App() {
           <div className="session-box">
             <div>
               <p className="session-label">Usuario</p>
-              <strong>{session.usuario.nombreUsuario}</strong>
+              <strong>{session.user.nombreUsuario}</strong>
             </div>
             <div>
               <p className="session-label">Rol</p>
-              <strong>{session.usuario.rol.nombreRol}</strong>
+              <strong>{session.user.rol?.nombreRol ?? 'Sin rol'}</strong>
             </div>
             <Button variant="secondary" type="button" onClick={logout}>
               Cerrar sesion
@@ -240,15 +247,20 @@ function App() {
 
       {currentPage === 'dashboard' ? (
         <DashboardPage
-          state={dashboardState}
-          onNavigateInfracciones={() => setCurrentPage('infracciones')}
-          swaggerUrl={swaggerUrl}
+          catalogs={catalogs}
+          infraccionesMeta={dashboardState.data?.meta ?? null}
+          apiStatusLabel={apiStatusLabel}
+          notice={dashboardState.error}
+          user={session.user}
+          onNavigate={handleNavigate}
         />
       ) : null}
 
       {currentPage === 'infracciones' ? (
         <InfraccionesListPage
-          {...protectedProps}
+          catalogs={catalogs}
+          refreshKey={refreshKey}
+          token={session.token}
           onNavigateCreate={() => setCurrentPage('nueva-infraccion')}
         />
       ) : null}
@@ -256,50 +268,74 @@ function App() {
       {currentPage === 'nueva-infraccion' ? (
         <InfraccionCreatePage
           catalogs={catalogs}
-          loadingCatalogs={catalogsLoading}
+          loading={catalogsLoading}
+          onCreated={bumpRefresh}
           onSubmit={handleCreateInfraccion}
         />
       ) : null}
 
       {currentPage === 'pago' ? (
         <PagoCreatePage
-          catalogs={catalogs}
           initialIdInfraccion={pagoInitialId}
+          onCompleted={() => setCurrentPage('encierros-vehiculos')}
           onSubmit={handleRegistrarPago}
         />
       ) : null}
 
       {currentPage === 'liberacion' ? (
         <LiberacionCreatePage
-          catalogs={catalogs}
           initialIdInfraccion={liberacionInitialId}
+          onCompleted={() => setCurrentPage('encierros-vehiculos')}
           onSubmit={handleGenerarLiberacion}
         />
       ) : null}
 
       {currentPage === 'retencion' ? (
-        <RetencionCreatePage catalogs={catalogs} onSubmit={handleRegistrarRetencion} />
+        <RetencionCreatePage
+          catalogs={catalogs}
+          onCompleted={() => setCurrentPage('encierros-vehiculos')}
+          onSubmit={handleRegistrarRetencion}
+        />
       ) : null}
 
       {currentPage === 'salida' ? (
         <SalidaCreatePage
-          catalogs={catalogs}
           initialIdRetencionVehiculo={salidaInitialId}
+          onCompleted={() => setCurrentPage('encierros-vehiculos')}
           onSubmit={handleRegistrarSalida}
         />
       ) : null}
 
-      {currentPage === 'flujo' ? <FlujoOperativoPage onFetch={handleFetchFlujo} /> : null}
-
-      {currentPage === 'catalogos' ? (
-        <CatalogosPage catalogs={catalogs} onRefresh={refreshCatalogs} />
+      {currentPage === 'flujo-operativo' ? (
+        <FlujoOperativoPage onSubmit={handleFetchFlujo} />
       ) : null}
 
-      {currentPage === 'importaciones' ? <ImportacionesPage token={session.token} /> : null}
+      {currentPage === 'catalogos' ? (
+        <CatalogosPage
+          catalogs={catalogs}
+          loading={catalogsLoading}
+          error={catalogsError}
+          onRefreshCatalogs={refreshCatalogs}
+          token={session.token}
+        />
+      ) : null}
 
-      {currentPage === 'vehiculos-encierro' ? (
+      {currentPage === 'importaciones' ? (
+        <ImportacionesPage
+          catalogs={catalogs}
+          token={session.token}
+          onImportCompleted={async () => {
+            await refreshCatalogs();
+            bumpRefresh();
+          }}
+        />
+      ) : null}
+
+      {currentPage === 'encierros-vehiculos' ? (
         <EncierrosVehiculosPage
-          {...protectedProps}
+          catalogs={catalogs}
+          refreshKey={refreshKey}
+          token={session.token}
           onNavigatePago={(idInfraccion) => {
             setPagoInitialId(idInfraccion);
             setCurrentPage('pago');
