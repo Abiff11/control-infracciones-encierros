@@ -13,6 +13,8 @@ import type {
 import './InfraccionCreatePage.css';
 
 const MAX_MOTIVOS = 5;
+const DEFAULT_TIPO_PROCEDIMIENTO = 'INFRACCION';
+const DEFAULT_ESTATUS_INFRACCION = 'CAPTURADA';
 
 function getTodayDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -20,6 +22,14 @@ function getTodayDate(): string {
 
 function getCurrentTime(): string {
   return new Date().toTimeString().slice(0, 5);
+}
+
+function normalizeCatalogText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase();
 }
 
 function toOptionalNumber(value: string): number | null | undefined {
@@ -73,8 +83,6 @@ const INITIAL_FORM = {
   calle: '',
   numero: '',
   idDelegacion: '',
-  idTipoProcedimiento: '',
-  idEstatusInfraccion: '',
   idOperativo: '',
   folioInfraccion: '',
   fechaInfraccion: getTodayDate(),
@@ -136,6 +144,15 @@ function SectionCard({
   );
 }
 
+function SystemChip({ label, value, valid }: { label: string; value: string; valid: boolean }) {
+  return (
+    <span className={valid ? 'create-system-chip' : 'create-system-chip create-system-chip-error'}>
+      <strong>{label}</strong>
+      {value}
+    </span>
+  );
+}
+
 function countFilled(values: string[]): number {
   return values.filter(isFilled).length;
 }
@@ -163,8 +180,27 @@ function InfraccionCreatePage({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<InfraccionFlujoResponse | null>(null);
 
+  const defaultTipoProcedimiento = useMemo(
+    () =>
+      catalogs?.tiposProcedimiento.find(
+        (tipo) => normalizeCatalogText(tipo.nombreTipoProcedimiento) === DEFAULT_TIPO_PROCEDIMIENTO,
+      ) ?? null,
+    [catalogs?.tiposProcedimiento],
+  );
+
+  const defaultEstatusInfraccion = useMemo(
+    () =>
+      catalogs?.estatusInfraccion.find(
+        (estatus) => normalizeCatalogText(estatus.nombreEstatus) === DEFAULT_ESTATUS_INFRACCION,
+      ) ?? null,
+    [catalogs?.estatusInfraccion],
+  );
+
   const sortedMotivos = useMemo(
-    () => [...(catalogs?.motivos ?? [])].sort((a, b) => getMotivoLabel(a).localeCompare(getMotivoLabel(b))),
+    () =>
+      [...(catalogs?.motivos ?? [])].sort((a, b) =>
+        getMotivoLabel(a).localeCompare(getMotivoLabel(b)),
+      ),
     [catalogs?.motivos],
   );
   const selectedMotivos = useMemo(() => getUniqueSelectedMotivos(motivoSlots), [motivoSlots]);
@@ -215,6 +251,14 @@ function InfraccionCreatePage({
       return 'Los catalogos todavia no estan disponibles.';
     }
 
+    if (!defaultTipoProcedimiento) {
+      return 'No se encontro el tipo de procedimiento INFRACCION en catalogos.';
+    }
+
+    if (!defaultEstatusInfraccion) {
+      return 'No se encontro el estatus inicial CAPTURADA en catalogos.';
+    }
+
     if (!isFilled(form.idSexo)) {
       return 'Selecciona el sexo.';
     }
@@ -237,8 +281,6 @@ function InfraccionCreatePage({
 
     if (
       !isFilled(form.idDelegacion) ||
-      !isFilled(form.idTipoProcedimiento) ||
-      !isFilled(form.idEstatusInfraccion) ||
       !isFilled(form.folioInfraccion) ||
       !isFilled(form.fechaInfraccion) ||
       !isFilled(form.horaInfraccion)
@@ -270,28 +312,28 @@ function InfraccionCreatePage({
   const lugarRequiredCompleted = countFilled([form.municipio]);
   const infraccionRequiredCompleted = countFilled([
     form.idDelegacion,
-    form.idTipoProcedimiento,
-    form.idEstatusInfraccion,
     form.folioInfraccion,
     form.fechaInfraccion,
     form.horaInfraccion,
   ]);
+  const systemDefaultsReady = Boolean(defaultTipoProcedimiento && defaultEstatusInfraccion);
   const canSubmit =
     Boolean(catalogs) &&
+    systemDefaultsReady &&
     selectedMotivos.length > 0 &&
     selectedMotivos.length === countFilled(motivoSlots) &&
     infractorRequiredCompleted === 3 &&
     vehiculoRequiredCompleted === 3 &&
     lugarRequiredCompleted === 1 &&
-    infraccionRequiredCompleted === 6;
+    infraccionRequiredCompleted === 4;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const validationError = getValidationError();
 
-    if (validationError) {
-      setError(validationError);
+    if (validationError || !defaultTipoProcedimiento || !defaultEstatusInfraccion) {
+      setError(validationError ?? 'No se pudieron resolver los valores iniciales del sistema.');
       return;
     }
 
@@ -324,8 +366,8 @@ function InfraccionCreatePage({
       },
       infraccion: {
         idDelegacion: Number(form.idDelegacion),
-        idTipoProcedimiento: Number(form.idTipoProcedimiento),
-        idEstatusInfraccion: Number(form.idEstatusInfraccion),
+        idTipoProcedimiento: defaultTipoProcedimiento.idTipoProcedimiento,
+        idEstatusInfraccion: defaultEstatusInfraccion.idEstatusInfraccion,
         idOperativo: toOptionalNumber(form.idOperativo),
         folioInfraccion: form.folioInfraccion.trim(),
         fechaInfraccion: form.fechaInfraccion,
@@ -375,6 +417,7 @@ function InfraccionCreatePage({
   const resultPreview = result
     ? {
         folioInfraccion: result.infraccion.folioInfraccion,
+        tipoProcedimiento: result.infraccion.tipoProcedimiento.nombreTipoProcedimiento,
         estatus: result.infraccion.estatusInfraccion.nombreEstatus,
         motivosSeleccionados: selectedMotivoLabels,
       }
@@ -387,7 +430,7 @@ function InfraccionCreatePage({
           <p className="eyebrow">Operacion</p>
           <h1>Nueva infraccion</h1>
           <p className="page-description">
-            Captura completa en una sola transaccion. Los campos tecnicos internos no se muestran al usuario.
+            Captura completa en una sola transaccion. Tipo y estatus inicial se asignan automaticamente.
           </p>
         </div>
         <div className="create-required-summary">
@@ -624,8 +667,21 @@ function InfraccionCreatePage({
           eyebrow="Infraccion"
           title="Datos operativos"
           completed={infraccionRequiredCompleted}
-          total={6}
+          total={4}
         >
+          <div className="create-system-defaults">
+            <SystemChip
+              label="Tipo"
+              value={defaultTipoProcedimiento?.nombreTipoProcedimiento ?? 'INFRACCION no encontrado'}
+              valid={Boolean(defaultTipoProcedimiento)}
+            />
+            <SystemChip
+              label="Estatus inicial"
+              value={defaultEstatusInfraccion?.nombreEstatus ?? 'CAPTURADA no encontrado'}
+              valid={Boolean(defaultEstatusInfraccion)}
+            />
+          </div>
+
           <div className="form-grid form-grid-3">
             <Field htmlFor="infraccion-delegacion" label="Delegacion">
               <SelectField
@@ -638,38 +694,6 @@ function InfraccionCreatePage({
                 {catalogs?.delegaciones.map((delegacion) => (
                   <option key={delegacion.idDelegacion} value={delegacion.idDelegacion}>
                     {delegacion.nombreDelegacion}
-                  </option>
-                ))}
-              </SelectField>
-            </Field>
-
-            <Field htmlFor="infraccion-tipo" label="Tipo procedimiento">
-              <SelectField
-                id="infraccion-tipo"
-                value={form.idTipoProcedimiento}
-                onChange={(event) => updateField('idTipoProcedimiento', event.target.value)}
-                required
-              >
-                <option value="">Selecciona</option>
-                {catalogs?.tiposProcedimiento.map((tipo) => (
-                  <option key={tipo.idTipoProcedimiento} value={tipo.idTipoProcedimiento}>
-                    {tipo.nombreTipoProcedimiento}
-                  </option>
-                ))}
-              </SelectField>
-            </Field>
-
-            <Field htmlFor="infraccion-estatus" label="Estatus">
-              <SelectField
-                id="infraccion-estatus"
-                value={form.idEstatusInfraccion}
-                onChange={(event) => updateField('idEstatusInfraccion', event.target.value)}
-                required
-              >
-                <option value="">Selecciona</option>
-                {catalogs?.estatusInfraccion.map((estatus) => (
-                  <option key={estatus.idEstatusInfraccion} value={estatus.idEstatusInfraccion}>
-                    {estatus.nombreEstatus}
                   </option>
                 ))}
               </SelectField>
