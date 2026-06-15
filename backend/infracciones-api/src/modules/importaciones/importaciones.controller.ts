@@ -119,7 +119,9 @@ export class ImportacionesController {
   }
 
   @Get(':idImportacionInfracciones/lista-errores')
-  @ApiOperation({ summary: 'Obtener listado paginado de incidencias de importacion' })
+  @ApiOperation({
+    summary: 'Obtener listado paginado de incidencias de importacion',
+  })
   getListaErrores(
     @Param('idImportacionInfracciones', ParseIntPipe)
     idImportacionInfracciones: number,

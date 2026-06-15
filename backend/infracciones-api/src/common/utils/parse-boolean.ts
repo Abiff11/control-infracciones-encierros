@@ -1,6 +1,4 @@
-export function parseBooleanQuery(
-  value: unknown,
-): boolean | undefined {
+export function parseBooleanQuery(value: unknown): boolean | undefined {
   if (value === null || value === undefined || value === '') {
     return undefined;
   }

@@ -43,9 +43,7 @@ const IDX_SALIDA_LIBERACION = 'IDX_salida_vehiculo_id_liberacion_vehiculo';
 const IDX_SALIDA_USUARIO = 'IDX_salida_vehiculo_id_usuario_valida_salida';
 const IDX_SALIDA_FECHA = 'IDX_salida_vehiculo_fecha_salida';
 
-export class CreatePagoLiberacionSalidaVehiculo1800000000000
-  implements MigrationInterface
-{
+export class CreatePagoLiberacionSalidaVehiculo1800000000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.createTable(
       new Table({

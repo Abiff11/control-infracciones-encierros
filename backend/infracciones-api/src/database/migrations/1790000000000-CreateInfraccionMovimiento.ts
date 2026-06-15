@@ -16,13 +16,12 @@ const FK_MOVIMIENTO_USUARIO =
   'FK_infraccion_movimiento_id_usuario_usuarios_id_usuario';
 
 const IDX_MOVIMIENTO_INFRACCION = 'IDX_infraccion_movimiento_id_infraccion';
-const IDX_MOVIMIENTO_ESTATUS = 'IDX_infraccion_movimiento_id_estatus_infraccion';
+const IDX_MOVIMIENTO_ESTATUS =
+  'IDX_infraccion_movimiento_id_estatus_infraccion';
 const IDX_MOVIMIENTO_USUARIO = 'IDX_infraccion_movimiento_id_usuario';
 const IDX_MOVIMIENTO_FECHA = 'IDX_infraccion_movimiento_fecha_movimiento';
 
-export class CreateInfraccionMovimiento1790000000000
-  implements MigrationInterface
-{
+export class CreateInfraccionMovimiento1790000000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.createTable(
       new Table({

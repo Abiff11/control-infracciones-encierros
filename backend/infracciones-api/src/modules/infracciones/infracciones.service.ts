@@ -366,8 +366,7 @@ export class InfraccionesService {
         nombreEstatus: infraccion.estatusInfraccion.nombreEstatus,
       },
       tipoProcedimiento: {
-        idTipoProcedimiento:
-          infraccion.tipoProcedimiento.idTipoProcedimiento,
+        idTipoProcedimiento: infraccion.tipoProcedimiento.idTipoProcedimiento,
         nombreTipoProcedimiento:
           infraccion.tipoProcedimiento.nombreTipoProcedimiento,
       },
@@ -426,8 +425,7 @@ export class InfraccionesService {
       },
       lugarInfraccion: {
         idLugarInfraccion: infraccion.lugarInfraccion.idLugarInfraccion,
-        nombreLugarInfraccion:
-          infraccion.lugarInfraccion.nombreLugarInfraccion,
+        nombreLugarInfraccion: infraccion.lugarInfraccion.nombreLugarInfraccion,
       },
       motivos: motivos.map((motivoInfraccion) => ({
         idMotivo: motivoInfraccion.motivo.idMotivo,
@@ -445,8 +443,7 @@ export class InfraccionesService {
             recibidoPor: retencionPrincipal.recibidoPor,
             folioResguardo: retencionPrincipal.folioResguardo,
             estadoIngreso: retencionPrincipal.estadoIngreso,
-            observacionesIngreso:
-              retencionPrincipal.observacionesIngreso,
+            observacionesIngreso: retencionPrincipal.observacionesIngreso,
           }
         : null,
       pagos: pagos.map((pago) => ({
@@ -925,7 +922,10 @@ export class InfraccionesService {
         queryBuilder.andWhere(liberado).andWhere(`NOT ${delivered}`);
         return;
       case ESTADO_OPERATIVO_VEHICULO.PAGADO_PENDIENTE_LIBERACION:
-        queryBuilder.andWhere(pagado).andWhere(`NOT ${liberado}`).andWhere(`NOT ${delivered}`);
+        queryBuilder
+          .andWhere(pagado)
+          .andWhere(`NOT ${liberado}`)
+          .andWhere(`NOT ${delivered}`);
         return;
       case ESTADO_OPERATIVO_VEHICULO.EN_ENCIERRO_SIN_PAGO:
         queryBuilder
@@ -1174,9 +1174,7 @@ export class InfraccionesService {
     return result;
   }
 
-  private async loadMotivosMap(
-    idInfracciones: number[],
-  ): Promise<
+  private async loadMotivosMap(idInfracciones: number[]): Promise<
     Map<
       number,
       Array<{

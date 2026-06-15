@@ -1,5 +1,12 @@
 import { Transform, Type } from 'class-transformer';
-import { IsDateString, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 
 import { ESTADOS_OPERATIVOS_VEHICULO } from '../../infracciones/constants/estado-operativo-vehiculo.constants';
 import { parseBooleanQuery } from '../../../common/utils/parse-boolean';

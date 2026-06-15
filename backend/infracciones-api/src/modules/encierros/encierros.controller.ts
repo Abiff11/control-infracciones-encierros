@@ -38,13 +38,17 @@ export class EncierrosController {
   }
 
   @Get('vehiculos/resumen')
-  @ApiOperation({ summary: 'Obtener resumen operativo de vehiculos en encierro' })
+  @ApiOperation({
+    summary: 'Obtener resumen operativo de vehiculos en encierro',
+  })
   getVehiculosResumen(@Query() query: VehiculosEncierroQueryDto) {
     return this.encierrosService.getVehiculosEnEncierroResumen(query);
   }
 
   @Get('vehiculos')
-  @ApiOperation({ summary: 'Listar vehiculos retenidos con su estado operativo' })
+  @ApiOperation({
+    summary: 'Listar vehiculos retenidos con su estado operativo',
+  })
   findVehiculosEnEncierro(@Query() query: VehiculosEncierroQueryDto) {
     return this.encierrosService.findVehiculosEnEncierro(query);
   }
