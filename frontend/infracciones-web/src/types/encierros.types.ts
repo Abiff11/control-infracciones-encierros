@@ -72,6 +72,7 @@ export interface VehiculosEncierroResumen {
 }
 
 export interface VehiculosEncierroQuery {
+  search?: string;
   idEncierro?: number;
   idRegion?: number;
   idDelegacion?: number;

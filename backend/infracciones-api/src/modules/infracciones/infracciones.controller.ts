@@ -45,10 +45,10 @@ export class InfraccionesController {
     return this.infraccionesService.getResumenPorEstatus();
   }
 
-  @Get(':idInfraccion/flujo')
+  @Get(':folioInfraccion/flujo')
   @ApiOperation({ summary: 'Obtener flujo operativo de una infracción' })
-  findFlujo(@Param('idInfraccion', ParseIntPipe) idInfraccion: number) {
-    return this.infraccionesService.findFlujoByInfraccion(idInfraccion);
+  findFlujo(@Param('folioInfraccion') folioInfraccion: string) {
+    return this.infraccionesService.findFlujoByInfraccion(folioInfraccion);
   }
 
   @Get(':idInfraccion/detalle')

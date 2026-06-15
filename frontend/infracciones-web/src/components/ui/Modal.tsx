@@ -1,4 +1,4 @@
-import type { PropsWithChildren } from 'react';
+import { useEffect, type PropsWithChildren } from 'react';
 
 import { Button } from './Button';
 
@@ -10,6 +10,28 @@ interface ModalProps extends PropsWithChildren {
 }
 
 export function Modal({ children, description, onClose, open, title }: ModalProps) {
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose, open]);
+
   if (!open) {
     return null;
   }

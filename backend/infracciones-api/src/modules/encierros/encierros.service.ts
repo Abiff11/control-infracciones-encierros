@@ -398,6 +398,31 @@ export class EncierrosService {
     builder: SelectQueryBuilder<RetencionVehiculo>,
     query: VehiculosEncierroQueryDto,
   ): void {
+    const search = query.search?.trim();
+    if (search) {
+      const searchValue = `%${search}%`;
+      builder.andWhere(
+        `(
+          infraccion.folioInfraccion ILIKE :searchValue
+          OR infractor.nombre ILIKE :searchValue
+          OR infractor.apellidoPaterno ILIKE :searchValue
+          OR infractor.apellidoMaterno ILIKE :searchValue
+          OR infractor.licencia ILIKE :searchValue
+          OR infractor.curp ILIKE :searchValue
+          OR vehiculo.placas ILIKE :searchValue
+          OR vehiculo.serie ILIKE :searchValue
+          OR vehiculo.motor ILIKE :searchValue
+          OR vehiculo.color ILIKE :searchValue
+          OR delegacion.nombreDelegacion ILIKE :searchValue
+          OR region.nombreRegion ILIKE :searchValue
+          OR encierro.nombreEncierro ILIKE :searchValue
+          OR retencion.folioResguardo ILIKE :searchValue
+          OR retencion.estadoIngreso ILIKE :searchValue
+        )`,
+        { searchValue },
+      );
+    }
+
     if (query.idEncierro) {
       builder.andWhere('encierro.idEncierro = :idEncierro', {
         idEncierro: query.idEncierro,

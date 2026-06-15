@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ObjectLiteral, Repository } from 'typeorm';
+import { FindOptionsWhere, Not, ObjectLiteral, Repository } from 'typeorm';
 
 import { CreateClaseVehiculoDto } from './dto/create-clase-vehiculo.dto';
 import { CreateDelegacionDto } from './dto/create-delegacion.dto';
@@ -371,6 +371,301 @@ export class CatalogosService {
     );
   }
 
+  async updateRegion(idRegion: number, dto: CreateRegionDto): Promise<Region> {
+    const nombreRegion = dto.nombreRegion.trim();
+    await this.throwIfExists(
+      this.regionesRepository,
+      {
+        idRegion: Not(idRegion),
+        nombreRegion,
+      },
+      'Region',
+    );
+
+    const region = await this.findRegionByIdOrFail(idRegion);
+    region.nombreRegion = nombreRegion;
+
+    return this.regionesRepository.save(region);
+  }
+
+  async updateDelegacion(
+    idDelegacion: number,
+    dto: CreateDelegacionDto,
+  ): Promise<Delegacion> {
+    const region = await this.findRegionByIdOrFail(dto.idRegion);
+    const nombreDelegacion = dto.nombreDelegacion.trim();
+
+    await this.throwIfExists(
+      this.delegacionesRepository,
+      {
+        idDelegacion: Not(idDelegacion),
+        region: {
+          idRegion: region.idRegion,
+        },
+        nombreDelegacion,
+      },
+      'Delegacion',
+    );
+
+    const delegacion = await this.findEntityByIdOrFail(
+      this.delegacionesRepository,
+      { idDelegacion },
+      'Delegacion',
+    );
+
+    delegacion.region = region;
+    delegacion.nombreDelegacion = nombreDelegacion;
+
+    return this.delegacionesRepository.save(delegacion);
+  }
+
+  async updateSexo(idSexo: number, dto: CreateSexoDto): Promise<Sexo> {
+    const nombreSexo = dto.claveSexo.trim();
+    await this.throwIfExists(
+      this.sexosRepository,
+      {
+        idSexo: Not(idSexo),
+        nombreSexo,
+      },
+      'Sexo',
+    );
+
+    const sexo = await this.findEntityByIdOrFail(
+      this.sexosRepository,
+      { idSexo },
+      'Sexo',
+    );
+
+    sexo.nombreSexo = nombreSexo;
+    return this.sexosRepository.save(sexo);
+  }
+
+  async updateServicio(
+    idServicio: number,
+    dto: CreateServicioDto,
+  ): Promise<Servicio> {
+    const nombreServicio = dto.nombreServicio.trim();
+    await this.throwIfExists(
+      this.serviciosRepository,
+      {
+        idServicio: Not(idServicio),
+        nombreServicio,
+      },
+      'Servicio',
+    );
+
+    const servicio = await this.findEntityByIdOrFail(
+      this.serviciosRepository,
+      { idServicio },
+      'Servicio',
+    );
+
+    servicio.nombreServicio = nombreServicio;
+    return this.serviciosRepository.save(servicio);
+  }
+
+  async updateClaseVehiculo(
+    idClaseVehiculo: number,
+    dto: CreateClaseVehiculoDto,
+  ): Promise<ClaseVehiculo> {
+    const nombreClaseVehiculo = dto.nombreClase.trim();
+    await this.throwIfExists(
+      this.clasesVehiculoRepository,
+      {
+        idClaseVehiculo: Not(idClaseVehiculo),
+        nombreClaseVehiculo,
+      },
+      'Clase vehiculo',
+    );
+
+    const claseVehiculo = await this.findEntityByIdOrFail(
+      this.clasesVehiculoRepository,
+      { idClaseVehiculo },
+      'Clase vehiculo',
+    );
+
+    claseVehiculo.nombreClaseVehiculo = nombreClaseVehiculo;
+    return this.clasesVehiculoRepository.save(claseVehiculo);
+  }
+
+  async updateMarcaVehiculo(
+    idMarcaVehiculo: number,
+    dto: CreateMarcaVehiculoDto,
+  ): Promise<MarcaVehiculo> {
+    const nombreMarcaVehiculo = dto.nombreMarca.trim();
+    await this.throwIfExists(
+      this.marcasVehiculoRepository,
+      {
+        idMarcaVehiculo: Not(idMarcaVehiculo),
+        nombreMarcaVehiculo,
+      },
+      'Marca vehiculo',
+    );
+
+    const marcaVehiculo = await this.findEntityByIdOrFail(
+      this.marcasVehiculoRepository,
+      { idMarcaVehiculo },
+      'Marca vehiculo',
+    );
+
+    marcaVehiculo.nombreMarcaVehiculo = nombreMarcaVehiculo;
+    return this.marcasVehiculoRepository.save(marcaVehiculo);
+  }
+
+  async updateLineaVehiculo(
+    idLineaVehiculo: number,
+    dto: CreateLineaVehiculoDto,
+  ): Promise<LineaVehiculo> {
+    const marcaVehiculo = await this.findMarcaVehiculoByIdOrFail(
+      dto.idMarcaVehiculo,
+    );
+    const nombreLineaVehiculo = dto.nombreLinea.trim();
+
+    await this.throwIfExists(
+      this.lineasVehiculoRepository,
+      {
+        idLineaVehiculo: Not(idLineaVehiculo),
+        marcaVehiculo: {
+          idMarcaVehiculo: marcaVehiculo.idMarcaVehiculo,
+        },
+        nombreLineaVehiculo,
+      },
+      'Linea vehiculo',
+    );
+
+    const lineaVehiculo = await this.findEntityByIdOrFail(
+      this.lineasVehiculoRepository,
+      { idLineaVehiculo },
+      'Linea vehiculo',
+    );
+
+    lineaVehiculo.marcaVehiculo = marcaVehiculo;
+    lineaVehiculo.nombreLineaVehiculo = nombreLineaVehiculo;
+
+    return this.lineasVehiculoRepository.save(lineaVehiculo);
+  }
+
+  async updateTipoProcedimiento(
+    idTipoProcedimiento: number,
+    dto: CreateTipoProcedimientoDto,
+  ): Promise<TipoProcedimiento> {
+    const nombreTipoProcedimiento = dto.procedimiento.trim();
+    await this.throwIfExists(
+      this.tiposProcedimientoRepository,
+      {
+        idTipoProcedimiento: Not(idTipoProcedimiento),
+        nombreTipoProcedimiento,
+      },
+      'Tipo procedimiento',
+    );
+
+    const tipoProcedimiento = await this.findEntityByIdOrFail(
+      this.tiposProcedimientoRepository,
+      { idTipoProcedimiento },
+      'Tipo procedimiento',
+    );
+
+    tipoProcedimiento.nombreTipoProcedimiento = nombreTipoProcedimiento;
+    return this.tiposProcedimientoRepository.save(tipoProcedimiento);
+  }
+
+  async updateOperativo(
+    idOperativo: number,
+    dto: CreateOperativoDto,
+  ): Promise<Operativo> {
+    const nombreOperativo = dto.nombreOperativo.trim();
+    await this.throwIfExists(
+      this.operativosRepository,
+      {
+        idOperativo: Not(idOperativo),
+        nombreOperativo,
+      },
+      'Operativo',
+    );
+
+    const operativo = await this.findEntityByIdOrFail(
+      this.operativosRepository,
+      { idOperativo },
+      'Operativo',
+    );
+
+    operativo.nombreOperativo = nombreOperativo;
+    return this.operativosRepository.save(operativo);
+  }
+
+  async updateEstatusInfraccion(
+    idEstatusInfraccion: number,
+    dto: CreateEstatusInfraccionDto,
+  ): Promise<EstatusInfraccion> {
+    const nombreEstatus = dto.nombreEstatus.trim();
+    await this.throwIfExists(
+      this.estatusInfraccionRepository,
+      {
+        idEstatusInfraccion: Not(idEstatusInfraccion),
+        nombreEstatus,
+      },
+      'Estatus infraccion',
+    );
+
+    const estatusInfraccion = await this.findEntityByIdOrFail(
+      this.estatusInfraccionRepository,
+      { idEstatusInfraccion },
+      'Estatus infraccion',
+    );
+
+    estatusInfraccion.nombreEstatus = nombreEstatus;
+    return this.estatusInfraccionRepository.save(estatusInfraccion);
+  }
+
+  async updateMotivo(idMotivo: number, dto: CreateMotivoDto): Promise<Motivo> {
+    const nombreMotivo = dto.claveMotivo.trim();
+    const descripcionMotivo = dto.descripcionMotivo?.trim() || nombreMotivo;
+
+    await this.throwIfExists(
+      this.motivosRepository,
+      {
+        idMotivo: Not(idMotivo),
+        nombreMotivo,
+      },
+      'Motivo',
+    );
+
+    const motivo = await this.findEntityByIdOrFail(
+      this.motivosRepository,
+      { idMotivo },
+      'Motivo',
+    );
+
+    motivo.nombreMotivo = nombreMotivo;
+    motivo.descripcionMotivo = descripcionMotivo;
+
+    return this.motivosRepository.save(motivo);
+  }
+
+  async updateEncierro(
+    idEncierro: number,
+    dto: CreateEncierroDto,
+  ): Promise<Encierro> {
+    const nombreEncierro = dto.nombreEncierro.trim();
+    await this.throwIfExists(
+      this.encierrosRepository,
+      {
+        idEncierro: Not(idEncierro),
+        nombreEncierro,
+      },
+      'Encierro',
+    );
+
+    const encierro = await this.findEntityByIdOrFail(
+      this.encierrosRepository,
+      { idEncierro },
+      'Encierro',
+    );
+
+    encierro.nombreEncierro = nombreEncierro;
+    return this.encierrosRepository.save(encierro);
+  }
+
   findRoles(): Promise<Array<Pick<Rol, 'idRol' | 'nombreRol'>>> {
     return this.rolesRepository
       .find({
@@ -399,30 +694,34 @@ export class CatalogosService {
   }
 
   private async findRegionByIdOrFail(idRegion: number): Promise<Region> {
-    const region = await this.regionesRepository.findOne({
-      where: { idRegion },
-    });
-
-    if (!region) {
-      throw new NotFoundException(`Region ${idRegion} no encontrada`);
-    }
-
-    return region;
+    return this.findEntityByIdOrFail(
+      this.regionesRepository,
+      { idRegion },
+      'Region',
+    );
   }
 
   private async findMarcaVehiculoByIdOrFail(
     idMarcaVehiculo: number,
   ): Promise<MarcaVehiculo> {
-    const marcaVehiculo = await this.marcasVehiculoRepository.findOne({
-      where: { idMarcaVehiculo },
-    });
+    return this.findEntityByIdOrFail(
+      this.marcasVehiculoRepository,
+      { idMarcaVehiculo },
+      'Marca vehiculo',
+    );
+  }
 
-    if (!marcaVehiculo) {
-      throw new NotFoundException(
-        `Marca vehiculo ${idMarcaVehiculo} no encontrada`,
-      );
+  private async findEntityByIdOrFail<T extends ObjectLiteral>(
+    repository: Repository<T>,
+    where: FindOptionsWhere<T>,
+    label: string,
+  ): Promise<T> {
+    const entity = await repository.findOne({ where });
+
+    if (!entity) {
+      throw new NotFoundException(`${label} no encontrado`);
     }
 
-    return marcaVehiculo;
+    return entity;
   }
 }

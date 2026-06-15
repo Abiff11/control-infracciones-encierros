@@ -43,6 +43,7 @@ interface LoadState<T> {
 }
 
 interface FiltersForm {
+  search: string;
   idEncierro: string;
   idRegion: string;
   idDelegacion: string;
@@ -77,6 +78,7 @@ interface EncierrosVehiculosPageProps {
 }
 
 const DEFAULT_FILTERS: FiltersForm = {
+  search: '',
   idEncierro: '',
   idRegion: '',
   idDelegacion: '',
@@ -142,6 +144,7 @@ function toBoolean(value: string): boolean | undefined {
 
 function buildQuery(filters: FiltersForm): VehiculosEncierroQuery {
   return {
+    search: filters.search || undefined,
     idEncierro: toNumber(filters.idEncierro),
     idRegion: toNumber(filters.idRegion),
     idDelegacion: toNumber(filters.idDelegacion),
@@ -422,6 +425,25 @@ function EncierrosVehiculosPage({
                 Buscar
               </Button>
             </div>
+          </div>
+
+          <div className="form-grid form-grid-2">
+            <Field htmlFor="encierros-search" label="Busqueda general">
+              <TextInput
+                id="encierros-search"
+                value={draftFilters.search}
+                onChange={(event) => updateDraftField('search', event.target.value)}
+                placeholder="Buscar por coincidencia en cualquier campo"
+              />
+            </Field>
+
+            <Field htmlFor="encierros-folio" label="Folio infraccion">
+              <TextInput
+                id="encierros-folio"
+                value={draftFilters.folioInfraccion}
+                onChange={(event) => updateDraftField('folioInfraccion', event.target.value)}
+              />
+            </Field>
           </div>
 
           <div className="form-grid form-grid-3">

@@ -267,6 +267,7 @@ export interface CreateInfraccionCompletaPayload {
 }
 
 export interface InfraccionesQuery {
+  search?: string;
   folioInfraccion?: string;
   fechaInicio?: string;
   fechaFin?: string;
@@ -278,6 +279,8 @@ export interface InfraccionesQuery {
   idTipoProcedimiento?: number;
   idMotivo?: number;
   idEncierro?: number;
+  rfc?: string;
+  claveOficial?: string;
   placas?: string;
   serie?: string;
   motor?: string;

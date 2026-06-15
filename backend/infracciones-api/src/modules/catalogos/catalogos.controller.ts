@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { WRITE_ROLES } from '../auth/constants/roles.constants';
@@ -41,6 +51,18 @@ export class CatalogosController {
     return this.catalogosService.createRegion(dto);
   }
 
+  @UseGuards(JwtAuthGuard, RoleAuthGuard)
+  @Roles(...WRITE_ROLES)
+  @Patch('regiones/:id')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Actualizar region' })
+  updateRegion(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateRegionDto,
+  ) {
+    return this.catalogosService.updateRegion(id, dto);
+  }
+
   @Get('delegaciones')
   @ApiOperation({ summary: 'Listar delegaciones' })
   findDelegaciones(@Query() query: FindDelegacionesQueryDto) {
@@ -54,6 +76,18 @@ export class CatalogosController {
   @ApiOperation({ summary: 'Crear delegacion' })
   createDelegacion(@Body() dto: CreateDelegacionDto) {
     return this.catalogosService.createDelegacion(dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RoleAuthGuard)
+  @Roles(...WRITE_ROLES)
+  @Patch('delegaciones/:id')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Actualizar delegacion' })
+  updateDelegacion(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateDelegacionDto,
+  ) {
+    return this.catalogosService.updateDelegacion(id, dto);
   }
 
   @Get('sexos')
@@ -71,6 +105,18 @@ export class CatalogosController {
     return this.catalogosService.createSexo(dto);
   }
 
+  @UseGuards(JwtAuthGuard, RoleAuthGuard)
+  @Roles(...WRITE_ROLES)
+  @Patch('sexos/:id')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Actualizar sexo' })
+  updateSexo(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateSexoDto,
+  ) {
+    return this.catalogosService.updateSexo(id, dto);
+  }
+
   @Get('servicios')
   @ApiOperation({ summary: 'Listar servicios' })
   findServicios() {
@@ -84,6 +130,18 @@ export class CatalogosController {
   @ApiOperation({ summary: 'Crear servicio' })
   createServicio(@Body() dto: CreateServicioDto) {
     return this.catalogosService.createServicio(dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RoleAuthGuard)
+  @Roles(...WRITE_ROLES)
+  @Patch('servicios/:id')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Actualizar servicio' })
+  updateServicio(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateServicioDto,
+  ) {
+    return this.catalogosService.updateServicio(id, dto);
   }
 
   @Get('clases-vehiculo')
@@ -101,6 +159,18 @@ export class CatalogosController {
     return this.catalogosService.createClaseVehiculo(dto);
   }
 
+  @UseGuards(JwtAuthGuard, RoleAuthGuard)
+  @Roles(...WRITE_ROLES)
+  @Patch('clases-vehiculo/:id')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Actualizar clase de vehiculo' })
+  updateClaseVehiculo(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateClaseVehiculoDto,
+  ) {
+    return this.catalogosService.updateClaseVehiculo(id, dto);
+  }
+
   @Get('marcas-vehiculo')
   @ApiOperation({ summary: 'Listar marcas de vehiculo' })
   findMarcasVehiculo() {
@@ -114,6 +184,18 @@ export class CatalogosController {
   @ApiOperation({ summary: 'Crear marca de vehiculo' })
   createMarcaVehiculo(@Body() dto: CreateMarcaVehiculoDto) {
     return this.catalogosService.createMarcaVehiculo(dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RoleAuthGuard)
+  @Roles(...WRITE_ROLES)
+  @Patch('marcas-vehiculo/:id')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Actualizar marca de vehiculo' })
+  updateMarcaVehiculo(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateMarcaVehiculoDto,
+  ) {
+    return this.catalogosService.updateMarcaVehiculo(id, dto);
   }
 
   @Get('lineas-vehiculo')
@@ -131,6 +213,18 @@ export class CatalogosController {
     return this.catalogosService.createLineaVehiculo(dto);
   }
 
+  @UseGuards(JwtAuthGuard, RoleAuthGuard)
+  @Roles(...WRITE_ROLES)
+  @Patch('lineas-vehiculo/:id')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Actualizar linea de vehiculo' })
+  updateLineaVehiculo(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateLineaVehiculoDto,
+  ) {
+    return this.catalogosService.updateLineaVehiculo(id, dto);
+  }
+
   @Get('tipos-procedimiento')
   @ApiOperation({ summary: 'Listar tipos de procedimiento' })
   findTiposProcedimiento() {
@@ -144,6 +238,18 @@ export class CatalogosController {
   @ApiOperation({ summary: 'Crear tipo de procedimiento' })
   createTipoProcedimiento(@Body() dto: CreateTipoProcedimientoDto) {
     return this.catalogosService.createTipoProcedimiento(dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RoleAuthGuard)
+  @Roles(...WRITE_ROLES)
+  @Patch('tipos-procedimiento/:id')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Actualizar tipo de procedimiento' })
+  updateTipoProcedimiento(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateTipoProcedimientoDto,
+  ) {
+    return this.catalogosService.updateTipoProcedimiento(id, dto);
   }
 
   @Get('operativos')
@@ -161,6 +267,18 @@ export class CatalogosController {
     return this.catalogosService.createOperativo(dto);
   }
 
+  @UseGuards(JwtAuthGuard, RoleAuthGuard)
+  @Roles(...WRITE_ROLES)
+  @Patch('operativos/:id')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Actualizar operativo' })
+  updateOperativo(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateOperativoDto,
+  ) {
+    return this.catalogosService.updateOperativo(id, dto);
+  }
+
   @Get('estatus-infraccion')
   @ApiOperation({ summary: 'Listar estatus de infraccion' })
   findEstatusInfraccion() {
@@ -174,6 +292,18 @@ export class CatalogosController {
   @ApiOperation({ summary: 'Crear estatus de infraccion' })
   createEstatusInfraccion(@Body() dto: CreateEstatusInfraccionDto) {
     return this.catalogosService.createEstatusInfraccion(dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RoleAuthGuard)
+  @Roles(...WRITE_ROLES)
+  @Patch('estatus-infraccion/:id')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Actualizar estatus de infraccion' })
+  updateEstatusInfraccion(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateEstatusInfraccionDto,
+  ) {
+    return this.catalogosService.updateEstatusInfraccion(id, dto);
   }
 
   @Get('motivos')
@@ -191,6 +321,18 @@ export class CatalogosController {
     return this.catalogosService.createMotivo(dto);
   }
 
+  @UseGuards(JwtAuthGuard, RoleAuthGuard)
+  @Roles(...WRITE_ROLES)
+  @Patch('motivos/:id')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Actualizar motivo' })
+  updateMotivo(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateMotivoDto,
+  ) {
+    return this.catalogosService.updateMotivo(id, dto);
+  }
+
   @Get('encierros')
   @ApiOperation({ summary: 'Listar encierros' })
   findEncierros() {
@@ -204,6 +346,18 @@ export class CatalogosController {
   @ApiOperation({ summary: 'Crear encierro' })
   createEncierro(@Body() dto: CreateEncierroDto) {
     return this.catalogosService.createEncierro(dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RoleAuthGuard)
+  @Roles(...WRITE_ROLES)
+  @Patch('encierros/:id')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Actualizar encierro' })
+  updateEncierro(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateEncierroDto,
+  ) {
+    return this.catalogosService.updateEncierro(id, dto);
   }
 
   @Get('roles')

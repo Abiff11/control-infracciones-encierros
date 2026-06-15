@@ -46,6 +46,21 @@ export function createRegion(
   }, token);
 }
 
+export function updateRegion(
+  token: string,
+  idRegion: number,
+  payload: CreateRegionPayload,
+): Promise<Region> {
+  return request<Region>(
+    `/catalogos/regiones/${idRegion}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
+}
+
 export function getDelegaciones(idRegion?: number): Promise<Delegacion[]> {
   return request<Delegacion[]>(
     `/catalogos/delegaciones${buildQuery({ idRegion })}`,
@@ -62,6 +77,21 @@ export function createDelegacion(
   }, token);
 }
 
+export function updateDelegacion(
+  token: string,
+  idDelegacion: number,
+  payload: CreateDelegacionPayload,
+): Promise<Delegacion> {
+  return request<Delegacion>(
+    `/catalogos/delegaciones/${idDelegacion}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
+}
+
 export function getSexos(): Promise<Sexo[]> {
   return request<Sexo[]>('/catalogos/sexos');
 }
@@ -74,6 +104,21 @@ export function createSexo(
     method: 'POST',
     body: JSON.stringify(payload),
   }, token);
+}
+
+export function updateSexo(
+  token: string,
+  idSexo: number,
+  payload: CreateSexoPayload,
+): Promise<Sexo> {
+  return request<Sexo>(
+    `/catalogos/sexos/${idSexo}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export function getServicios(): Promise<Servicio[]> {
@@ -90,6 +135,21 @@ export function createServicio(
   }, token);
 }
 
+export function updateServicio(
+  token: string,
+  idServicio: number,
+  payload: CreateServicioPayload,
+): Promise<Servicio> {
+  return request<Servicio>(
+    `/catalogos/servicios/${idServicio}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
+}
+
 export function getClasesVehiculo(): Promise<ClaseVehiculo[]> {
   return request<ClaseVehiculo[]>('/catalogos/clases-vehiculo');
 }
@@ -104,6 +164,21 @@ export function createClaseVehiculo(
   }, token);
 }
 
+export function updateClaseVehiculo(
+  token: string,
+  idClaseVehiculo: number,
+  payload: CreateClaseVehiculoPayload,
+): Promise<ClaseVehiculo> {
+  return request<ClaseVehiculo>(
+    `/catalogos/clases-vehiculo/${idClaseVehiculo}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
+}
+
 export function getMarcasVehiculo(): Promise<MarcaVehiculo[]> {
   return request<MarcaVehiculo[]>('/catalogos/marcas-vehiculo');
 }
@@ -116,6 +191,21 @@ export function createMarcaVehiculo(
     method: 'POST',
     body: JSON.stringify(payload),
   }, token);
+}
+
+export function updateMarcaVehiculo(
+  token: string,
+  idMarcaVehiculo: number,
+  payload: CreateMarcaVehiculoPayload,
+): Promise<MarcaVehiculo> {
+  return request<MarcaVehiculo>(
+    `/catalogos/marcas-vehiculo/${idMarcaVehiculo}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export function getLineasVehiculo(
@@ -136,6 +226,21 @@ export function createLineaVehiculo(
   }, token);
 }
 
+export function updateLineaVehiculo(
+  token: string,
+  idLineaVehiculo: number,
+  payload: CreateLineaVehiculoPayload,
+): Promise<LineaVehiculo> {
+  return request<LineaVehiculo>(
+    `/catalogos/lineas-vehiculo/${idLineaVehiculo}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
+}
+
 export function getTiposProcedimiento(): Promise<TipoProcedimiento[]> {
   return request<TipoProcedimiento[]>('/catalogos/tipos-procedimiento');
 }
@@ -148,6 +253,21 @@ export function createTipoProcedimiento(
     method: 'POST',
     body: JSON.stringify(payload),
   }, token);
+}
+
+export function updateTipoProcedimiento(
+  token: string,
+  idTipoProcedimiento: number,
+  payload: CreateTipoProcedimientoPayload,
+): Promise<TipoProcedimiento> {
+  return request<TipoProcedimiento>(
+    `/catalogos/tipos-procedimiento/${idTipoProcedimiento}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export function getOperativos(): Promise<Operativo[]> {
@@ -164,6 +284,21 @@ export function createOperativo(
   }, token);
 }
 
+export function updateOperativo(
+  token: string,
+  idOperativo: number,
+  payload: CreateOperativoPayload,
+): Promise<Operativo> {
+  return request<Operativo>(
+    `/catalogos/operativos/${idOperativo}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
+}
+
 export function getEstatusInfraccion(): Promise<EstatusInfraccion[]> {
   return request<EstatusInfraccion[]>('/catalogos/estatus-infraccion');
 }
@@ -176,6 +311,21 @@ export function createEstatusInfraccion(
     method: 'POST',
     body: JSON.stringify(payload),
   }, token);
+}
+
+export function updateEstatusInfraccion(
+  token: string,
+  idEstatusInfraccion: number,
+  payload: CreateEstatusInfraccionPayload,
+): Promise<EstatusInfraccion> {
+  return request<EstatusInfraccion>(
+    `/catalogos/estatus-infraccion/${idEstatusInfraccion}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export function getMotivos(): Promise<Motivo[]> {
@@ -192,6 +342,21 @@ export function createMotivo(
   }, token);
 }
 
+export function updateMotivo(
+  token: string,
+  idMotivo: number,
+  payload: CreateMotivoPayload,
+): Promise<Motivo> {
+  return request<Motivo>(
+    `/catalogos/motivos/${idMotivo}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
+}
+
 export function getEncierros(): Promise<Encierro[]> {
   return request<Encierro[]>('/catalogos/encierros');
 }
@@ -204,6 +369,21 @@ export function createEncierro(
     method: 'POST',
     body: JSON.stringify(payload),
   }, token);
+}
+
+export function updateEncierro(
+  token: string,
+  idEncierro: number,
+  payload: CreateEncierroPayload,
+): Promise<Encierro> {
+  return request<Encierro>(
+    `/catalogos/encierros/${idEncierro}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export async function getCatalogosBundle(): Promise<CatalogosBundle> {

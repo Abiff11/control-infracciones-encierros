@@ -188,12 +188,12 @@ function App() {
     return response;
   }
 
-  async function handleFetchFlujo(idInfraccion: number): Promise<InfraccionFlujoResponse> {
+  async function handleFetchFlujo(folioInfraccion: string): Promise<InfraccionFlujoResponse> {
     if (!session?.token) {
       throw new Error('Sesion no valida');
     }
 
-    return runProtectedRequest((token) => getInfraccionFlujo(token, idInfraccion));
+    return runProtectedRequest((token) => getInfraccionFlujo(token, folioInfraccion));
   }
 
   if (authLoading || bootstrapping) {
@@ -215,7 +215,14 @@ function App() {
 
   return (
     <AppLayout
-      sidebar={<Sidebar currentPage={currentPage} items={NAV_ITEMS} onNavigate={handleNavigate} swaggerUrl={swaggerUrl} />}
+      sidebar={
+        <Sidebar
+          currentPage={currentPage}
+          items={NAV_ITEMS}
+          onNavigate={handleNavigate}
+          swaggerUrl={swaggerUrl}
+        />
+      }
       header={
         <div className="shell-header">
           <div>

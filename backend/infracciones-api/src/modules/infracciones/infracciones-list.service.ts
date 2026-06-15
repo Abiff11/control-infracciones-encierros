@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource, SelectQueryBuilder } from 'typeorm';
+import { Brackets, DataSource, SelectQueryBuilder } from 'typeorm';
 
 import { ESTADO_OPERATIVO_VEHICULO } from './constants/estado-operativo-vehiculo.constants';
 import { FindInfraccionesQueryDto } from './dto/find-infracciones-query.dto';
@@ -161,7 +161,10 @@ export class InfraccionesListService {
       .addSelect('estatusInfraccion.idEstatusInfraccion', 'idEstatusInfraccion')
       .addSelect('estatusInfraccion.nombreEstatus', 'nombreEstatus')
       .addSelect('tipoProcedimiento.idTipoProcedimiento', 'idTipoProcedimiento')
-      .addSelect('tipoProcedimiento.nombreTipoProcedimiento', 'nombreTipoProcedimiento')
+      .addSelect(
+        'tipoProcedimiento.nombreTipoProcedimiento',
+        'nombreTipoProcedimiento',
+      )
       .addSelect('retencion.id_retencion_vehiculo', 'idRetencionVehiculo')
       .addSelect('encierro.nombre_encierro', 'encierro')
       .addSelect('retencion.fecha_ingreso', 'fechaIngreso')
@@ -216,6 +219,69 @@ export class InfraccionesListService {
     builder: SelectQueryBuilder<Infraccion>,
     query: FindInfraccionesQueryDto,
   ): void {
+    const search = query.search?.trim();
+    if (search) {
+      const searchValue = `%${search}%`;
+      builder.andWhere(
+        new Brackets((qb) => {
+          qb.where('infraccion.folioInfraccion ILIKE :searchValue', {
+            searchValue,
+          })
+            .orWhere('infraccion.clavePolicia ILIKE :searchValue', {
+              searchValue,
+            })
+            .orWhere('infraccion.numParteInformativo ILIKE :searchValue', {
+              searchValue,
+            })
+            .orWhere('infractor.nombre ILIKE :searchValue', {
+              searchValue,
+            })
+            .orWhere('infractor.apellidoPaterno ILIKE :searchValue', {
+              searchValue,
+            })
+            .orWhere('infractor.apellidoMaterno ILIKE :searchValue', {
+              searchValue,
+            })
+            .orWhere('infractor.licencia ILIKE :searchValue', {
+              searchValue,
+            })
+            .orWhere('infractor.curp ILIKE :searchValue', {
+              searchValue,
+            })
+            .orWhere('vehiculo.placas ILIKE :searchValue', {
+              searchValue,
+            })
+            .orWhere('vehiculo.estadoPlacas ILIKE :searchValue', {
+              searchValue,
+            })
+            .orWhere('vehiculo.serie ILIKE :searchValue', {
+              searchValue,
+            })
+            .orWhere('vehiculo.motor ILIKE :searchValue', {
+              searchValue,
+            })
+            .orWhere('region.nombreRegion ILIKE :searchValue', {
+              searchValue,
+            })
+            .orWhere('delegacion.nombreDelegacion ILIKE :searchValue', {
+              searchValue,
+            })
+            .orWhere('estatusInfraccion.nombreEstatus ILIKE :searchValue', {
+              searchValue,
+            })
+            .orWhere(
+              'tipoProcedimiento.nombreTipoProcedimiento ILIKE :searchValue',
+              {
+                searchValue,
+              },
+            )
+            .orWhere('encierro.nombre_encierro ILIKE :searchValue', {
+              searchValue,
+            });
+        }),
+      );
+    }
+
     const folioInfraccion = query.folioInfraccion?.trim();
     if (folioInfraccion) {
       builder.andWhere('infraccion.folioInfraccion ILIKE :folioInfraccion', {
@@ -312,6 +378,20 @@ export class InfraccionesListService {
     if (clavePolicia) {
       builder.andWhere('infraccion.clavePolicia ILIKE :clavePolicia', {
         clavePolicia: `%${clavePolicia}%`,
+      });
+    }
+
+    const rfc = query.rfc?.trim();
+    if (rfc) {
+      builder.andWhere('infractor.curp ILIKE :rfc', {
+        rfc: `%${rfc}%`,
+      });
+    }
+
+    const claveOficial = query.claveOficial?.trim();
+    if (claveOficial) {
+      builder.andWhere('infraccion.clavePolicia ILIKE :claveOficial', {
+        claveOficial: `%${claveOficial}%`,
       });
     }
 
@@ -521,7 +601,9 @@ export class InfraccionesListService {
       },
       tipoProcedimiento: {
         idTipoProcedimiento: this.toNumber(row.idTipoProcedimiento),
-        nombreTipoProcedimiento: this.toStringValue(row.nombreTipoProcedimiento),
+        nombreTipoProcedimiento: this.toStringValue(
+          row.nombreTipoProcedimiento,
+        ),
       },
       motivos: motivosMap.get(idInfraccion) ?? [],
       retencion: hasRetencion

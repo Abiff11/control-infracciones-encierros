@@ -42,6 +42,10 @@ export class VehiculosEncierroQueryDto {
 
   @IsOptional()
   @IsString()
+  search?: string;
+
+  @IsOptional()
+  @IsString()
   placas?: string;
 
   @IsOptional()

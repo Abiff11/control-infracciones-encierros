@@ -97,6 +97,24 @@ export class InfraccionesService {
     return infraccion;
   }
 
+  async findByFolioOrFail(folioInfraccion: string): Promise<Infraccion> {
+    const normalizedFolio = folioInfraccion.trim();
+
+    const infraccion = await this.buildBaseInfraccionQuery()
+      .where('UPPER(infraccion.folioInfraccion) = UPPER(:folioInfraccion)', {
+        folioInfraccion: normalizedFolio,
+      })
+      .getOne();
+
+    if (!infraccion) {
+      throw new NotFoundException(
+        `Infraccion con folio ${normalizedFolio} no encontrada`,
+      );
+    }
+
+    return infraccion;
+  }
+
   async findMotivosByInfraccion(
     idInfraccion: number,
   ): Promise<InfraccionMotivo[]> {
@@ -194,9 +212,10 @@ export class InfraccionesService {
   }
 
   async findFlujoByInfraccion(
-    idInfraccion: number,
+    folioInfraccion: string,
   ): Promise<InfraccionFlujoResponseDto> {
-    const infraccion = await this.findByIdOrFail(idInfraccion);
+    const infraccion = await this.findByFolioOrFail(folioInfraccion);
+    const idInfraccion = infraccion.idInfraccion;
     const [motivos, pagos, liberaciones, retenciones, movimientos] =
       await Promise.all([
         this.findMotivosByInfraccion(idInfraccion),
@@ -538,137 +557,133 @@ export class InfraccionesService {
     dto: CreateInfraccionCompletaDto,
     idUsuarioCaptura: number,
   ): Promise<InfraccionFlujoResponseDto> {
-    const createdInfraccionId = await this.dataSource.transaction(
-      async (manager) => {
-        const infraccionRepo = manager.getRepository(Infraccion);
-        const infractorRepo = manager.getRepository(Infractor);
-        const vehiculoRepo = manager.getRepository(Vehiculo);
-        const lugarRepo = manager.getRepository(LugarInfraccion);
-        const infraccionMotivoRepo = manager.getRepository(InfraccionMotivo);
-        const movimientoRepo = manager.getRepository(InfraccionMovimiento);
+    await this.dataSource.transaction(async (manager) => {
+      const infraccionRepo = manager.getRepository(Infraccion);
+      const infractorRepo = manager.getRepository(Infractor);
+      const vehiculoRepo = manager.getRepository(Vehiculo);
+      const lugarRepo = manager.getRepository(LugarInfraccion);
+      const infraccionMotivoRepo = manager.getRepository(InfraccionMotivo);
+      const movimientoRepo = manager.getRepository(InfraccionMovimiento);
 
-        const existingFolio = await infraccionRepo.findOneBy({
-          folioInfraccion: dto.infraccion.folioInfraccion,
-        });
+      const existingFolio = await infraccionRepo.findOneBy({
+        folioInfraccion: dto.infraccion.folioInfraccion,
+      });
 
-        if (existingFolio) {
-          throw new ConflictException(
-            'Ya existe una infraccion con el folio indicado',
-          );
-        }
-
-        const estatusInfraccion = await this.findEstatusByIdOrFail(
-          manager,
-          dto.infraccion.idEstatusInfraccion,
+      if (existingFolio) {
+        throw new ConflictException(
+          'Ya existe una infraccion con el folio indicado',
         );
-        const usuarioCaptura = await this.findUsuarioByIdOrFail(
-          manager,
-          idUsuarioCaptura,
-        );
-        const motivos = await this.findMotivosByIdsOrFail(
-          manager,
-          dto.infraccion.motivos,
-        );
+      }
 
-        const savedInfractor = await infractorRepo.save(
-          infractorRepo.create({
-            sexo: { idSexo: dto.infractor.idSexo } as Sexo,
-            nombre: dto.infractor.nombre,
-            apellidoPaterno: dto.infractor.apellidoPaterno,
-            apellidoMaterno: dto.infractor.apellidoMaterno ?? null,
-            licencia: dto.infractor.licencia ?? null,
-            curp: dto.infractor.curp ?? null,
-          }),
-        );
+      const estatusInfraccion = await this.findEstatusByIdOrFail(
+        manager,
+        dto.infraccion.idEstatusInfraccion,
+      );
+      const usuarioCaptura = await this.findUsuarioByIdOrFail(
+        manager,
+        idUsuarioCaptura,
+      );
+      const motivos = await this.findMotivosByIdsOrFail(
+        manager,
+        dto.infraccion.motivos,
+      );
 
-        const savedVehiculo = await vehiculoRepo.save(
-          vehiculoRepo.create({
-            claseVehiculo: {
-              idClaseVehiculo: dto.vehiculo.idClaseVehiculo,
-            } as ClaseVehiculo,
-            lineaVehiculo: {
-              idLineaVehiculo: dto.vehiculo.idLineaVehiculo,
-            } as LineaVehiculo,
-            servicio: { idServicio: dto.vehiculo.idServicio } as Servicio,
-            anioModelo: dto.vehiculo.anioModelo ?? null,
-            sitioServicioPublico: dto.vehiculo.sitioServicioPublico ?? null,
-            color: dto.vehiculo.color ?? null,
-            placas: dto.vehiculo.placas ?? null,
-            estadoPlacas: dto.vehiculo.estadoPlacas ?? null,
-            serie: dto.vehiculo.serie ?? null,
-            motor: dto.vehiculo.motor ?? null,
-          }),
-        );
+      const savedInfractor = await infractorRepo.save(
+        infractorRepo.create({
+          sexo: { idSexo: dto.infractor.idSexo } as Sexo,
+          nombre: dto.infractor.nombre,
+          apellidoPaterno: dto.infractor.apellidoPaterno,
+          apellidoMaterno: dto.infractor.apellidoMaterno ?? null,
+          licencia: dto.infractor.licencia ?? null,
+          curp: dto.infractor.curp ?? null,
+        }),
+      );
 
-        const operativo =
-          dto.infraccion.idOperativo === null ||
-          dto.infraccion.idOperativo === undefined
-            ? null
-            : manager.getRepository(Operativo).create({
-                idOperativo: dto.infraccion.idOperativo,
-              });
+      const savedVehiculo = await vehiculoRepo.save(
+        vehiculoRepo.create({
+          claseVehiculo: {
+            idClaseVehiculo: dto.vehiculo.idClaseVehiculo,
+          } as ClaseVehiculo,
+          lineaVehiculo: {
+            idLineaVehiculo: dto.vehiculo.idLineaVehiculo,
+          } as LineaVehiculo,
+          servicio: { idServicio: dto.vehiculo.idServicio } as Servicio,
+          anioModelo: dto.vehiculo.anioModelo ?? null,
+          sitioServicioPublico: dto.vehiculo.sitioServicioPublico ?? null,
+          color: dto.vehiculo.color ?? null,
+          placas: dto.vehiculo.placas ?? null,
+          estadoPlacas: dto.vehiculo.estadoPlacas ?? null,
+          serie: dto.vehiculo.serie ?? null,
+          motor: dto.vehiculo.motor ?? null,
+        }),
+      );
 
-        const lugarNombre = this.buildLugarInfraccionNombre(
-          dto.lugarInfraccion,
-        );
-        const savedLugar =
-          (await lugarRepo.findOneBy({
+      const operativo =
+        dto.infraccion.idOperativo === null ||
+        dto.infraccion.idOperativo === undefined
+          ? null
+          : manager.getRepository(Operativo).create({
+              idOperativo: dto.infraccion.idOperativo,
+            });
+
+      const lugarNombre = this.buildLugarInfraccionNombre(dto.lugarInfraccion);
+      const savedLugar =
+        (await lugarRepo.findOneBy({
+          nombreLugarInfraccion: lugarNombre,
+        })) ??
+        (await lugarRepo.save(
+          lugarRepo.create({
             nombreLugarInfraccion: lugarNombre,
-          })) ??
-          (await lugarRepo.save(
-            lugarRepo.create({
-              nombreLugarInfraccion: lugarNombre,
-            }),
-          ));
-
-        const savedInfraccion = await infraccionRepo.save(
-          infraccionRepo.create({
-            infractor: savedInfractor,
-            vehiculo: savedVehiculo,
-            lugarInfraccion: savedLugar,
-            delegacion: {
-              idDelegacion: dto.infraccion.idDelegacion,
-            } as Delegacion,
-            tipoProcedimiento: {
-              idTipoProcedimiento: dto.infraccion.idTipoProcedimiento,
-            } as TipoProcedimiento,
-            estatusInfraccion,
-            usuarioCaptura,
-            operativo,
-            folioInfraccion: dto.infraccion.folioInfraccion,
-            fechaInfraccion: dto.infraccion.fechaInfraccion,
-            horaInfraccion: dto.infraccion.horaInfraccion,
-            observaciones: dto.infraccion.observaciones ?? null,
-            clavePolicia: dto.infraccion.clavePolicia ?? null,
-            numParteInformativo: dto.infraccion.numParteInformativo ?? null,
           }),
-        );
+        ));
 
-        await infraccionMotivoRepo.save(
-          motivos.map((motivo) =>
-            infraccionMotivoRepo.create({
-              infraccion: savedInfraccion,
-              motivo,
-            }),
-          ),
-        );
+      const savedInfraccion = await infraccionRepo.save(
+        infraccionRepo.create({
+          infractor: savedInfractor,
+          vehiculo: savedVehiculo,
+          lugarInfraccion: savedLugar,
+          delegacion: {
+            idDelegacion: dto.infraccion.idDelegacion,
+          } as Delegacion,
+          tipoProcedimiento: {
+            idTipoProcedimiento: dto.infraccion.idTipoProcedimiento,
+          } as TipoProcedimiento,
+          estatusInfraccion,
+          usuarioCaptura,
+          operativo,
+          folioInfraccion: dto.infraccion.folioInfraccion,
+          fechaInfraccion: dto.infraccion.fechaInfraccion,
+          horaInfraccion: dto.infraccion.horaInfraccion,
+          observaciones: dto.infraccion.observaciones ?? null,
+          clavePolicia: dto.infraccion.clavePolicia ?? null,
+          numParteInformativo: dto.infraccion.numParteInformativo ?? null,
+        }),
+      );
 
-        await movimientoRepo.save(
-          movimientoRepo.create({
+      await infraccionMotivoRepo.save(
+        motivos.map((motivo) =>
+          infraccionMotivoRepo.create({
             infraccion: savedInfraccion,
-            estatusInfraccion,
-            usuario: usuarioCaptura,
-            accion: ACCION_MOVIMIENTO.INFRACCION_CAPTURADA,
-            observaciones: 'Infraccion capturada',
-            fechaMovimiento: new Date(),
+            motivo,
           }),
-        );
+        ),
+      );
 
-        return savedInfraccion.idInfraccion;
-      },
-    );
+      await movimientoRepo.save(
+        movimientoRepo.create({
+          infraccion: savedInfraccion,
+          estatusInfraccion,
+          usuario: usuarioCaptura,
+          accion: ACCION_MOVIMIENTO.INFRACCION_CAPTURADA,
+          observaciones: 'Infraccion capturada',
+          fechaMovimiento: new Date(),
+        }),
+      );
 
-    return this.findFlujoByInfraccion(createdInfraccionId);
+      return savedInfraccion.idInfraccion;
+    });
+
+    return this.findFlujoByInfraccion(dto.infraccion.folioInfraccion);
   }
 
   async actualizarEstatusYRegistrarMovimiento(

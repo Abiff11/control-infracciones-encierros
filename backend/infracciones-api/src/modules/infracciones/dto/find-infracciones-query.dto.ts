@@ -17,6 +17,18 @@ export class FindInfraccionesQueryDto {
   folioInfraccion?: string;
 
   @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
+  @IsString()
+  rfc?: string;
+
+  @IsOptional()
+  @IsString()
+  claveOficial?: string;
+
+  @IsOptional()
   @IsDateString()
   fechaInicio?: string;
 

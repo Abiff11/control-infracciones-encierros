@@ -8,7 +8,7 @@ import { JsonResult } from '../../components/ui/JsonResult';
 import type { InfraccionFlujoResponse } from './infracciones.types';
 
 interface FlujoOperativoPageProps {
-  onSubmit: (idInfraccion: number) => Promise<InfraccionFlujoResponse>;
+  onSubmit: (folioInfraccion: string) => Promise<InfraccionFlujoResponse>;
 }
 
 interface FlowSectionProps {
@@ -35,7 +35,7 @@ function FlowSection({ description, emptyLabel, title, value }: FlowSectionProps
 }
 
 function FlujoOperativoPage({ onSubmit }: FlujoOperativoPageProps) {
-  const [idInfraccion, setIdInfraccion] = useState('');
+  const [folioInfraccion, setFolioInfraccion] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<InfraccionFlujoResponse | null>(null);
@@ -43,10 +43,10 @@ function FlujoOperativoPage({ onSubmit }: FlujoOperativoPageProps) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const parsedId = Number(idInfraccion);
+    const normalizedFolio = folioInfraccion.trim();
 
-    if (!Number.isInteger(parsedId) || parsedId <= 0) {
-      setError('Ingresa un ID de infraccion valido.');
+    if (!normalizedFolio) {
+      setError('Ingresa un folio de infraccion valido.');
       return;
     }
 
@@ -55,7 +55,7 @@ function FlujoOperativoPage({ onSubmit }: FlujoOperativoPageProps) {
     setResult(null);
 
     try {
-      const response = await onSubmit(parsedId);
+      const response = await onSubmit(normalizedFolio);
       setResult(response);
     } catch (submissionError) {
       setError(
@@ -82,17 +82,16 @@ function FlujoOperativoPage({ onSubmit }: FlujoOperativoPageProps) {
 
       <Card>
         <form className="form-stack" onSubmit={handleSubmit}>
-          <Field htmlFor="flujo-id-infraccion" label="ID infraccion">
+          <Field htmlFor="flujo-folio-infraccion" label="Folio infraccion">
             <TextInput
-              id="flujo-id-infraccion"
-              type="number"
-              min="1"
-              value={idInfraccion}
+              id="flujo-folio-infraccion"
+              type="text"
+              value={folioInfraccion}
               onChange={(event) => {
-                setIdInfraccion(event.target.value);
+                setFolioInfraccion(event.target.value);
                 setError(null);
               }}
-              placeholder="1"
+              placeholder="117251"
               required
             />
           </Field>

@@ -20,10 +20,10 @@ export function getInfracciones(
 
 export function getInfraccionFlujo(
   token: string,
-  idInfraccion: number,
+  folioInfraccion: string,
 ): Promise<InfraccionFlujoResponse> {
   return request<InfraccionFlujoResponse>(
-    `/infracciones/${idInfraccion}/flujo`,
+    `/infracciones/${encodeURIComponent(folioInfraccion)}/flujo`,
     {},
     token,
   );
