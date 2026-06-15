@@ -1,0 +1,141 @@
+.flow-visual-card {
+  overflow: visible;
+}
+
+.flow-diagram {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(160px, 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+
+.flow-diagram-node {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.flow-diagram-node:last-child {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.flow-step-card {
+  min-height: 138px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: var(--shadow-soft);
+}
+
+.flow-step-card strong {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.flow-step-card span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.flow-step-label {
+  width: fit-content;
+  margin: 0;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--slate-050);
+  color: var(--slate-700);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.flow-step-card-done {
+  border-color: var(--success-border);
+  background: linear-gradient(180deg, var(--success-bg) 0%, #ffffff 100%);
+}
+
+.flow-step-card-current {
+  border-color: #bfdbfe;
+  background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
+}
+
+.flow-step-card-pending {
+  opacity: 0.78;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+}
+
+.flow-arrow {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--slate-800);
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.flow-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.flow-card-wide {
+  grid-column: 1 / -1;
+}
+
+.flow-card-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.flow-mini-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.flow-mini-card strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.flow-mini-card span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 1320px) {
+  .flow-diagram {
+    grid-template-columns: 1fr;
+  }
+
+  .flow-diagram-node {
+    grid-template-columns: 1fr;
+  }
+
+  .flow-arrow {
+    justify-self: center;
+    transform: rotate(90deg);
+  }
+}
+
+@media (max-width: 980px) {
+  .flow-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
