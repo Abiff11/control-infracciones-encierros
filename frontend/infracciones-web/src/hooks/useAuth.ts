@@ -86,26 +86,29 @@ export function useAuth() {
     setBootstrapping(false);
   }, []);
 
-  async function runProtectedRequest<T>(
-    action: (token: string) => Promise<T>,
-  ): Promise<T> {
-    if (!session?.token) {
-      throw new Error('No hay una sesion activa.');
-    }
+  const runProtectedRequest = useCallback(
+    async <T,>(action: (token: string) => Promise<T>): Promise<T> => {
+      const token = session?.token;
 
-    try {
-      return await action(session.token);
-    } catch (error) {
-      if (isUnauthorizedError(error)) {
-        handleSessionExpired('La sesion expiro. Vuelve a iniciar sesion.');
-        throw new Error('La sesion expiro. Vuelve a iniciar sesion.', {
-          cause: error,
-        });
+      if (!token) {
+        throw new Error('No hay una sesion activa.');
       }
 
-      throw error;
-    }
-  }
+      try {
+        return await action(token);
+      } catch (error) {
+        if (isUnauthorizedError(error)) {
+          handleSessionExpired('La sesion expiro. Vuelve a iniciar sesion.');
+          throw new Error('La sesion expiro. Vuelve a iniciar sesion.', {
+            cause: error,
+          });
+        }
+
+        throw error;
+      }
+    },
+    [handleSessionExpired, session?.token],
+  );
 
   useEffect(() => {
     if (!storedToken) {
