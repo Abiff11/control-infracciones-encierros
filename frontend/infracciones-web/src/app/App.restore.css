@@ -21,6 +21,34 @@
   font-size: 11px;
 }
 
+.table-operation-button {
+  width: fit-content;
+  min-height: 30px;
+  padding: 0 11px;
+  border-color: var(--slate-300);
+  background: #ffffff;
+  color: var(--slate-800);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.table-operation-button:hover {
+  background: var(--slate-800);
+  border-color: var(--slate-800);
+  color: #ffffff;
+}
+
+.table-operation-pending {
+  display: inline-flex;
+  width: fit-content;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
 .status-badge {
   display: inline-flex;
   align-items: center;
