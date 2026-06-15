@@ -19,7 +19,7 @@ interface DashboardPageProps {
 const QUICK_ACTIONS: Array<{ key: PageKey; label: string }> = [
   { key: 'infracciones', label: 'Infracciones' },
   { key: 'nueva-infraccion', label: 'Nueva infracción' },
-  { key: 'encierros-vehiculos', label: 'Vehículos en encierro' },
+  { key: 'encierros-vehiculos', label: 'Inventario de encierros' },
   { key: 'flujo-operativo', label: 'Flujo operativo' },
 ];
 
