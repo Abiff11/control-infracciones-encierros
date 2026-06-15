@@ -5,12 +5,15 @@ import { Card } from '../../components/ui/Card';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Field, TextInput } from '../../components/ui/Field';
 import { LoadingMessage } from '../../components/ui/LoadingMessage';
+import { PaginationControls } from '../../components/ui/PaginationControls';
 import { SelectField } from '../../components/ui/SelectField';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { getErrorMessage } from '../../services/api/apiClient';
 import { getInfraccionDetalle, getInfracciones } from '../../services/api/infracciones.api';
 import {
+  formatCurrencyMxn,
   formatDate,
+  formatDateTime,
   formatEmptyValue,
   formatFullName,
   formatTimeOfDay,
@@ -146,33 +149,38 @@ function getInfractorLabel(item: InfraccionListItem): string {
   ]);
 }
 
-function formatMotivoLabel(motivo: InfraccionListItem['motivos'][number]): string {
-  const descripcion = formatEmptyValue(motivo.descripcionMotivo);
-  if (descripcion === motivo.nombreMotivo) {
-    return motivo.nombreMotivo;
-  }
+function getVehicleLabel(item: InfraccionListItem): string {
+  const parts = [item.vehiculo.marca, item.vehiculo.linea, item.vehiculo.clase].filter(
+    (value): value is string => Boolean(value && value.trim()),
+  );
 
-  return `${motivo.nombreMotivo} - ${descripcion}`;
+  return parts.length > 0 ? parts.join(' - ') : 'Sin informacion registrada';
 }
 
-function renderMotivosChips(item: InfraccionListItem) {
-  if (item.motivos.length === 0) {
-    return <span className="table-empty">Sin informacion registrada</span>;
+function getPagoLabel(item: InfraccionListItem): string {
+  if (!item.pago?.tienePago) {
+    return 'Sin pago';
   }
 
-  const visible = item.motivos.slice(0, 2);
-  const hiddenCount = Math.max(0, item.motivos.length - visible.length);
+  return [formatDateTime(item.pago.fechaUltimoPago), formatCurrencyMxn(item.pago.montoPagado)]
+    .filter((value) => value !== 'Sin informacion registrada')
+    .join(' | ');
+}
 
-  return (
-    <div className="motivo-chip-row">
-      {visible.map((motivo) => (
-        <span key={motivo.idMotivo} className="motivo-chip" title={formatMotivoLabel(motivo)}>
-          {motivo.nombreMotivo}
-        </span>
-      ))}
-      {hiddenCount > 0 ? <span className="motivo-chip motivo-chip-muted">+{hiddenCount}</span> : null}
-    </div>
-  );
+function getLiberacionLabel(item: InfraccionListItem): string {
+  if (!item.liberacion?.tieneLiberacion) {
+    return 'Sin liberacion';
+  }
+
+  return formatDateTime(item.liberacion.fechaLiberacion);
+}
+
+function getSalidaLabel(item: InfraccionListItem): string {
+  if (!item.salida?.tieneSalida) {
+    return 'Sin salida';
+  }
+
+  return formatDateTime(item.salida.fechaSalida);
 }
 
 function InfraccionesListPage({
@@ -290,12 +298,30 @@ function InfraccionesListPage({
 
   function applyFilters(event?: FormEvent<HTMLFormElement>): void {
     event?.preventDefault();
-    setActiveFilters(draftFilters);
+    const nextFilters = {
+      ...draftFilters,
+      page: draftFilters.page || '1',
+      limit: draftFilters.limit || '10',
+    };
+    setDraftFilters(nextFilters);
+    setActiveFilters(nextFilters);
   }
 
   function resetFilters(): void {
     setDraftFilters(DEFAULT_FILTERS);
     setActiveFilters(DEFAULT_FILTERS);
+  }
+
+  function changePage(page: number): void {
+    const nextPage = String(page);
+    setDraftFilters((current) => ({
+      ...current,
+      page: nextPage,
+    }));
+    setActiveFilters((current) => ({
+      ...current,
+      page: nextPage,
+    }));
   }
 
   function openDetail(idInfraccion: number): void {
@@ -616,7 +642,7 @@ function InfraccionesListPage({
 
             {meta ? (
               <p className="meta-copy">
-                Total {meta.total} · Página {meta.page} de {meta.totalPages}
+                Total {meta.total} · Página {meta.page} de {Math.max(1, meta.totalPages)}
               </p>
             ) : null}
           </div>
@@ -629,16 +655,20 @@ function InfraccionesListPage({
                   <th>Fecha</th>
                   <th>Infractor</th>
                   <th>Placas</th>
-                  <th>Motivos</th>
+                  <th>Vehiculo</th>
+                  <th>Encierro</th>
+                  <th>Ingreso</th>
+                  <th>Pago</th>
+                  <th>Liberacion</th>
+                  <th>Salida</th>
                   <th>Estado operativo</th>
-                  <th>Estatus</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="empty-state">
+                    <td colSpan={12} className="empty-state">
                       {state.status === 'loading'
                         ? 'Cargando infracciones...'
                         : 'No hay infracciones para mostrar.'}
@@ -667,12 +697,48 @@ function InfraccionesListPage({
                         </div>
                       </td>
                       <td>
-                        {renderMotivosChips(item)}
+                        <div className="table-cell-stack">
+                          <strong>{getVehicleLabel(item)}</strong>
+                          <span>{formatEmptyValue(item.vehiculo.color)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{formatEmptyValue(item.retencion?.encierro)}</strong>
+                          <span>{formatEmptyValue(item.retencion?.folioResguardo)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{formatDateTime(item.retencion?.fechaIngreso)}</strong>
+                          <span>{formatEmptyValue(item.retencion?.estadoIngreso)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{getPagoLabel(item)}</strong>
+                          <span>{formatEmptyValue(item.pago?.montoPagado)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{getLiberacionLabel(item)}</strong>
+                          <span>
+                            {item.liberacion?.tieneLiberacion
+                              ? 'Liberacion registrada'
+                              : 'Pendiente'}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{getSalidaLabel(item)}</strong>
+                          <span>{item.salida?.tieneSalida ? 'Salida registrada' : 'Pendiente'}</span>
+                        </div>
                       </td>
                       <td>
                         <StatusBadge value={item.estadoOperativoCalculado} />
                       </td>
-                      <td>{item.estatusInfraccion.nombreEstatus}</td>
                       <td>
                         <Button type="button" variant="link" onClick={() => openDetail(item.idInfraccion)}>
                           Ver detalle
@@ -684,6 +750,16 @@ function InfraccionesListPage({
               </tbody>
             </table>
           </div>
+
+          {meta ? (
+            <PaginationControls
+              page={meta.page}
+              limit={meta.limit}
+              total={meta.total}
+              totalPages={meta.totalPages}
+              onPageChange={changePage}
+            />
+          ) : null}
         </div>
       </Card>
 
