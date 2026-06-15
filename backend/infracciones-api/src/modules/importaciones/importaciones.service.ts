@@ -343,15 +343,24 @@ export class ImportacionesService {
   async findAll(
     query: ImportacionInfraccionesQueryDto,
   ): Promise<ImportacionInfracciones[]> {
+    const where: FindOptionsWhere<ImportacionInfracciones> = {
+      anio: query.anio,
+    };
+
+    if (query.estado) {
+      where.estado = query.estado;
+    }
+
+    if (query.idRegion) {
+      where.region = { idRegion: query.idRegion };
+    }
+
+    if (query.idDelegacion) {
+      where.delegacionDefault = { idDelegacion: query.idDelegacion };
+    }
+
     return this.importacionesRepository.find({
-      where: {
-        anio: query.anio,
-        estado: query.estado,
-        region: query.idRegion ? { idRegion: query.idRegion } : undefined,
-        delegacionDefault: query.idDelegacion
-          ? { idDelegacion: query.idDelegacion }
-          : undefined,
-      },
+      where,
       relations: {
         region: true,
         delegacionDefault: true,

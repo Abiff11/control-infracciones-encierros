@@ -156,10 +156,12 @@ export function parseExcelTime(value: unknown): {
       };
     }
 
-    return {
-      hora: '00:00:00',
-      warning: `Hora numerica no soportada: ${value}. Se usara 00:00:00.`,
-    };
+    if (value < 0 || value >= 24) {
+      return {
+        hora: '00:00:00',
+        warning: `Hora numerica no soportada: ${value}. Se usara 00:00:00.`,
+      };
+    }
   }
 
   if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(text)) {

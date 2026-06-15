@@ -32,29 +32,23 @@ export class Vehiculo {
 
   @Column({
     name: 'sitio_servicio_publico',
-    type: 'varchar',
-    length: 80,
+    type: 'text',
     nullable: true,
   })
   sitioServicioPublico!: string | null;
 
-  @Column({ name: 'color', type: 'varchar', length: 20, nullable: true })
+  @Column({ name: 'color', type: 'text', nullable: true })
   color!: string | null;
 
-  @Column({ name: 'placas', type: 'varchar', length: 20, nullable: true })
+  @Column({ name: 'placas', type: 'text', nullable: true })
   placas!: string | null;
 
-  @Column({
-    name: 'estado_placas',
-    type: 'varchar',
-    length: 20,
-    nullable: true,
-  })
+  @Column({ name: 'estado_placas', type: 'text', nullable: true })
   estadoPlacas!: string | null;
 
-  @Column({ name: 'serie', type: 'varchar', length: 20, nullable: true })
+  @Column({ name: 'serie', type: 'text', nullable: true })
   serie!: string | null;
 
-  @Column({ name: 'motor', type: 'varchar', length: 20, nullable: true })
+  @Column({ name: 'motor', type: 'text', nullable: true })
   motor!: string | null;
 }
