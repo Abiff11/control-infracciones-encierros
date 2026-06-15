@@ -16,6 +16,7 @@ import {
   formatTimeOfDay,
 } from '../../lib/formatters';
 import type { InfraccionFlujoResponse } from './infracciones.types';
+import './FlujoOperativoPage.css';
 
 interface FlujoOperativoPageProps {
   onSubmit: (folioInfraccion: string) => Promise<InfraccionFlujoResponse>;
