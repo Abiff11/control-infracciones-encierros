@@ -23,6 +23,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
         autoLoadEntities: true,
         synchronize: configService.get<boolean>('database.synchronize', false),
         logging: configService.get<boolean>('database.logging', false),
+        maxQueryExecutionTime: configService.get<number>(
+          'database.maxQueryExecutionTime',
+          500,
+        ),
       }),
     }),
   ],
