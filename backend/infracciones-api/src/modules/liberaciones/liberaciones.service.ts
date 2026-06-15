@@ -30,7 +30,9 @@ export class LiberacionesService {
     private readonly infraccionesService: InfraccionesService,
   ) {}
 
-  async findByIdOrFail(idLiberacionVehiculo: number): Promise<LiberacionVehiculo> {
+  async findByIdOrFail(
+    idLiberacionVehiculo: number,
+  ): Promise<LiberacionVehiculo> {
     const liberacion = await this.liberacionesRepository.findOne({
       where: { idLiberacionVehiculo },
       relations: {
@@ -41,7 +43,9 @@ export class LiberacionesService {
     });
 
     if (!liberacion) {
-      throw new NotFoundException(`Liberacion vehicular ${idLiberacionVehiculo} no encontrada`);
+      throw new NotFoundException(
+        `Liberacion vehicular ${idLiberacionVehiculo} no encontrada`,
+      );
     }
 
     return liberacion;
@@ -58,10 +62,14 @@ export class LiberacionesService {
     });
   }
 
-  async generarLiberacion(params: GenerarLiberacionParams): Promise<LiberacionVehiculo> {
+  async generarLiberacion(
+    params: GenerarLiberacionParams,
+  ): Promise<LiberacionVehiculo> {
     const liberacion = this.liberacionesRepository.create({
       infraccion: { idInfraccion: params.idInfraccion } as Infraccion,
-      pagoInfraccion: { idPagoInfraccion: params.idPagoInfraccion } as PagoInfraccion,
+      pagoInfraccion: {
+        idPagoInfraccion: params.idPagoInfraccion,
+      } as PagoInfraccion,
       usuarioLibera: { idUsuario: params.idUsuarioLibera } as Usuario,
       folioLiberacion: params.folioLiberacion,
       fechaLiberacion: normalizeDate(params.fechaLiberacion),

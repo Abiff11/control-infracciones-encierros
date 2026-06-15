@@ -11,7 +11,10 @@ async function bootstrap() {
 
   app.enableCors({
     origin: corsOrigin
-      ? corsOrigin.split(',').map((value) => value.trim()).filter(Boolean)
+      ? corsOrigin
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean)
       : [
           'http://localhost:5173',
           'http://127.0.0.1:5173',

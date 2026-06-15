@@ -1,4 +1,10 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 
 import { Delegacion } from '../../catalogos/entities/delegacion.entity';
 import { EstatusInfraccion } from '../../catalogos/entities/estatus-infraccion.entity';
@@ -46,7 +52,12 @@ export class Infraccion {
   @JoinColumn({ name: 'id_usuario_captura' })
   usuarioCaptura!: Usuario;
 
-  @Column({ name: 'folio_infraccion', type: 'varchar', length: 50, unique: true })
+  @Column({
+    name: 'folio_infraccion',
+    type: 'varchar',
+    length: 50,
+    unique: true,
+  })
   folioInfraccion!: string;
 
   @Column({ name: 'fecha_infraccion', type: 'date' })
@@ -58,9 +69,19 @@ export class Infraccion {
   @Column({ name: 'observaciones', type: 'text', nullable: true })
   observaciones!: string | null;
 
-  @Column({ name: 'clave_policia', type: 'varchar', length: 50, nullable: true })
+  @Column({
+    name: 'clave_policia',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
   clavePolicia!: string | null;
 
-  @Column({ name: 'num_parte_informativo', type: 'varchar', length: 50, nullable: true })
+  @Column({
+    name: 'num_parte_informativo',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
   numParteInformativo!: string | null;
 }
