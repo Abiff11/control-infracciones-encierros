@@ -39,6 +39,11 @@ import { Infraccion } from './entities/infraccion.entity';
 import { Motivo } from '../motivos/entities/motivo.entity';
 import { RetencionVehiculo } from '../encierros/entities/retencion-vehiculo.entity';
 import { SalidaVehiculo } from '../encierros/entities/salida-vehiculo.entity';
+import {
+  ESTADO_OPERATIVO_VEHICULO,
+  type EstadoOperativoVehiculo,
+} from './constants/estado-operativo-vehiculo.constants';
+import type { InfraccionDetalleResponseDto } from './dto/infraccion-detalle-response.dto';
 
 interface RegistrarMovimientoParams {
   idInfraccion: number;
@@ -105,30 +110,80 @@ export class InfraccionesService {
     });
   }
 
-  async findAll(query: FindInfraccionesQueryDto): Promise<{
-    data: Infraccion[];
-    meta: {
-      page: number;
-      limit: number;
-      total: number;
-      totalPages: number;
-    };
-  }> {
+  async findAll(query: FindInfraccionesQueryDto) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const queryBuilder = this.buildBaseInfraccionQuery();
 
     this.applyInfraccionFilters(queryBuilder, query);
 
+    const sortOrder = this.resolveSortOrder(query.sortOrder);
+    const sortBy = this.resolveInfraccionesSortColumn(query.sortBy);
+
     const [data, total] = await queryBuilder
-      .orderBy('infraccion.fechaInfraccion', 'DESC')
-      .addOrderBy('infraccion.horaInfraccion', 'DESC')
+      .orderBy(sortBy, sortOrder)
+      .addOrderBy('infraccion.horaInfraccion', sortOrder)
+      .addOrderBy('infraccion.idInfraccion', 'DESC')
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();
 
+    const estadoOperativoMap = await this.loadEstadoOperativoMap(
+      data.map((item) => item.idInfraccion),
+    );
+    const motivosMap = await this.loadMotivosMap(
+      data.map((item) => item.idInfraccion),
+    );
+
     return {
-      data,
+      data: data.map((item) => ({
+        idInfraccion: item.idInfraccion,
+        folioInfraccion: item.folioInfraccion,
+        fechaInfraccion: item.fechaInfraccion,
+        horaInfraccion: item.horaInfraccion,
+        observaciones: item.observaciones,
+        clavePolicia: item.clavePolicia,
+        numParteInformativo: item.numParteInformativo,
+        infractor: {
+          nombre: item.infractor.nombre,
+          apellidoPaterno: item.infractor.apellidoPaterno,
+          apellidoMaterno: item.infractor.apellidoMaterno,
+          licencia: item.infractor.licencia,
+        },
+        vehiculo: {
+          placas: item.vehiculo.placas,
+          estadoPlacas: item.vehiculo.estadoPlacas,
+          serie: item.vehiculo.serie,
+          motor: item.vehiculo.motor,
+          color: item.vehiculo.color,
+        },
+        region: {
+          idRegion: item.delegacion.region.idRegion,
+          nombreRegion: item.delegacion.region.nombreRegion,
+        },
+        delegacion: {
+          idDelegacion: item.delegacion.idDelegacion,
+          nombreDelegacion: item.delegacion.nombreDelegacion,
+        },
+        estatusInfraccion: {
+          idEstatusInfraccion: item.estatusInfraccion.idEstatusInfraccion,
+          nombreEstatus: item.estatusInfraccion.nombreEstatus,
+        },
+        tipoProcedimiento: {
+          idTipoProcedimiento: item.tipoProcedimiento.idTipoProcedimiento,
+          nombreTipoProcedimiento:
+            item.tipoProcedimiento.nombreTipoProcedimiento,
+        },
+        motivos: motivosMap.get(item.idInfraccion) ?? [],
+        estadoOperativoCalculado:
+          estadoOperativoMap.get(item.idInfraccion) ??
+          this.resolveEstadoOperativo({
+            hasRetencion: false,
+            hasPago: false,
+            hasLiberacion: false,
+            hasSalida: false,
+          }),
+      })),
       meta: {
         page,
         limit,
@@ -215,6 +270,219 @@ export class InfraccionesService {
       retenciones,
       salidas,
       movimientos,
+    };
+  }
+
+  async findDetalleCompletoByInfraccion(
+    idInfraccion: number,
+  ): Promise<InfraccionDetalleResponseDto> {
+    const infraccion = await this.buildBaseInfraccionQuery()
+      .where('infraccion.idInfraccion = :idInfraccion', { idInfraccion })
+      .getOne();
+
+    if (!infraccion) {
+      throw new NotFoundException(`Infraccion ${idInfraccion} no encontrada`);
+    }
+
+    const [motivos, pagos, liberaciones, retenciones, movimientos] =
+      await Promise.all([
+        this.findMotivosByInfraccion(idInfraccion),
+        this.pagosRepository.find({
+          where: {
+            infraccion: { idInfraccion },
+          },
+          relations: {
+            infraccion: true,
+            usuarioRegistraPago: true,
+          },
+          order: {
+            fechaPago: 'DESC',
+          },
+        }),
+        this.liberacionesRepository.find({
+          where: {
+            infraccion: { idInfraccion },
+          },
+          relations: {
+            infraccion: true,
+            pagoInfraccion: true,
+            usuarioLibera: true,
+          },
+          order: {
+            fechaLiberacion: 'DESC',
+          },
+        }),
+        this.retencionesRepository.find({
+          where: {
+            infraccion: { idInfraccion },
+          },
+          relations: {
+            infraccion: true,
+            encierro: true,
+          },
+          order: {
+            fechaIngreso: 'DESC',
+          },
+        }),
+        this.findMovimientosByInfraccion(idInfraccion),
+      ]);
+
+    const retencionIds = retenciones.map(
+      (retencion) => retencion.idRetencionVehiculo,
+    );
+    const salidas =
+      retencionIds.length === 0
+        ? []
+        : await this.salidasRepository.find({
+            where: {
+              retencionVehiculo: {
+                idRetencionVehiculo: In(retencionIds),
+              },
+            },
+            relations: {
+              retencionVehiculo: true,
+              liberacionVehiculo: true,
+              usuarioValidaSalida: true,
+            },
+            order: {
+              fechaSalida: 'DESC',
+            },
+          });
+
+    const retencionPrincipal = retenciones[0] ?? null;
+
+    return {
+      infraccion: {
+        idInfraccion: infraccion.idInfraccion,
+        folioInfraccion: infraccion.folioInfraccion,
+        fechaInfraccion: infraccion.fechaInfraccion,
+        horaInfraccion: infraccion.horaInfraccion,
+        observaciones: infraccion.observaciones,
+        clavePolicia: infraccion.clavePolicia,
+        numParteInformativo: infraccion.numParteInformativo,
+      },
+      estatusInfraccion: {
+        idEstatusInfraccion: infraccion.estatusInfraccion.idEstatusInfraccion,
+        nombreEstatus: infraccion.estatusInfraccion.nombreEstatus,
+      },
+      tipoProcedimiento: {
+        idTipoProcedimiento: infraccion.tipoProcedimiento.idTipoProcedimiento,
+        nombreTipoProcedimiento:
+          infraccion.tipoProcedimiento.nombreTipoProcedimiento,
+      },
+      region: {
+        idRegion: infraccion.delegacion.region.idRegion,
+        nombreRegion: infraccion.delegacion.region.nombreRegion,
+      },
+      delegacion: {
+        idDelegacion: infraccion.delegacion.idDelegacion,
+        nombreDelegacion: infraccion.delegacion.nombreDelegacion,
+      },
+      usuarioCaptura: {
+        idUsuario: infraccion.usuarioCaptura.idUsuario,
+        nombreUsuario: infraccion.usuarioCaptura.nombreUsuario,
+      },
+      infractor: {
+        nombre: infraccion.infractor.nombre,
+        apellidoPaterno: infraccion.infractor.apellidoPaterno,
+        apellidoMaterno: infraccion.infractor.apellidoMaterno,
+        licencia: infraccion.infractor.licencia,
+        sexo: infraccion.infractor.sexo
+          ? {
+              idSexo: infraccion.infractor.sexo.idSexo,
+              nombreSexo: infraccion.infractor.sexo.nombreSexo,
+            }
+          : null,
+      },
+      vehiculo: {
+        placas: infraccion.vehiculo.placas,
+        estadoPlacas: infraccion.vehiculo.estadoPlacas,
+        serie: infraccion.vehiculo.serie,
+        motor: infraccion.vehiculo.motor,
+        anioModelo: infraccion.vehiculo.anioModelo,
+        color: infraccion.vehiculo.color,
+        sitioServicioPublico: infraccion.vehiculo.sitioServicioPublico,
+        claseVehiculo: {
+          idClaseVehiculo: infraccion.vehiculo.claseVehiculo.idClaseVehiculo,
+          nombreClaseVehiculo:
+            infraccion.vehiculo.claseVehiculo.nombreClaseVehiculo,
+        },
+        marcaVehiculo: {
+          idMarcaVehiculo:
+            infraccion.vehiculo.lineaVehiculo.marcaVehiculo.idMarcaVehiculo,
+          nombreMarcaVehiculo:
+            infraccion.vehiculo.lineaVehiculo.marcaVehiculo.nombreMarcaVehiculo,
+        },
+        lineaVehiculo: {
+          idLineaVehiculo: infraccion.vehiculo.lineaVehiculo.idLineaVehiculo,
+          nombreLineaVehiculo:
+            infraccion.vehiculo.lineaVehiculo.nombreLineaVehiculo,
+        },
+        servicio: {
+          idServicio: infraccion.vehiculo.servicio.idServicio,
+          nombreServicio: infraccion.vehiculo.servicio.nombreServicio,
+        },
+      },
+      lugarInfraccion: {
+        idLugarInfraccion: infraccion.lugarInfraccion.idLugarInfraccion,
+        nombreLugarInfraccion: infraccion.lugarInfraccion.nombreLugarInfraccion,
+      },
+      motivos: motivos.map((motivoInfraccion) => ({
+        idMotivo: motivoInfraccion.motivo.idMotivo,
+        nombreMotivo: motivoInfraccion.motivo.nombreMotivo,
+        descripcionMotivo: motivoInfraccion.motivo.descripcionMotivo,
+      })),
+      retencionVehiculo: retencionPrincipal
+        ? {
+            idRetencionVehiculo: retencionPrincipal.idRetencionVehiculo,
+            encierro: {
+              idEncierro: retencionPrincipal.encierro.idEncierro,
+              nombreEncierro: retencionPrincipal.encierro.nombreEncierro,
+            },
+            fechaIngreso: retencionPrincipal.fechaIngreso.toISOString(),
+            recibidoPor: retencionPrincipal.recibidoPor,
+            folioResguardo: retencionPrincipal.folioResguardo,
+            estadoIngreso: retencionPrincipal.estadoIngreso,
+            observacionesIngreso: retencionPrincipal.observacionesIngreso,
+          }
+        : null,
+      pagos: pagos.map((pago) => ({
+        idPagoInfraccion: pago.idPagoInfraccion,
+        folioPago: pago.folioPago,
+        monto: pago.monto,
+        fechaPago: pago.fechaPago.toISOString(),
+        observaciones: pago.observaciones,
+      })),
+      liberaciones: liberaciones.map((liberacion) => ({
+        idLiberacionVehiculo: liberacion.idLiberacionVehiculo,
+        folioLiberacion: liberacion.folioLiberacion,
+        fechaLiberacion: liberacion.fechaLiberacion.toISOString(),
+        liberadoPor: liberacion.liberadoPor,
+        nombreRecibeLiberacion: liberacion.nombreRecibeLiberacion,
+        observacion: liberacion.observacion,
+      })),
+      salidas: salidas.map((salida) => ({
+        idSalidaVehiculo: salida.idSalidaVehiculo,
+        fechaSalida: salida.fechaSalida.toISOString(),
+        validadoPor: salida.validadoPor,
+        personaRecibeVehiculo: salida.personaRecibeVehiculo,
+        observacionesSalida: salida.observacionesSalida,
+        estadoSalida: salida.estadoSalida,
+      })),
+      movimientos: movimientos.map((movimiento) => ({
+        idInfraccionMovimiento: movimiento.idInfraccionMovimiento,
+        fechaMovimiento: movimiento.fechaMovimiento.toISOString(),
+        estatus: movimiento.estatusInfraccion.nombreEstatus,
+        usuario: movimiento.usuario.nombreUsuario,
+        observaciones: movimiento.observaciones,
+        accion: movimiento.accion,
+      })),
+      estadoOperativoCalculado: this.resolveEstadoOperativo({
+        hasRetencion: retenciones.length > 0,
+        hasPago: pagos.length > 0,
+        hasLiberacion: liberaciones.length > 0,
+        hasSalida: salidas.length > 0,
+      }),
     };
   }
 
@@ -445,6 +713,7 @@ export class InfraccionesService {
     return this.infraccionesRepository
       .createQueryBuilder('infraccion')
       .leftJoinAndSelect('infraccion.infractor', 'infractor')
+      .leftJoinAndSelect('infractor.sexo', 'sexo')
       .leftJoinAndSelect('infraccion.delegacion', 'delegacion')
       .leftJoinAndSelect('delegacion.region', 'region')
       .leftJoinAndSelect('infraccion.vehiculo', 'vehiculo')
@@ -474,20 +743,22 @@ export class InfraccionesService {
       );
     }
 
-    if (query.fechaInicio) {
+    const fechaDesde = query.fechaDesde ?? query.fechaInicio;
+    if (fechaDesde) {
       queryBuilder.andWhere(
-        'infraccion.fechaInfraccion >= CAST(:fechaInicio AS date)',
+        'infraccion.fechaInfraccion >= CAST(:fechaDesde AS date)',
         {
-          fechaInicio: query.fechaInicio,
+          fechaDesde,
         },
       );
     }
 
-    if (query.fechaFin) {
+    const fechaHasta = query.fechaHasta ?? query.fechaFin;
+    if (fechaHasta) {
       queryBuilder.andWhere(
-        'infraccion.fechaInfraccion <= CAST(:fechaFin AS date)',
+        'infraccion.fechaInfraccion <= CAST(:fechaHasta AS date)',
         {
-          fechaFin: query.fechaFin,
+          fechaHasta,
         },
       );
     }
@@ -507,6 +778,21 @@ export class InfraccionesService {
       });
     }
 
+    if (query.idRegion) {
+      queryBuilder.andWhere('region.idRegion = :idRegion', {
+        idRegion: query.idRegion,
+      });
+    }
+
+    if (query.idTipoProcedimiento) {
+      queryBuilder.andWhere(
+        'tipoProcedimiento.idTipoProcedimiento = :idTipoProcedimiento',
+        {
+          idTipoProcedimiento: query.idTipoProcedimiento,
+        },
+      );
+    }
+
     if (query.anio) {
       queryBuilder.andWhere(
         'EXTRACT(YEAR FROM infraccion.fechaInfraccion) = :anio',
@@ -520,6 +806,20 @@ export class InfraccionesService {
     if (placas) {
       queryBuilder.andWhere('vehiculo.placas ILIKE :placas', {
         placas: `%${placas}%`,
+      });
+    }
+
+    const serie = query.serie?.trim();
+    if (serie) {
+      queryBuilder.andWhere('vehiculo.serie ILIKE :serie', {
+        serie: `%${serie}%`,
+      });
+    }
+
+    const motor = query.motor?.trim();
+    if (motor) {
+      queryBuilder.andWhere('vehiculo.motor ILIKE :motor', {
+        motor: `%${motor}%`,
       });
     }
 
@@ -539,6 +839,164 @@ export class InfraccionesService {
         }),
       );
     }
+
+    const licencia = query.licencia?.trim();
+    if (licencia) {
+      queryBuilder.andWhere('infractor.licencia ILIKE :licencia', {
+        licencia: `%${licencia}%`,
+      });
+    }
+
+    const clavePolicia = query.clavePolicia?.trim();
+    if (clavePolicia) {
+      queryBuilder.andWhere('infraccion.clavePolicia ILIKE :clavePolicia', {
+        clavePolicia: `%${clavePolicia}%`,
+      });
+    }
+
+    if (query.idMotivo) {
+      queryBuilder.andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM infraccion_motivo infraccion_motivo_filtro
+          WHERE infraccion_motivo_filtro.id_infraccion = infraccion.id_infraccion
+            AND infraccion_motivo_filtro.id_motivo = :idMotivo
+        )`,
+        {
+          idMotivo: query.idMotivo,
+        },
+      );
+    }
+
+    if (query.idEncierro) {
+      queryBuilder.andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM retencion_vehiculo retencion_filtro
+          WHERE retencion_filtro.id_infraccion = infraccion.id_infraccion
+            AND retencion_filtro.id_encierro = :idEncierro
+        )`,
+        {
+          idEncierro: query.idEncierro,
+        },
+      );
+    }
+
+    if (query.estadoOperativo) {
+      this.applyEstadoOperativoFilter(queryBuilder, query.estadoOperativo);
+    }
+  }
+
+  private applyEstadoOperativoFilter(
+    queryBuilder: SelectQueryBuilder<Infraccion>,
+    estadoOperativo: string,
+  ): void {
+    const delivered = `EXISTS (
+      SELECT 1
+      FROM salida_vehiculo salida_filtro
+      INNER JOIN retencion_vehiculo retencion_salida_filtro
+        ON retencion_salida_filtro.id_retencion_vehiculo = salida_filtro.id_retencion_vehiculo
+      WHERE retencion_salida_filtro.id_infraccion = infraccion.id_infraccion
+    )`;
+    const liberado = `EXISTS (
+      SELECT 1
+      FROM liberacion_vehiculo liberacion_filtro
+      WHERE liberacion_filtro.id_infraccion = infraccion.id_infraccion
+    )`;
+    const pagado = `EXISTS (
+      SELECT 1
+      FROM pago_infraccion pago_filtro
+      WHERE pago_filtro.id_infraccion = infraccion.id_infraccion
+    )`;
+    const retenido = `EXISTS (
+      SELECT 1
+      FROM retencion_vehiculo retencion_filtro
+      WHERE retencion_filtro.id_infraccion = infraccion.id_infraccion
+    )`;
+
+    switch (estadoOperativo) {
+      case ESTADO_OPERATIVO_VEHICULO.VEHICULO_ENTREGADO:
+        queryBuilder.andWhere(delivered);
+        return;
+      case ESTADO_OPERATIVO_VEHICULO.LIBERADO_PENDIENTE_SALIDA:
+        queryBuilder.andWhere(liberado).andWhere(`NOT ${delivered}`);
+        return;
+      case ESTADO_OPERATIVO_VEHICULO.PAGADO_PENDIENTE_LIBERACION:
+        queryBuilder
+          .andWhere(pagado)
+          .andWhere(`NOT ${liberado}`)
+          .andWhere(`NOT ${delivered}`);
+        return;
+      case ESTADO_OPERATIVO_VEHICULO.EN_ENCIERRO_SIN_PAGO:
+        queryBuilder
+          .andWhere(retenido)
+          .andWhere(`NOT ${pagado}`)
+          .andWhere(`NOT ${liberado}`)
+          .andWhere(`NOT ${delivered}`);
+        return;
+      case ESTADO_OPERATIVO_VEHICULO.SIN_RETENCION:
+        queryBuilder.andWhere(`NOT ${retenido}`);
+        return;
+      default:
+        return;
+    }
+  }
+
+  private resolveInfraccionesSortColumn(sortBy?: string): string {
+    switch (sortBy?.trim()) {
+      case 'folioInfraccion':
+        return 'infraccion.folioInfraccion';
+      case 'fechaInfraccion':
+        return 'infraccion.fechaInfraccion';
+      case 'horaInfraccion':
+        return 'infraccion.horaInfraccion';
+      case 'placas':
+        return 'vehiculo.placas';
+      case 'serie':
+        return 'vehiculo.serie';
+      case 'motor':
+        return 'vehiculo.motor';
+      case 'licencia':
+        return 'infractor.licencia';
+      case 'clavePolicia':
+        return 'infraccion.clavePolicia';
+      case 'idRegion':
+        return 'region.idRegion';
+      case 'idDelegacion':
+        return 'delegacion.idDelegacion';
+      case 'estadoOperativo':
+        return `CASE
+          WHEN EXISTS (
+            SELECT 1
+            FROM salida_vehiculo salida_sort
+            INNER JOIN retencion_vehiculo retencion_sort
+              ON retencion_sort.id_retencion_vehiculo = salida_sort.id_retencion_vehiculo
+            WHERE retencion_sort.id_infraccion = infraccion.id_infraccion
+          ) THEN 5
+          WHEN EXISTS (
+            SELECT 1
+            FROM liberacion_vehiculo liberacion_sort
+            WHERE liberacion_sort.id_infraccion = infraccion.id_infraccion
+          ) THEN 4
+          WHEN EXISTS (
+            SELECT 1
+            FROM pago_infraccion pago_sort
+            WHERE pago_sort.id_infraccion = infraccion.id_infraccion
+          ) THEN 3
+          WHEN EXISTS (
+            SELECT 1
+            FROM retencion_vehiculo retencion_sort
+            WHERE retencion_sort.id_infraccion = infraccion.id_infraccion
+          ) THEN 2
+          ELSE 1
+        END`;
+      default:
+        return 'infraccion.fechaInfraccion';
+    }
+  }
+
+  private resolveSortOrder(sortOrder?: string): 'ASC' | 'DESC' {
+    return sortOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
   }
 
   private async findEstatusByNombreOrFail(
@@ -610,6 +1068,190 @@ export class InfraccionesService {
     }
 
     return motivos;
+  }
+
+  private async loadEstadoOperativoMap(
+    idInfracciones: number[],
+  ): Promise<Map<number, EstadoOperativoVehiculo>> {
+    const result = new Map<number, EstadoOperativoVehiculo>();
+
+    if (idInfracciones.length === 0) {
+      return result;
+    }
+
+    const [retenciones, pagos, liberaciones, salidas] = await Promise.all([
+      this.retencionesRepository.find({
+        where: {
+          infraccion: {
+            idInfraccion: In(idInfracciones),
+          },
+        },
+        relations: {
+          infraccion: true,
+        },
+        order: {
+          fechaIngreso: 'DESC',
+        },
+      }),
+      this.pagosRepository.find({
+        where: {
+          infraccion: {
+            idInfraccion: In(idInfracciones),
+          },
+        },
+        relations: {
+          infraccion: true,
+        },
+        order: {
+          fechaPago: 'DESC',
+        },
+      }),
+      this.liberacionesRepository.find({
+        where: {
+          infraccion: {
+            idInfraccion: In(idInfracciones),
+          },
+        },
+        relations: {
+          infraccion: true,
+        },
+        order: {
+          fechaLiberacion: 'DESC',
+        },
+      }),
+      this.salidasRepository.find({
+        where: {
+          retencionVehiculo: {
+            infraccion: {
+              idInfraccion: In(idInfracciones),
+            },
+          },
+        },
+        relations: {
+          retencionVehiculo: {
+            infraccion: true,
+          },
+        },
+        order: {
+          fechaSalida: 'DESC',
+        },
+      }),
+    ]);
+
+    const hasRetencion = new Set<number>();
+    const hasPago = new Set<number>();
+    const hasLiberacion = new Set<number>();
+    const hasSalida = new Set<number>();
+
+    for (const retencion of retenciones) {
+      hasRetencion.add(retencion.infraccion.idInfraccion);
+    }
+
+    for (const pago of pagos) {
+      hasPago.add(pago.infraccion.idInfraccion);
+    }
+
+    for (const liberacion of liberaciones) {
+      hasLiberacion.add(liberacion.infraccion.idInfraccion);
+    }
+
+    for (const salida of salidas) {
+      hasSalida.add(salida.retencionVehiculo.infraccion.idInfraccion);
+    }
+
+    for (const idInfraccion of idInfracciones) {
+      result.set(
+        idInfraccion,
+        this.resolveEstadoOperativo({
+          hasRetencion: hasRetencion.has(idInfraccion),
+          hasPago: hasPago.has(idInfraccion),
+          hasLiberacion: hasLiberacion.has(idInfraccion),
+          hasSalida: hasSalida.has(idInfraccion),
+        }),
+      );
+    }
+
+    return result;
+  }
+
+  private async loadMotivosMap(idInfracciones: number[]): Promise<
+    Map<
+      number,
+      Array<{
+        idMotivo: number;
+        nombreMotivo: string;
+        descripcionMotivo: string;
+      }>
+    >
+  > {
+    const result = new Map<
+      number,
+      Array<{
+        idMotivo: number;
+        nombreMotivo: string;
+        descripcionMotivo: string;
+      }>
+    >();
+
+    if (idInfracciones.length === 0) {
+      return result;
+    }
+
+    const rows = await this.infraccionMotivosRepository.find({
+      where: {
+        infraccion: {
+          idInfraccion: In(idInfracciones),
+        },
+      },
+      relations: {
+        infraccion: true,
+        motivo: true,
+      },
+      order: {
+        idInfraccionMotivo: 'ASC',
+      },
+    });
+
+    for (const row of rows) {
+      const items = result.get(row.infraccion.idInfraccion) ?? [];
+      items.push({
+        idMotivo: row.motivo.idMotivo,
+        nombreMotivo: row.motivo.nombreMotivo,
+        descripcionMotivo: row.motivo.descripcionMotivo,
+      });
+      result.set(row.infraccion.idInfraccion, items);
+    }
+
+    return result;
+  }
+
+  private resolveEstadoOperativo(params: {
+    hasRetencion: boolean;
+    hasPago: boolean;
+    hasLiberacion: boolean;
+    hasSalida: boolean;
+  }): EstadoOperativoVehiculo {
+    if (params.hasSalida) {
+      return ESTADO_OPERATIVO_VEHICULO.VEHICULO_ENTREGADO;
+    }
+
+    if (!params.hasRetencion) {
+      return ESTADO_OPERATIVO_VEHICULO.SIN_RETENCION;
+    }
+
+    if (params.hasLiberacion) {
+      return ESTADO_OPERATIVO_VEHICULO.LIBERADO_PENDIENTE_SALIDA;
+    }
+
+    if (params.hasPago) {
+      return ESTADO_OPERATIVO_VEHICULO.PAGADO_PENDIENTE_LIBERACION;
+    }
+
+    if (params.hasRetencion) {
+      return ESTADO_OPERATIVO_VEHICULO.EN_ENCIERRO_SIN_PAGO;
+    }
+
+    return ESTADO_OPERATIVO_VEHICULO.SIN_RETENCION;
   }
 
   private buildLugarInfraccionNombre(dto: {

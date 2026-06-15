@@ -2,9 +2,7 @@ import { type MigrationInterface, type QueryRunner } from 'typeorm';
 
 const TABLE_NAME = 'vehiculo';
 
-export class AlterVehiculoTextFields1820000000000
-  implements MigrationInterface
-{
+export class AlterVehiculoTextFields1820000000000 implements MigrationInterface {
   name = 'AlterVehiculoTextFields1820000000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

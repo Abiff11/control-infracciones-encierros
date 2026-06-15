@@ -1,14 +1,21 @@
 import type { PageKey } from './app.types';
 
-export const NAV_ITEMS: Array<{ key: PageKey; label: string }> = [
-  { key: 'dashboard', label: 'Dashboard' },
-  { key: 'infracciones', label: 'Infracciones' },
-  { key: 'nueva-infraccion', label: 'Nueva infraccion' },
-  { key: 'pago', label: 'Pago' },
-  { key: 'liberacion', label: 'Liberacion' },
-  { key: 'retencion', label: 'Retencion' },
-  { key: 'salida', label: 'Salida' },
-  { key: 'flujo-operativo', label: 'Flujo operativo' },
-  { key: 'importaciones', label: 'Importaciones' },
-  { key: 'catalogos', label: 'Catalogos' },
+export interface NavigationItem {
+  key: PageKey;
+  label: string;
+  group: 'Operacion' | 'Encierros' | 'Consulta' | 'Tecnico';
+}
+
+export const NAV_ITEMS: NavigationItem[] = [
+  { group: 'Consulta', key: 'dashboard', label: 'Dashboard' },
+  { group: 'Consulta', key: 'infracciones', label: 'Infracciones' },
+  { group: 'Consulta', key: 'flujo-operativo', label: 'Flujo operativo' },
+  { group: 'Operacion', key: 'nueva-infraccion', label: 'Nueva infraccion' },
+  { group: 'Operacion', key: 'pago', label: 'Pago' },
+  { group: 'Operacion', key: 'liberacion', label: 'Liberacion' },
+  { group: 'Operacion', key: 'retencion', label: 'Retencion' },
+  { group: 'Operacion', key: 'salida', label: 'Salida' },
+  { group: 'Encierros', key: 'encierros-vehiculos', label: 'Vehiculos en encierro' },
+  { group: 'Tecnico', key: 'importaciones', label: 'Importaciones' },
+  { group: 'Tecnico', key: 'catalogos', label: 'Catalogos' },
 ];

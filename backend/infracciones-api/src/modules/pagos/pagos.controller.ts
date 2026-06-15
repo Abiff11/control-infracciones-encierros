@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { WRITE_ROLES } from '../auth/constants/roles.constants';
+import { READ_ROLES, WRITE_ROLES } from '../auth/constants/roles.constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { LoginResponseUsuarioDto } from '../auth/dto/login-response.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -21,6 +21,7 @@ import { PagosService } from './pagos.service';
 @ApiTags('pagos')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RoleAuthGuard)
+@Roles(...READ_ROLES)
 @Controller('pagos')
 export class PagosController {
   constructor(private readonly pagosService: PagosService) {}

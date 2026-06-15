@@ -10,4 +10,3 @@ export * from '../types/auth.types';
 export * from '../types/catalogos.types';
 export * from '../types/importaciones.types';
 export * from '../types/infracciones.types';
-export * from '../types/operaciones.types';

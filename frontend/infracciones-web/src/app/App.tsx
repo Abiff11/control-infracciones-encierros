@@ -25,12 +25,12 @@ import FlujoOperativoPage from '../pages/FlujoOperativoPage';
 import RetencionCreatePage from '../pages/RetencionCreatePage';
 import SalidaCreatePage from '../pages/SalidaCreatePage';
 import ImportacionesPage from '../pages/ImportacionesPage';
+import EncierrosVehiculosPage from '../modules/encierros/EncierrosVehiculosPage';
 import type { PageKey } from './app.types';
 import { NAV_ITEMS } from './navigation';
 import type {
   CreateInfraccionCompletaPayload,
   InfraccionFlujoResponse,
-  InfraccionesQuery,
   InfraccionesResponse,
 } from '../types/infracciones.types';
 import type {
@@ -48,12 +48,6 @@ interface LoadState<T> {
   data: T | null;
   error: string | null;
 }
-
-const DEFAULT_INFRACCIONES_QUERY: InfraccionesQuery = {
-  folioInfraccion: '',
-  page: 1,
-  limit: 10,
-};
 
 function createIdleState<T>(): LoadState<T> {
   return {
@@ -73,61 +67,64 @@ function App() {
     refresh: refreshCatalogs,
   } = useCatalogos();
   const [currentPage, setCurrentPage] = useState<PageKey>('dashboard');
-  const [infraccionesState, setInfraccionesState] = useState<
-    LoadState<InfraccionesResponse>
-  >(createIdleState<InfraccionesResponse>());
-  const [infraccionesQuery, setInfraccionesQuery] = useState<InfraccionesQuery>(
-    DEFAULT_INFRACCIONES_QUERY,
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [dashboardState, setDashboardState] = useState<LoadState<InfraccionesResponse>>(
+    createIdleState<InfraccionesResponse>(),
   );
+  const [pagoInitialId, setPagoInitialId] = useState<number | null>(null);
+  const [liberacionInitialId, setLiberacionInitialId] = useState<number | null>(null);
+  const [salidaInitialId, setSalidaInitialId] = useState<number | null>(null);
 
-  /* eslint-disable react-hooks/exhaustive-deps -- session token is the trigger */
   useEffect(() => {
     if (!session?.token) {
-      setCurrentPage('dashboard');
-      setInfraccionesState(createIdleState<InfraccionesResponse>());
-      setInfraccionesQuery(DEFAULT_INFRACCIONES_QUERY);
       return;
     }
 
-    setCurrentPage('dashboard');
-    setInfraccionesState({
-      status: 'loading',
-      data: null,
-      error: null,
-    });
+    let mounted = true;
 
-    void refreshInfracciones();
-  }, [session?.token]);
-  /* eslint-enable react-hooks/exhaustive-deps */
-
-  async function refreshInfracciones(): Promise<void> {
-    if (!session?.token) {
-      return;
-    }
-
-    setInfraccionesState((current) => ({
-      ...current,
-      status: 'loading',
-      error: null,
-    }));
-
-    try {
-      const response = await runProtectedRequest((requestToken) =>
-        getInfracciones(requestToken, infraccionesQuery),
-      );
-
-      setInfraccionesState({
-        status: 'ready',
-        data: response,
-        error: null,
-      });
-    } catch (error) {
-      setInfraccionesState((current) => ({
+    async function loadDashboard(): Promise<void> {
+      setDashboardState((current) => ({
         ...current,
-        status: 'error',
-        error: error instanceof Error ? error.message : 'Error desconocido',
+        status: 'loading',
+        error: null,
       }));
+
+      try {
+        const response = await runProtectedRequest((token) =>
+          getInfracciones(token, { page: 1, limit: 1 }),
+        );
+
+        if (!mounted) {
+          return;
+        }
+
+        setDashboardState({
+          status: 'ready',
+          data: response,
+          error: null,
+        });
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
+
+        setDashboardState({
+          status: 'error',
+          data: null,
+          error: error instanceof Error ? error.message : 'Error desconocido',
+        });
+      }
     }
+
+    void loadDashboard();
+
+    return () => {
+      mounted = false;
+    };
+  }, [refreshKey, runProtectedRequest, session?.token]);
+
+  function triggerRefresh(): void {
+    setRefreshKey((current) => current + 1);
   }
 
   async function submitInfraccion(
@@ -162,11 +159,43 @@ function App() {
     return runProtectedRequest((token) => getInfraccionFlujo(token, idInfraccion));
   }
 
+  function handleNavigate(page: PageKey): void {
+    setCurrentPage(page);
+    setPagoInitialId(null);
+    setLiberacionInitialId(null);
+    setSalidaInitialId(null);
+  }
+
+  function openPago(idInfraccion: number): void {
+    setPagoInitialId(idInfraccion);
+    setCurrentPage('pago');
+  }
+
+  function openLiberacion(idInfraccion: number): void {
+    setLiberacionInitialId(idInfraccion);
+    setCurrentPage('liberacion');
+  }
+
+  function openSalida(idRetencionVehiculo: number): void {
+    setSalidaInitialId(idRetencionVehiculo);
+    setCurrentPage('salida');
+  }
+
+  function handleLogout(): void {
+    setCurrentPage('dashboard');
+    setDashboardState(createIdleState<InfraccionesResponse>());
+    setRefreshKey(0);
+    setPagoInitialId(null);
+    setLiberacionInitialId(null);
+    setSalidaInitialId(null);
+    logout();
+  }
+
   const apiStatusLabel = !session
     ? 'No autenticado'
-    : catalogsError || infraccionesState.status === 'error'
+    : catalogsError || dashboardState.status === 'error'
       ? 'Con alertas'
-      : catalogsLoading || infraccionesState.status === 'loading'
+      : catalogsLoading || dashboardState.status === 'loading'
         ? 'Sincronizando'
         : 'Operativa';
 
@@ -185,13 +214,7 @@ function App() {
   }
 
   if (!session) {
-    return (
-      <LoginPage
-        error={authMessage}
-        loading={authLoading}
-        onSubmit={login}
-      />
-    );
+    return <LoginPage error={authMessage} loading={authLoading} onSubmit={login} />;
   }
 
   const activeSession = session;
@@ -202,39 +225,20 @@ function App() {
         return (
           <DashboardPage
             catalogs={catalogs}
-            infraccionesMeta={infraccionesState.data?.meta ?? null}
+            infraccionesMeta={dashboardState.data?.meta ?? null}
             apiStatusLabel={apiStatusLabel}
-            notice={catalogsError ?? infraccionesState.error}
+            notice={catalogsError ?? dashboardState.error}
             user={activeSession.user}
-            onNavigate={setCurrentPage}
+            onNavigate={handleNavigate}
           />
         );
       case 'infracciones':
         return (
           <InfraccionesListPage
-            error={infraccionesState.error}
-            anio={infraccionesQuery.anio ? String(infraccionesQuery.anio) : ''}
-            folioInfraccion={infraccionesQuery.folioInfraccion ?? ''}
-            items={infraccionesState.data?.data ?? []}
-            loading={infraccionesState.status === 'loading'}
-            meta={infraccionesState.data?.meta ?? null}
-            onAnioChange={(value) =>
-              setInfraccionesQuery((current) => ({
-                ...current,
-                anio:
-                  value.trim() && Number.isFinite(Number(value))
-                    ? Number(value)
-                    : undefined,
-              }))
-            }
-            onFolioInfraccionChange={(value) =>
-              setInfraccionesQuery((current) => ({
-                ...current,
-                folioInfraccion: value,
-              }))
-            }
-            onNavigateCreate={() => setCurrentPage('nueva-infraccion')}
-            onRefresh={() => void refreshInfracciones()}
+            catalogs={catalogs}
+            refreshKey={refreshKey}
+            token={activeSession.token}
+            onNavigateCreate={() => handleNavigate('nueva-infraccion')}
           />
         );
       case 'nueva-infraccion':
@@ -242,21 +246,23 @@ function App() {
           <InfraccionCreatePage
             catalogs={catalogs}
             loading={catalogsLoading}
-            onCreated={() => void refreshInfracciones()}
+            onCreated={triggerRefresh}
             onSubmit={submitInfraccion}
           />
         );
       case 'pago':
         return (
           <PagoCreatePage
-            onCompleted={() => void refreshInfracciones()}
+            initialIdInfraccion={pagoInitialId}
+            onCompleted={triggerRefresh}
             onSubmit={submitPago}
           />
         );
       case 'liberacion':
         return (
           <LiberacionCreatePage
-            onCompleted={() => void refreshInfracciones()}
+            initialIdInfraccion={liberacionInitialId}
+            onCompleted={triggerRefresh}
             onSubmit={submitLiberacion}
           />
         );
@@ -264,15 +270,27 @@ function App() {
         return (
           <RetencionCreatePage
             catalogs={catalogs}
-            onCompleted={() => void refreshInfracciones()}
+            onCompleted={triggerRefresh}
             onSubmit={submitRetencion}
           />
         );
       case 'salida':
         return (
           <SalidaCreatePage
-            onCompleted={() => void refreshInfracciones()}
+            initialIdRetencionVehiculo={salidaInitialId}
+            onCompleted={triggerRefresh}
             onSubmit={submitSalida}
+          />
+        );
+      case 'encierros-vehiculos':
+        return (
+          <EncierrosVehiculosPage
+            catalogs={catalogs}
+            refreshKey={refreshKey}
+            token={activeSession.token}
+            onNavigatePago={openPago}
+            onNavigateLiberacion={openLiberacion}
+            onNavigateSalida={openSalida}
           />
         );
       case 'catalogos':
@@ -290,7 +308,7 @@ function App() {
           <ImportacionesPage
             catalogs={catalogs}
             token={activeSession.token}
-            onImportCompleted={() => void refreshInfracciones()}
+            onImportCompleted={triggerRefresh}
           />
         );
       case 'flujo-operativo':
@@ -323,7 +341,7 @@ function App() {
               <strong>{activeSession.user.rol?.nombreRol ?? 'Sin rol'}</strong>
             </div>
 
-            <Button variant="secondary" type="button" onClick={logout}>
+            <Button variant="secondary" type="button" onClick={handleLogout}>
               Cerrar sesion
             </Button>
           </div>
@@ -333,7 +351,7 @@ function App() {
         <Sidebar
           currentPage={currentPage}
           items={NAV_ITEMS}
-          onNavigate={setCurrentPage}
+          onNavigate={handleNavigate}
           swaggerUrl={swaggerUrl}
         />
       }

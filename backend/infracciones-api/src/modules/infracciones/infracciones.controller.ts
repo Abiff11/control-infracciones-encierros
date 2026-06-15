@@ -13,9 +13,9 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { LoginResponseUsuarioDto } from '../auth/dto/login-response.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { READ_ROLES, WRITE_ROLES } from '../auth/constants/roles.constants';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
-import { WRITE_ROLES } from '../auth/constants/roles.constants';
 import { CreateInfraccionCompletaDto } from './dto/create-infraccion-completa.dto';
 import { FindInfraccionesQueryDto } from './dto/find-infracciones-query.dto';
 import { RegistrarMovimientoDto } from './dto/registrar-movimiento.dto';
@@ -24,6 +24,7 @@ import { InfraccionesService } from './infracciones.service';
 @ApiTags('infracciones')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RoleAuthGuard)
+@Roles(...READ_ROLES)
 @Controller('infracciones')
 export class InfraccionesController {
   constructor(private readonly infraccionesService: InfraccionesService) {}
@@ -44,6 +45,14 @@ export class InfraccionesController {
   @ApiOperation({ summary: 'Obtener flujo operativo de una infracción' })
   findFlujo(@Param('idInfraccion', ParseIntPipe) idInfraccion: number) {
     return this.infraccionesService.findFlujoByInfraccion(idInfraccion);
+  }
+
+  @Get(':idInfraccion/detalle')
+  @ApiOperation({ summary: 'Obtener detalle completo de una infracción' })
+  findDetalle(@Param('idInfraccion', ParseIntPipe) idInfraccion: number) {
+    return this.infraccionesService.findDetalleCompletoByInfraccion(
+      idInfraccion,
+    );
   }
 
   @Get(':idInfraccion/movimientos')

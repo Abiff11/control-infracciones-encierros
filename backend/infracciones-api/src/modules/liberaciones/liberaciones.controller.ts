@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { WRITE_ROLES } from '../auth/constants/roles.constants';
+import { READ_ROLES, WRITE_ROLES } from '../auth/constants/roles.constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { LoginResponseUsuarioDto } from '../auth/dto/login-response.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -21,6 +21,7 @@ import { LiberacionesService } from './liberaciones.service';
 @ApiTags('liberaciones')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RoleAuthGuard)
+@Roles(...READ_ROLES)
 @Controller('liberaciones')
 export class LiberacionesController {
   constructor(private readonly liberacionesService: LiberacionesService) {}

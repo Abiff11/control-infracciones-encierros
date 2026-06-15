@@ -80,7 +80,10 @@ export class ImportacionesReportesService {
     await this.ensureImportacionExists(idImportacionInfracciones);
 
     const page = this.normalizePositiveInteger(query.page, 1);
-    const limit = Math.min(this.normalizePositiveInteger(query.limit, 100), 1000);
+    const limit = Math.min(
+      this.normalizePositiveInteger(query.limit, 100),
+      1000,
+    );
     const where = this.buildWhere(idImportacionInfracciones, query);
 
     const [data, total] = await this.erroresRepository.findAndCount({
