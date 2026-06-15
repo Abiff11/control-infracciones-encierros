@@ -1,0 +1,53 @@
+.inventory-page .page-description {
+  max-width: 760px;
+}
+
+.inventory-summary-strip .summary-card strong {
+  color: var(--text);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.inventory-table th,
+.inventory-table td {
+  vertical-align: top;
+}
+
+.inventory-encierro-cell strong {
+  font-size: 13px;
+}
+
+.inventory-days-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.inventory-action-stack {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.inventory-action-stack .button-secondary {
+  min-height: 32px;
+  padding: 0 11px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+@media (max-width: 980px) {
+  .inventory-days-pill {
+    white-space: normal;
+    text-align: center;
+  }
+}
