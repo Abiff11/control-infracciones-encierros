@@ -2,7 +2,6 @@ import { useMemo, useState, type ReactNode } from 'react';
 
 import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { InfoGrid } from '../../components/ui/InfoGrid';
 import { Modal } from '../../components/ui/Modal';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Timeline } from '../../components/ui/Timeline';
@@ -15,6 +14,7 @@ import {
   formatTimeOfDay,
 } from '../../lib/formatters';
 import type { InfraccionDetalleResponse } from '../../types/infracciones.types';
+import './InfraccionDetalleModal.css';
 
 interface InfraccionDetalleModalProps {
   open: boolean;
@@ -40,10 +40,17 @@ interface TabDefinition {
   label: string;
 }
 
+interface FieldItem {
+  label: string;
+  value: ReactNode;
+  span?: 2 | 3;
+}
+
 function getMotivoLabel(
   motivo: InfraccionDetalleResponse['motivos'][number],
 ): string {
   const descripcion = formatEmptyValue(motivo.descripcionMotivo);
+
   if (descripcion === motivo.nombreMotivo) {
     return motivo.nombreMotivo;
   }
@@ -82,6 +89,16 @@ function getAvailableTabs(data: InfraccionDetalleResponse): TabDefinition[] {
   return tabs;
 }
 
+function getVehiculoPrincipal(data: InfraccionDetalleResponse): string {
+  return [
+    data.vehiculo.marcaVehiculo.nombreMarcaVehiculo,
+    data.vehiculo.lineaVehiculo.nombreLineaVehiculo,
+    data.vehiculo.claseVehiculo.nombreClaseVehiculo,
+  ]
+    .filter(Boolean)
+    .join(' - ');
+}
+
 function TabButton({
   active,
   children,
@@ -102,7 +119,7 @@ function TabButton({
   );
 }
 
-function DetailStack({
+function DetailSection({
   children,
   title,
   description,
@@ -112,18 +129,46 @@ function DetailStack({
   description?: string;
 }) {
   return (
-    <Card className="detail-section-card">
+    <Card className="detail-section-card detail-section-card-clean">
       <div className="page-stack">
-        <div className="panel-header">
-          <div>
-            <p className="section-label">Detalle</p>
-            <h3>{title}</h3>
-            {description ? <p className="page-description">{description}</p> : null}
-          </div>
+        <div>
+          <p className="section-label">Detalle</p>
+          <h3 className="detail-section-title">{title}</h3>
+          {description ? <p className="page-description">{description}</p> : null}
         </div>
         {children}
       </div>
     </Card>
+  );
+}
+
+function DetailFieldGrid({ columns = 3, items }: { columns?: 2 | 3; items: FieldItem[] }) {
+  return (
+    <div className={`detail-field-grid detail-field-grid-${columns}`}>
+      {items.map((item) => (
+        <article
+          key={item.label}
+          className={[
+            'detail-field-card',
+            item.span ? `detail-field-span-${item.span}` : null,
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        >
+          <p className="detail-field-label">{item.label}</p>
+          <div className="detail-field-value">{item.value}</div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function HeroMeta({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <article className="detail-hero-meta-item">
+      <p>{label}</p>
+      <strong>{value}</strong>
+    </article>
   );
 }
 
@@ -144,9 +189,9 @@ function RenderCardList({
   }
 
   return (
-    <div className="detail-stack">
+    <div className="detail-card-list">
       {items.map((item) => (
-        <Card key={item.key} className="detail-mini-card">
+        <Card key={item.key} className="detail-mini-card detail-mini-card-clean">
           <div className="detail-mini-header">
             <div>{item.header}</div>
             {item.meta ? <div className="detail-mini-meta">{item.meta}</div> : null}
@@ -175,15 +220,16 @@ export function InfraccionDetalleModal({
     <Modal
       open={open}
       title={data?.infraccion.folioInfraccion ?? 'Detalle de infraccion'}
-      description="Vista completa del expediente operativo."
+      description="Expediente operativo de la infraccion."
       onClose={onClose}
     >
       {loading ? <div className="notice">Cargando detalle...</div> : null}
       {error ? <div className="notice notice-error">{error}</div> : null}
+
       {!loading && !error && data ? (
-        <div className="detail-shell">
-          <Card className="detail-hero">
-            <div className="detail-hero-top">
+        <div className="detail-shell detail-shell-clean">
+          <Card className="detail-hero detail-hero-clean">
+            <div className="detail-hero-main">
               <div className="detail-hero-copy">
                 <p className="section-label">Expediente operativo</p>
                 <h3>{data.infraccion.folioInfraccion}</h3>
@@ -194,45 +240,41 @@ export function InfraccionDetalleModal({
                     data.infractor.apellidoMaterno,
                   ])}
                 </p>
-                <div className="detail-hero-subline">
-                  <span>Fecha: {formatDate(data.infraccion.fechaInfraccion)}</span>
-                  <span>Hora: {formatTimeOfDay(data.infraccion.horaInfraccion)}</span>
-                  <span>Placas: {formatEmptyValue(data.vehiculo.placas)}</span>
-                </div>
-                {data.retencionVehiculo ? (
-                  <div className="detail-hero-subline">
-                    <span>Encierro: {data.retencionVehiculo.encierro.nombreEncierro}</span>
-                    <span>Ingreso: {formatDateTime(data.retencionVehiculo.fechaIngreso)}</span>
-                  </div>
-                ) : null}
               </div>
 
-              <div className="detail-hero-status">
-                <StatusBadge value={data.estadoOperativoCalculado} />
+              <div className="detail-hero-status detail-hero-status-card">
                 <p className="detail-hero-status-label">Estado operativo</p>
+                <StatusBadge value={data.estadoOperativoCalculado} />
               </div>
             </div>
 
-            <InfoGrid
-              columns={3}
-              items={[
-                {
-                  label: 'Estatus',
-                  value: data.estatusInfraccion.nombreEstatus,
-                },
-                {
-                  label: 'Region',
-                  value: data.region.nombreRegion,
-                },
-                {
-                  label: 'Delegacion',
-                  value: data.delegacion.nombreDelegacion,
-                },
-              ]}
-            />
+            <div className="detail-hero-meta-grid">
+              <HeroMeta label="Fecha" value={formatDate(data.infraccion.fechaInfraccion)} />
+              <HeroMeta label="Hora" value={formatTimeOfDay(data.infraccion.horaInfraccion)} />
+              <HeroMeta label="Placas" value={formatEmptyValue(data.vehiculo.placas)} />
+              <HeroMeta label="Vehiculo" value={getVehiculoPrincipal(data)} />
+              {data.retencionVehiculo ? (
+                <>
+                  <HeroMeta
+                    label="Encierro"
+                    value={data.retencionVehiculo.encierro.nombreEncierro}
+                  />
+                  <HeroMeta
+                    label="Ingreso"
+                    value={formatDateTime(data.retencionVehiculo.fechaIngreso)}
+                  />
+                </>
+              ) : null}
+            </div>
+
+            <div className="detail-hero-summary-row">
+              <span>{data.estatusInfraccion.nombreEstatus}</span>
+              <span>{data.region.nombreRegion}</span>
+              <span>{data.delegacion.nombreDelegacion}</span>
+            </div>
           </Card>
 
-          <div className="modal-tabs" role="tablist" aria-label="Detalle de infraccion">
+          <div className="modal-tabs modal-tabs-clean" role="tablist" aria-label="Detalle de infraccion">
             {tabs.map((tab) => (
               <TabButton
                 key={tab.id}
@@ -245,34 +287,18 @@ export function InfraccionDetalleModal({
           </div>
 
           {safeActiveTab === 'resumen' ? (
-            <DetailStack title="Resumen" description="Datos generales de la infraccion.">
-              <InfoGrid
+            <DetailSection title="Resumen" description="Datos principales del expediente.">
+              <DetailFieldGrid
                 columns={3}
                 items={[
                   { label: 'Folio', value: data.infraccion.folioInfraccion },
-                  {
-                    label: 'Fecha',
-                    value: formatDate(data.infraccion.fechaInfraccion),
-                  },
-                  {
-                    label: 'Hora',
-                    value: formatTimeOfDay(data.infraccion.horaInfraccion),
-                  },
-                  {
-                    label: 'Estado operativo',
-                    value: <StatusBadge value={data.estadoOperativoCalculado} compact />,
-                    span: 2,
-                  },
-                  {
-                    label: 'Estatus de infraccion',
-                    value: data.estatusInfraccion.nombreEstatus,
-                  },
-                  { label: 'Region', value: data.region.nombreRegion },
-                  { label: 'Delegacion', value: data.delegacion.nombreDelegacion },
+                  { label: 'Estatus', value: data.estatusInfraccion.nombreEstatus },
                   {
                     label: 'Tipo procedimiento',
                     value: data.tipoProcedimiento.nombreTipoProcedimiento,
                   },
+                  { label: 'Region', value: data.region.nombreRegion },
+                  { label: 'Delegacion', value: data.delegacion.nombreDelegacion },
                   {
                     label: 'Clave policia',
                     value: formatEmptyValue(data.infraccion.clavePolicia),
@@ -288,12 +314,12 @@ export function InfraccionDetalleModal({
                   },
                 ]}
               />
-            </DetailStack>
+            </DetailSection>
           ) : null}
 
           {safeActiveTab === 'infractor' ? (
-            <DetailStack title="Infractor" description="Identificacion del conductor o propietario.">
-              <InfoGrid
+            <DetailSection title="Infractor" description="Identificacion del conductor o propietario.">
+              <DetailFieldGrid
                 columns={2}
                 items={[
                   {
@@ -315,12 +341,12 @@ export function InfraccionDetalleModal({
                   },
                 ]}
               />
-            </DetailStack>
+            </DetailSection>
           ) : null}
 
           {safeActiveTab === 'vehiculo' ? (
-            <DetailStack title="Vehiculo" description="Ficha tecnica del vehiculo infraccionado.">
-              <InfoGrid
+            <DetailSection title="Vehiculo" description="Ficha tecnica del vehiculo infraccionado.">
+              <DetailFieldGrid
                 columns={3}
                 items={[
                   { label: 'Placas', value: formatEmptyValue(data.vehiculo.placas) },
@@ -349,32 +375,29 @@ export function InfraccionDetalleModal({
                   },
                 ]}
               />
-            </DetailStack>
+            </DetailSection>
           ) : null}
 
           {safeActiveTab === 'motivos' ? (
-            <DetailStack title="Motivos" description="Motivos capturados para la infraccion.">
+            <DetailSection title="Motivos" description="Motivos capturados para la infraccion.">
               {data.motivos.length === 0 ? (
                 <EmptyState />
               ) : (
-                <div className="motivo-grid">
+                <div className="motivo-grid motivo-grid-clean">
                   {data.motivos.map((motivo) => (
-                    <article key={motivo.idMotivo} className="motivo-card">
+                    <article key={motivo.idMotivo} className="motivo-card motivo-card-clean">
                       <strong>{motivo.nombreMotivo}</strong>
                       <span>{getMotivoLabel(motivo)}</span>
                     </article>
                   ))}
                 </div>
               )}
-            </DetailStack>
+            </DetailSection>
           ) : null}
 
           {safeActiveTab === 'encierro' && data.retencionVehiculo ? (
-              <DetailStack title="Encierro" description="Ingreso y resguardo vehicular.">
-                <div className="detail-section-badge">
-                  <StatusBadge value={data.estadoOperativoCalculado} />
-                </div>
-              <InfoGrid
+            <DetailSection title="Encierro" description="Ingreso y resguardo vehicular.">
+              <DetailFieldGrid
                 columns={2}
                 items={[
                   { label: 'Encierro', value: data.retencionVehiculo.encierro.nombreEncierro },
@@ -401,14 +424,15 @@ export function InfraccionDetalleModal({
                   },
                 ]}
               />
-            </DetailStack>
+            </DetailSection>
           ) : null}
 
           {safeActiveTab === 'pagos' ? (
-            <DetailStack title="Pagos" description="Historial de pagos registrados.">
+            <DetailSection title="Pagos" description="Historial de pagos registrados.">
               <RenderCardList
-                items={data.pagos.map((pago) => ({
-                  key: pago.idPagoInfraccion,
+                emptyLabel="Sin pagos registrados."
+                items={data.pagos.map((pago, index) => ({
+                  key: pago.folioPago || index,
                   header: (
                     <div>
                       <p className="card-label">Folio pago</p>
@@ -417,7 +441,7 @@ export function InfraccionDetalleModal({
                   ),
                   meta: <strong>{formatCurrencyMxn(pago.monto)}</strong>,
                   children: (
-                    <InfoGrid
+                    <DetailFieldGrid
                       columns={2}
                       items={[
                         { label: 'Fecha', value: formatDateTime(pago.fechaPago) },
@@ -431,14 +455,15 @@ export function InfraccionDetalleModal({
                   ),
                 }))}
               />
-            </DetailStack>
+            </DetailSection>
           ) : null}
 
           {safeActiveTab === 'liberacion' ? (
-            <DetailStack title="Liberacion" description="Liberaciones asociadas a la infraccion.">
+            <DetailSection title="Liberacion" description="Liberaciones asociadas a la infraccion.">
               <RenderCardList
-                items={data.liberaciones.map((liberacion) => ({
-                  key: liberacion.idLiberacionVehiculo,
+                emptyLabel="Sin liberaciones registradas."
+                items={data.liberaciones.map((liberacion, index) => ({
+                  key: liberacion.folioLiberacion || index,
                   header: (
                     <div>
                       <p className="card-label">Folio liberacion</p>
@@ -447,7 +472,7 @@ export function InfraccionDetalleModal({
                   ),
                   meta: <span>{formatDateTime(liberacion.fechaLiberacion)}</span>,
                   children: (
-                    <InfoGrid
+                    <DetailFieldGrid
                       columns={2}
                       items={[
                         { label: 'Liberado por', value: formatEmptyValue(liberacion.liberadoPor) },
@@ -466,14 +491,15 @@ export function InfraccionDetalleModal({
                   ),
                 }))}
               />
-            </DetailStack>
+            </DetailSection>
           ) : null}
 
           {safeActiveTab === 'salida' ? (
-            <DetailStack title="Salida" description="Salida del vehiculo del encierro.">
+            <DetailSection title="Salida" description="Salida del vehiculo del encierro.">
               <RenderCardList
-                items={data.salidas.map((salida) => ({
-                  key: salida.idSalidaVehiculo,
+                emptyLabel="Sin salidas registradas."
+                items={data.salidas.map((salida, index) => ({
+                  key: `${salida.fechaSalida}-${index}`,
                   header: (
                     <div>
                       <p className="card-label">Fecha salida</p>
@@ -482,7 +508,7 @@ export function InfraccionDetalleModal({
                   ),
                   meta: <StatusBadge value={salida.estadoSalida} compact />,
                   children: (
-                    <InfoGrid
+                    <DetailFieldGrid
                       columns={2}
                       items={[
                         { label: 'Validado por', value: formatEmptyValue(salida.validadoPor) },
@@ -501,33 +527,32 @@ export function InfraccionDetalleModal({
                   ),
                 }))}
               />
-            </DetailStack>
+            </DetailSection>
           ) : null}
 
           {safeActiveTab === 'movimientos' ? (
-            <DetailStack title="Movimientos" description="Linea de tiempo del expediente.">
+            <DetailSection title="Movimientos" description="Linea de tiempo del expediente.">
               <Timeline
-                items={data.movimientos.map((movimiento) => ({
-                  id: movimiento.idInfraccionMovimiento,
+                items={data.movimientos.map((movimiento, index) => ({
+                  id: `${movimiento.fechaMovimiento}-${index}`,
                   title: formatDateTime(movimiento.fechaMovimiento),
                   meta: <StatusBadge value={movimiento.estatus} compact />,
                   description: (
-                    <InfoGrid
-                      columns={2}
+                    <DetailFieldGrid
+                      columns={3}
                       items={[
                         { label: 'Accion', value: formatEmptyValue(movimiento.accion) },
                         { label: 'Usuario', value: formatEmptyValue(movimiento.usuario) },
                         {
                           label: 'Observaciones',
                           value: formatEmptyValue(movimiento.observaciones),
-                          span: 2,
                         },
                       ]}
                     />
                   ),
                 }))}
               />
-            </DetailStack>
+            </DetailSection>
           ) : null}
         </div>
       ) : null}
