@@ -28,6 +28,10 @@ import type {
   PaginationMeta,
 } from '../../types/infracciones.types';
 import { InfraccionDetalleModal } from './InfraccionDetalleModal';
+import {
+  InfraccionOperacionModal,
+  type InfraccionOperacionTipo,
+} from './InfraccionOperacionModal';
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -53,15 +57,16 @@ interface FiltersForm {
   limit: string;
 }
 
+interface OperationState {
+  type: InfraccionOperacionTipo;
+  item: InfraccionListItem;
+}
+
 interface InfraccionesListPageProps {
   catalogs: CatalogosBundle | null;
   token: string;
   refreshKey: number;
   onNavigateCreate: () => void;
-  onNavigateRetencion: (idInfraccion: number) => void;
-  onNavigatePago: (idInfraccion: number) => void;
-  onNavigateLiberacion: (idInfraccion: number) => void;
-  onNavigateSalida: (idRetencionVehiculo: number) => void;
 }
 
 const DEFAULT_FILTERS: FiltersForm = {
@@ -180,10 +185,6 @@ function InfraccionesListPage({
   refreshKey,
   token,
   onNavigateCreate,
-  onNavigateRetencion,
-  onNavigatePago,
-  onNavigateLiberacion,
-  onNavigateSalida,
 }: InfraccionesListPageProps) {
   const [draftFilters, setDraftFilters] = useState<FiltersForm>(DEFAULT_FILTERS);
   const [activeFilters, setActiveFilters] = useState<FiltersForm>(DEFAULT_FILTERS);
@@ -192,6 +193,8 @@ function InfraccionesListPage({
     createIdleState(),
   );
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [operationState, setOperationState] = useState<OperationState | null>(null);
+  const [localRefreshKey, setLocalRefreshKey] = useState(0);
 
   const query = useMemo(() => buildQuery(activeFilters), [activeFilters]);
   const meta: PaginationMeta | null = state.data?.meta ?? null;
@@ -237,7 +240,7 @@ function InfraccionesListPage({
     return () => {
       mounted = false;
     };
-  }, [query, refreshKey, token]);
+  }, [query, refreshKey, localRefreshKey, token]);
 
   useEffect(() => {
     const detailId = selectedId;
@@ -329,13 +332,24 @@ function InfraccionesListPage({
     setDetailState(createIdleState());
   }
 
+  function openOperation(type: InfraccionOperacionTipo, item: InfraccionListItem): void {
+    setOperationState({ type, item });
+  }
+
+  function closeOperation(): void {
+    setOperationState(null);
+  }
+
+  function completeOperation(): void {
+    setOperationState(null);
+    setLocalRefreshKey((current) => current + 1);
+  }
+
   function renderEncierroCell(item: InfraccionListItem) {
     if (!item.retencion) {
       return (
         <div className="table-cell-stack">
-          <OperationButton onClick={() => onNavigateRetencion(item.idInfraccion)}>
-            Retener
-          </OperationButton>
+          <OperationButton onClick={() => openOperation('retencion', item)}>Retener</OperationButton>
           <PendingText>Sin encierro</PendingText>
         </div>
       );
@@ -370,7 +384,7 @@ function InfraccionesListPage({
     if (!item.pago?.tienePago) {
       return (
         <div className="table-cell-stack">
-          <OperationButton onClick={() => onNavigatePago(item.idInfraccion)}>Pagar</OperationButton>
+          <OperationButton onClick={() => openOperation('pago', item)}>Pagar</OperationButton>
           <PendingText>Sin pago registrado</PendingText>
         </div>
       );
@@ -392,9 +406,7 @@ function InfraccionesListPage({
     if (!item.liberacion?.tieneLiberacion) {
       return (
         <div className="table-cell-stack">
-          <OperationButton onClick={() => onNavigateLiberacion(item.idInfraccion)}>
-            Liberar
-          </OperationButton>
+          <OperationButton onClick={() => openOperation('liberacion', item)}>Liberar</OperationButton>
           <PendingText>Sin liberacion</PendingText>
         </div>
       );
@@ -416,11 +428,7 @@ function InfraccionesListPage({
     if (!item.salida?.tieneSalida && item.retencion?.idRetencionVehiculo) {
       return (
         <div className="table-cell-stack">
-          <OperationButton
-            onClick={() => onNavigateSalida(item.retencion?.idRetencionVehiculo ?? 0)}
-          >
-            Salida
-          </OperationButton>
+          <OperationButton onClick={() => openOperation('salida', item)}>Salida</OperationButton>
           <PendingText>Sin salida</PendingText>
         </div>
       );
@@ -441,7 +449,7 @@ function InfraccionesListPage({
           <p className="eyebrow">Consulta</p>
           <h1>Infracciones</h1>
           <p className="page-description">
-            Consulta operativa con filtros completos y acciones contextuales por expediente.
+            Consulta operativa con filtros completos y acciones contextuales sin salir del listado.
           </p>
         </div>
 
@@ -711,6 +719,16 @@ function InfraccionesListPage({
         error={detailState.error}
         data={detailState.data}
         onClose={closeDetail}
+      />
+
+      <InfraccionOperacionModal
+        catalogs={catalogs}
+        item={operationState?.item ?? null}
+        open={operationState !== null}
+        token={token}
+        type={operationState?.type ?? null}
+        onClose={closeOperation}
+        onCompleted={completeOperation}
       />
     </section>
   );
