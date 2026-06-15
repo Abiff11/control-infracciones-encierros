@@ -40,9 +40,11 @@ interface InfraccionListRow {
   folioResguardo: string | null;
   estadoIngreso: string | null;
   tienePago: boolean | number | string | null;
+  idUltimoPago: string | number | null;
   fechaUltimoPago: string | Date | null;
   montoPagado: string | number | null;
   tieneLiberacion: boolean | number | string | null;
+  idUltimaLiberacion: string | number | null;
   fechaLiberacion: string | Date | null;
   tieneSalida: boolean | number | string | null;
   fechaSalida: string | Date | null;
@@ -173,6 +175,16 @@ export class InfraccionesListService {
       .addSelect(this.hasPagoExpression(), 'tienePago')
       .addSelect(
         `(
+          SELECT pago.id_pago_infraccion
+          FROM pago_infraccion pago
+          WHERE pago.id_infraccion = infraccion.id_infraccion
+          ORDER BY pago.fecha_pago DESC, pago.id_pago_infraccion DESC
+          LIMIT 1
+        )`,
+        'idUltimoPago',
+      )
+      .addSelect(
+        `(
           SELECT pago.fecha_pago
           FROM pago_infraccion pago
           WHERE pago.id_infraccion = infraccion.id_infraccion
@@ -192,6 +204,16 @@ export class InfraccionesListService {
         'montoPagado',
       )
       .addSelect(this.hasLiberacionExpression(), 'tieneLiberacion')
+      .addSelect(
+        `(
+          SELECT liberacion.id_liberacion_vehiculo
+          FROM liberacion_vehiculo liberacion
+          WHERE liberacion.id_infraccion = infraccion.id_infraccion
+          ORDER BY liberacion.fecha_liberacion DESC, liberacion.id_liberacion_vehiculo DESC
+          LIMIT 1
+        )`,
+        'idUltimaLiberacion',
+      )
       .addSelect(
         `(
           SELECT liberacion.fecha_liberacion
@@ -260,60 +282,51 @@ export class InfraccionesListService {
             .orWhere('vehiculo.motor ILIKE :searchValue', {
               searchValue,
             })
-            .orWhere('region.nombreRegion ILIKE :searchValue', {
-              searchValue,
-            })
-            .orWhere('delegacion.nombreDelegacion ILIKE :searchValue', {
-              searchValue,
-            })
-            .orWhere('estatusInfraccion.nombreEstatus ILIKE :searchValue', {
-              searchValue,
-            })
-            .orWhere(
-              'tipoProcedimiento.nombreTipoProcedimiento ILIKE :searchValue',
-              {
-                searchValue,
-              },
-            )
-            .orWhere('encierro.nombre_encierro ILIKE :searchValue', {
+            .orWhere('vehiculo.color ILIKE :searchValue', {
               searchValue,
             });
         }),
       );
     }
 
-    const folioInfraccion = query.folioInfraccion?.trim();
-    if (folioInfraccion) {
+    if (query.folioInfraccion) {
       builder.andWhere('infraccion.folioInfraccion ILIKE :folioInfraccion', {
-        folioInfraccion: `%${folioInfraccion}%`,
+        folioInfraccion: `%${query.folioInfraccion.trim()}%`,
       });
     }
 
-    const fechaDesde = query.fechaDesde ?? query.fechaInicio;
-    if (fechaDesde) {
-      builder.andWhere(
-        'infraccion.fechaInfraccion >= CAST(:fechaDesde AS date)',
-        { fechaDesde },
-      );
+    if (query.fechaInicio) {
+      builder.andWhere('infraccion.fechaInfraccion >= :fechaInicio', {
+        fechaInicio: query.fechaInicio,
+      });
     }
 
-    const fechaHasta = query.fechaHasta ?? query.fechaFin;
-    if (fechaHasta) {
-      builder.andWhere(
-        'infraccion.fechaInfraccion <= CAST(:fechaHasta AS date)',
-        { fechaHasta },
-      );
+    if (query.fechaFin) {
+      builder.andWhere('infraccion.fechaInfraccion <= :fechaFin', {
+        fechaFin: query.fechaFin,
+      });
+    }
+
+    if (query.fechaDesde) {
+      builder.andWhere('infraccion.fechaInfraccion >= :fechaDesde', {
+        fechaDesde: query.fechaDesde,
+      });
+    }
+
+    if (query.fechaHasta) {
+      builder.andWhere('infraccion.fechaInfraccion <= :fechaHasta', {
+        fechaHasta: query.fechaHasta,
+      });
     }
 
     if (query.idEstatusInfraccion) {
-      builder.andWhere(
-        'estatusInfraccion.idEstatusInfraccion = :idEstatusInfraccion',
-        { idEstatusInfraccion: query.idEstatusInfraccion },
-      );
+      builder.andWhere('infraccion.idEstatusInfraccion = :idEstatusInfraccion', {
+        idEstatusInfraccion: query.idEstatusInfraccion,
+      });
     }
 
     if (query.idDelegacion) {
-      builder.andWhere('delegacion.idDelegacion = :idDelegacion', {
+      builder.andWhere('infraccion.idDelegacion = :idDelegacion', {
         idDelegacion: query.idDelegacion,
       });
     }
@@ -326,90 +339,79 @@ export class InfraccionesListService {
 
     if (query.idTipoProcedimiento) {
       builder.andWhere(
-        'tipoProcedimiento.idTipoProcedimiento = :idTipoProcedimiento',
-        { idTipoProcedimiento: query.idTipoProcedimiento },
-      );
-    }
-
-    if (query.anio) {
-      builder.andWhere(
-        'EXTRACT(YEAR FROM infraccion.fechaInfraccion) = :anio',
-        { anio: query.anio },
-      );
-    }
-
-    const placas = query.placas?.trim();
-    if (placas) {
-      builder.andWhere('vehiculo.placas ILIKE :placas', {
-        placas: `%${placas}%`,
-      });
-    }
-
-    const serie = query.serie?.trim();
-    if (serie) {
-      builder.andWhere('vehiculo.serie ILIKE :serie', {
-        serie: `%${serie}%`,
-      });
-    }
-
-    const motor = query.motor?.trim();
-    if (motor) {
-      builder.andWhere('vehiculo.motor ILIKE :motor', {
-        motor: `%${motor}%`,
-      });
-    }
-
-    const nombreInfractor = query.nombreInfractor?.trim();
-    if (nombreInfractor) {
-      builder.andWhere(
-        `(infractor.nombre ILIKE :nombreInfractor OR infractor.apellidoPaterno ILIKE :nombreInfractor OR infractor.apellidoMaterno ILIKE :nombreInfractor)`,
-        { nombreInfractor: `%${nombreInfractor}%` },
-      );
-    }
-
-    const licencia = query.licencia?.trim();
-    if (licencia) {
-      builder.andWhere('infractor.licencia ILIKE :licencia', {
-        licencia: `%${licencia}%`,
-      });
-    }
-
-    const clavePolicia = query.clavePolicia?.trim();
-    if (clavePolicia) {
-      builder.andWhere('infraccion.clavePolicia ILIKE :clavePolicia', {
-        clavePolicia: `%${clavePolicia}%`,
-      });
-    }
-
-    const rfc = query.rfc?.trim();
-    if (rfc) {
-      builder.andWhere('infractor.curp ILIKE :rfc', {
-        rfc: `%${rfc}%`,
-      });
-    }
-
-    const claveOficial = query.claveOficial?.trim();
-    if (claveOficial) {
-      builder.andWhere('infraccion.clavePolicia ILIKE :claveOficial', {
-        claveOficial: `%${claveOficial}%`,
-      });
-    }
-
-    if (query.idMotivo) {
-      builder.andWhere(
-        `EXISTS (
-          SELECT 1
-          FROM infraccion_motivo infraccion_motivo_filtro
-          WHERE infraccion_motivo_filtro.id_infraccion = infraccion.id_infraccion
-            AND infraccion_motivo_filtro.id_motivo = :idMotivo
-        )`,
-        { idMotivo: query.idMotivo },
+        'infraccion.idTipoProcedimiento = :idTipoProcedimiento',
+        {
+          idTipoProcedimiento: query.idTipoProcedimiento,
+        },
       );
     }
 
     if (query.idEncierro) {
       builder.andWhere('retencion.id_encierro = :idEncierro', {
         idEncierro: query.idEncierro,
+      });
+    }
+
+    if (query.placas) {
+      builder.andWhere('vehiculo.placas ILIKE :placas', {
+        placas: `%${query.placas.trim()}%`,
+      });
+    }
+
+    if (query.serie) {
+      builder.andWhere('vehiculo.serie ILIKE :serie', {
+        serie: `%${query.serie.trim()}%`,
+      });
+    }
+
+    if (query.motor) {
+      builder.andWhere('vehiculo.motor ILIKE :motor', {
+        motor: `%${query.motor.trim()}%`,
+      });
+    }
+
+    if (query.nombreInfractor) {
+      const nameSearch = `%${query.nombreInfractor.trim()}%`;
+      builder.andWhere(
+        new Brackets((qb) => {
+          qb.where('infractor.nombre ILIKE :nameSearch', { nameSearch })
+            .orWhere('infractor.apellidoPaterno ILIKE :nameSearch', {
+              nameSearch,
+            })
+            .orWhere('infractor.apellidoMaterno ILIKE :nameSearch', {
+              nameSearch,
+            });
+        }),
+      );
+    }
+
+    if (query.licencia) {
+      builder.andWhere('infractor.licencia ILIKE :licencia', {
+        licencia: `%${query.licencia.trim()}%`,
+      });
+    }
+
+    if (query.rfc) {
+      builder.andWhere('infractor.rfc ILIKE :rfc', {
+        rfc: `%${query.rfc.trim()}%`,
+      });
+    }
+
+    if (query.clavePolicia) {
+      builder.andWhere('infraccion.clavePolicia ILIKE :clavePolicia', {
+        clavePolicia: `%${query.clavePolicia.trim()}%`,
+      });
+    }
+
+    if (query.claveOficial) {
+      builder.andWhere('infraccion.clavePolicia ILIKE :claveOficial', {
+        claveOficial: `%${query.claveOficial.trim()}%`,
+      });
+    }
+
+    if (query.anio) {
+      builder.andWhere('EXTRACT(YEAR FROM infraccion.fechaInfraccion) = :anio', {
+        anio: query.anio,
       });
     }
 
@@ -422,10 +424,10 @@ export class InfraccionesListService {
     builder: SelectQueryBuilder<Infraccion>,
     estadoOperativo: string,
   ): void {
-    const hasSalida = this.hasSalidaByInfraccionExpression();
-    const hasLiberacion = this.hasLiberacionExpression();
-    const hasPago = this.hasPagoExpression();
     const hasRetencion = this.hasRetencionExpression();
+    const hasPago = this.hasPagoExpression();
+    const hasLiberacion = this.hasLiberacionExpression();
+    const hasSalida = this.hasSalidaByInfraccionExpression();
 
     switch (estadoOperativo) {
       case ESTADO_OPERATIVO_VEHICULO.VEHICULO_ENTREGADO:
@@ -617,11 +619,13 @@ export class InfraccionesListService {
         : null,
       pago: {
         tienePago: hasPago,
+        idPagoInfraccion: this.toNullableNumber(row.idUltimoPago),
         fechaUltimoPago: this.toIsoString(row.fechaUltimoPago),
         montoPagado: this.toNullableString(row.montoPagado),
       },
       liberacion: {
         tieneLiberacion: hasLiberacion,
+        idLiberacionVehiculo: this.toNullableNumber(row.idUltimaLiberacion),
         fechaLiberacion: this.toIsoString(row.fechaLiberacion),
       },
       salida: {
@@ -704,13 +708,13 @@ export class InfraccionesListService {
     )`;
   }
 
-  private toBoolean(value: unknown): boolean {
+  private toBoolean(value: boolean | number | string | null): boolean {
     if (typeof value === 'boolean') {
       return value;
     }
 
     if (typeof value === 'number') {
-      return value !== 0;
+      return value > 0;
     }
 
     if (typeof value === 'string') {
@@ -720,32 +724,30 @@ export class InfraccionesListService {
     return false;
   }
 
-  private toNumber(value: unknown): number {
-    if (typeof value === 'number') {
-      return value;
+  private toNumber(value: string | number | null): number {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private toNullableNumber(value: string | number | null): number | null {
+    if (value === null) {
+      return null;
     }
 
-    if (typeof value === 'string' && value.trim()) {
-      return Number(value);
-    }
-
-    return 0;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
   }
 
   private toStringValue(value: unknown): string {
-    if (typeof value === 'string') {
-      return value;
-    }
-
-    if (typeof value === 'number' || typeof value === 'boolean') {
-      return String(value);
-    }
-
     if (value instanceof Date) {
       return value.toISOString();
     }
 
-    return '';
+    if (value === null || value === undefined) {
+      return '';
+    }
+
+    return String(value);
   }
 
   private toNullableString(value: unknown): string | null {
@@ -753,22 +755,10 @@ export class InfraccionesListService {
       return null;
     }
 
-    if (
-      typeof value === 'string' ||
-      typeof value === 'number' ||
-      typeof value === 'boolean'
-    ) {
-      return String(value);
-    }
-
-    if (value instanceof Date) {
-      return value.toISOString();
-    }
-
-    return null;
+    return String(value);
   }
 
-  private toIsoString(value: unknown): string | null {
+  private toIsoString(value: string | Date | null): string | null {
     if (!value) {
       return null;
     }
@@ -777,11 +767,6 @@ export class InfraccionesListService {
       return value.toISOString();
     }
 
-    if (typeof value !== 'string' && typeof value !== 'number') {
-      return null;
-    }
-
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+    return value;
   }
 }
