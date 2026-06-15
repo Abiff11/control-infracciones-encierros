@@ -15,26 +15,24 @@ export interface ImportacionErroresQuery {
   limit?: number;
 }
 
-export interface ImportacionErroresResumenItem {
-  clave: string;
-  total: number;
-}
-
-export interface ImportacionErroresTopItem {
-  campo: string;
-  valor: string | null;
-  mensaje: string;
-  total: number;
-}
-
 export interface ImportacionErroresResumenResponse {
   idImportacionInfracciones: number;
   totalErrores: number;
-  porTipo: ImportacionErroresResumenItem[];
-  porCampo: ImportacionErroresResumenItem[];
-  porMensaje: ImportacionErroresResumenItem[];
-  topErrores: ImportacionErroresTopItem[];
-  topValores: ImportacionErroresTopItem[];
+  porTipo: Array<{ clave: string; total: number }>;
+  porCampo: Array<{ clave: string; total: number }>;
+  porMensaje: Array<{ clave: string; total: number }>;
+  topErrores: Array<{
+    campo: string;
+    valor: string | null;
+    mensaje: string;
+    total: number;
+  }>;
+  topValores: Array<{
+    campo: string;
+    valor: string | null;
+    mensaje: string;
+    total: number;
+  }>;
 }
 
 export interface ImportacionErroresJsonResponse {
@@ -58,27 +56,20 @@ export class ImportacionesReportesService {
   ): Promise<ImportacionErroresResumenResponse> {
     await this.ensureImportacionExists(idImportacionInfracciones);
 
-    const totalErrores = await this.erroresRepository.count({
+    const errores = await this.erroresRepository.find({
       where: this.buildWhere(idImportacionInfracciones),
     });
 
-    const [porTipo, porCampo, porMensaje, topErrores, topValores] =
-      await Promise.all([
-        this.groupBySingleColumn(idImportacionInfracciones, 'error.tipo'),
-        this.groupBySingleColumn(idImportacionInfracciones, 'error.campo'),
-        this.groupBySingleColumn(idImportacionInfracciones, 'error.mensaje'),
-        this.groupByError(idImportacionInfracciones, 30),
-        this.groupByError(idImportacionInfracciones, 100),
-      ]);
+    const topErrores = this.groupErrors(errores);
 
     return {
       idImportacionInfracciones,
-      totalErrores,
-      porTipo,
-      porCampo,
-      porMensaje,
+      totalErrores: errores.length,
+      porTipo: this.groupByKey(errores, (item) => item.tipo),
+      porCampo: this.groupByKey(errores, (item) => item.campo),
+      porMensaje: this.groupByKey(errores, (item) => item.mensaje),
       topErrores,
-      topValores,
+      topValores: topErrores,
     };
   }
 
@@ -102,50 +93,7 @@ export class ImportacionesReportesService {
       take: limit,
     });
 
-    return {
-      data,
-      page,
-      limit,
-      total,
-    };
-  }
-
-  async getErroresCsv(
-    idImportacionInfracciones: number,
-    query: ImportacionErroresQuery,
-  ): Promise<string> {
-    await this.ensureImportacionExists(idImportacionInfracciones);
-
-    const where = this.buildWhere(idImportacionInfracciones, query);
-    const errores = await this.erroresRepository.find({
-      where,
-      order: {
-        numeroFila: 'ASC',
-        idImportacionInfraccionError: 'ASC',
-      },
-    });
-
-    const header = [
-      'numeroFila',
-      'tipo',
-      'campo',
-      'valor',
-      'mensaje',
-      'rawRow',
-    ];
-
-    const rows = errores.map((error) => [
-      error.numeroFila,
-      error.tipo,
-      error.campo,
-      error.valor ?? '',
-      error.mensaje,
-      JSON.stringify(error.rawRow ?? {}),
-    ]);
-
-    return [header, ...rows]
-      .map((row) => row.map((value) => this.escapeCsv(value)).join(','))
-      .join('\n');
+    return { data, page, limit, total };
   }
 
   private buildWhere(
@@ -153,9 +101,7 @@ export class ImportacionesReportesService {
     query?: ImportacionErroresQuery,
   ): FindOptionsWhere<ImportacionInfraccionError> {
     const where: FindOptionsWhere<ImportacionInfraccionError> = {
-      importacionInfracciones: {
-        idImportacionInfracciones,
-      },
+      importacionInfracciones: { idImportacionInfracciones },
     };
 
     if (query?.tipo) {
@@ -172,71 +118,60 @@ export class ImportacionesReportesService {
   private async ensureImportacionExists(
     idImportacionInfracciones: number,
   ): Promise<void> {
-    const exists = await this.importacionesRepository.exist({
+    const importacion = await this.importacionesRepository.findOne({
       where: { idImportacionInfracciones },
+      select: { idImportacionInfracciones: true },
     });
 
-    if (!exists) {
+    if (!importacion) {
       throw new NotFoundException(
         `Importacion ${idImportacionInfracciones} no encontrada`,
       );
     }
   }
 
-  private async groupBySingleColumn(
-    idImportacionInfracciones: number,
-    column: string,
-  ): Promise<ImportacionErroresResumenItem[]> {
-    const rows = await this.erroresRepository
-      .createQueryBuilder('error')
-      .innerJoin('error.importacionInfracciones', 'importacion')
-      .select(column, 'clave')
-      .addSelect('COUNT(*)', 'total')
-      .where('importacion.idImportacionInfracciones = :idImportacionInfracciones', {
-        idImportacionInfracciones,
-      })
-      .groupBy(column)
-      .orderBy('COUNT(*)', 'DESC')
-      .getRawMany<{ clave: string; total: string }>();
+  private groupByKey(
+    errores: ImportacionInfraccionError[],
+    getKey: (item: ImportacionInfraccionError) => string,
+  ): Array<{ clave: string; total: number }> {
+    const grouped = new Map<string, number>();
 
-    return rows.map((row) => ({
-      clave: row.clave,
-      total: Number(row.total),
-    }));
+    for (const item of errores) {
+      const key = getKey(item) || 'SIN_VALOR';
+      grouped.set(key, (grouped.get(key) ?? 0) + 1);
+    }
+
+    return [...grouped.entries()]
+      .map(([clave, total]) => ({ clave, total }))
+      .sort((left, right) => right.total - left.total);
   }
 
-  private async groupByError(
-    idImportacionInfracciones: number,
-    limit: number,
-  ): Promise<ImportacionErroresTopItem[]> {
-    const rows = await this.erroresRepository
-      .createQueryBuilder('error')
-      .innerJoin('error.importacionInfracciones', 'importacion')
-      .select('error.campo', 'campo')
-      .addSelect('error.valor', 'valor')
-      .addSelect('error.mensaje', 'mensaje')
-      .addSelect('COUNT(*)', 'total')
-      .where('importacion.idImportacionInfracciones = :idImportacionInfracciones', {
-        idImportacionInfracciones,
-      })
-      .groupBy('error.campo')
-      .addGroupBy('error.valor')
-      .addGroupBy('error.mensaje')
-      .orderBy('COUNT(*)', 'DESC')
-      .limit(limit)
-      .getRawMany<{
-        campo: string;
-        valor: string | null;
-        mensaje: string;
-        total: string;
-      }>();
+  private groupErrors(errores: ImportacionInfraccionError[]): Array<{
+    campo: string;
+    valor: string | null;
+    mensaje: string;
+    total: number;
+  }> {
+    const grouped = new Map<
+      string,
+      { campo: string; valor: string | null; mensaje: string; total: number }
+    >();
 
-    return rows.map((row) => ({
-      campo: row.campo,
-      valor: row.valor,
-      mensaje: row.mensaje,
-      total: Number(row.total),
-    }));
+    for (const item of errores) {
+      const key = `${item.campo}|${item.valor ?? ''}|${item.mensaje}`;
+      const current = grouped.get(key) ?? {
+        campo: item.campo,
+        valor: item.valor,
+        mensaje: item.mensaje,
+        total: 0,
+      };
+      current.total += 1;
+      grouped.set(key, current);
+    }
+
+    return [...grouped.values()]
+      .sort((left, right) => right.total - left.total)
+      .slice(0, 100);
   }
 
   private normalizePositiveInteger(
@@ -245,10 +180,5 @@ export class ImportacionesReportesService {
   ): number {
     const parsed = Number(value);
     return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-  }
-
-  private escapeCsv(value: unknown): string {
-    const text = String(value ?? '');
-    return `"${text.replace(/"/g, '""')}"`;
   }
 }
