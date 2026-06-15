@@ -8,6 +8,7 @@ import databaseConfig from './config/database.config';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CatalogosModule } from './modules/catalogos/catalogos.module';
+import { ImportacionesModule } from './modules/importaciones/importaciones.module';
 import { EncierrosModule } from './modules/encierros/encierros.module';
 import { InfraccionesModule } from './modules/infracciones/infracciones.module';
 import { InfractoresModule } from './modules/infractores/infractores.module';
@@ -38,6 +39,7 @@ import { VehiculosModule } from './modules/vehiculos/vehiculos.module';
     EncierrosModule,
     MovimientosModule,
     CatalogosModule,
+    ImportacionesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

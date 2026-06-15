@@ -55,7 +55,7 @@ const ESTATUS_INFRACCION_SEED = [
   'VEHICULO_ENTREGADO',
 ] as const;
 
-const SEXOS_SEED = ['MASCULINO', 'FEMENINO'] as const;
+const SEXOS_SEED = ['MASCULINO', 'FEMENINO', 'SE IGNORA'] as const;
 
 const SERVICIOS_SEED = ['PARTICULAR', 'PUBLICO', 'CARGA'] as const;
 

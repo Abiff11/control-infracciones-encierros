@@ -41,6 +41,12 @@ export class FindInfraccionesQueryDto {
   @IsString()
   nombreInfractor?: string;
 
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1900)
+  anio?: number;
+
   @Type(() => Number)
   @IsInt()
   @Min(1)

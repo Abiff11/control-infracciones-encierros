@@ -507,6 +507,15 @@ export class InfraccionesService {
       });
     }
 
+    if (query.anio) {
+      queryBuilder.andWhere(
+        'EXTRACT(YEAR FROM infraccion.fechaInfraccion) = :anio',
+        {
+          anio: query.anio,
+        },
+      );
+    }
+
     const placas = query.placas?.trim();
     if (placas) {
       queryBuilder.andWhere('vehiculo.placas ILIKE :placas', {
