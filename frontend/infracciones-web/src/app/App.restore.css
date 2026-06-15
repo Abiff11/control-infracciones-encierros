@@ -49,6 +49,21 @@
   line-height: 1.25;
 }
 
+.data-table th:first-child,
+.data-table td:first-child,
+.inventory-table th:nth-child(2),
+.inventory-table td:nth-child(2) {
+  min-width: 88px;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.inventory-table td:nth-child(2) .table-cell-stack span {
+  display: none;
+}
+
 .status-badge {
   display: inline-flex;
   align-items: center;
