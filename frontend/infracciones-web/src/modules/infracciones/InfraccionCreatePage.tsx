@@ -372,6 +372,13 @@ function InfraccionCreatePage({
         },
       ]
     : [];
+  const resultPreview = result
+    ? {
+        folioInfraccion: result.infraccion.folioInfraccion,
+        estatus: result.infraccion.estatusInfraccion.nombreEstatus,
+        motivosSeleccionados: selectedMotivoLabels,
+      }
+    : null;
 
   return (
     <section className="page-stack create-infraccion-page">
@@ -762,7 +769,6 @@ function InfraccionCreatePage({
                     id={`motivo-${index}`}
                     value={motivoValue}
                     onChange={(event) => updateMotivoSlot(index, event.target.value)}
-                    required={index === 0}
                   >
                     <option value="">Sin motivo</option>
                     {sortedMotivos.map((motivo) => {
@@ -824,8 +830,9 @@ function InfraccionCreatePage({
       <OperationResultCard
         title="Infraccion creada"
         description="El expediente quedo registrado y listo para continuar el flujo operativo."
-        result={result}
+        result={resultPreview}
         emptyLabel="Aun no se ha guardado una infraccion."
+        copyLabel="Copiar folio"
         copyValue={folioCreado}
         summary={infraccionSummary}
       />
