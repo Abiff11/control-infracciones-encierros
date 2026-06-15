@@ -16,10 +16,10 @@ infraccion, retencion, pago, liberacion y salida.
    - `Marca vehiculo`: `NISSAN`
    - `Linea vehiculo`: `TSURU`
    - `Tipo procedimiento`: `INFRACCION`
-   - `Motivo`: `ESTACIONARSE EN LUGAR PROHIBIDO`
+   - `Motivo`: `T - ESTACIONARSE EN LUGAR PROHIBIDO`
    - `Encierro`: `ENCIERRO MUNICIPAL`
    - `Estatus`: `CAPTURADA`, `PAGADA`, `LIBERACION_GENERADA`, `VEHICULO_ENTREGADO`
-2. Confirmar que `motivo` solo guarda `nombreMotivo`.
+2. Confirmar que `motivo` guarda `nombreMotivo` y `descripcionMotivo`.
 
 ## Secuencia de prueba
 
