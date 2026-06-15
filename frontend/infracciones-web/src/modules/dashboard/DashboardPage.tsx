@@ -23,6 +23,7 @@ const QUICK_ACTIONS: Array<{ key: PageKey; label: string }> = [
   { key: 'liberacion', label: 'Liberación' },
   { key: 'retencion', label: 'Retención' },
   { key: 'salida', label: 'Salida' },
+  { key: 'flujo-operativo', label: 'Flujo operativo' },
 ];
 
 function DashboardPage({

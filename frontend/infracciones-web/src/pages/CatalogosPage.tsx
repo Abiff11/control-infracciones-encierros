@@ -10,6 +10,7 @@ import { SelectField } from '../components/ui/SelectField';
 import { TextAreaField } from '../components/ui/TextAreaField';
 import { Field, TextInput } from '../components/ui/Field';
 import { getErrorMessage } from '../services/api/apiClient';
+import { copyTextToClipboard } from '../utils/clipboard';
 import {
   createClaseVehiculo,
   createDelegacion,
@@ -41,6 +42,43 @@ import type {
 } from '../types/catalogos.types';
 
 const EMPTY_LIST: never[] = [];
+
+const MIN_TEST_LOAD_LINES = [
+  'Sexo: MASCULINO, FEMENINO',
+  'Region: OAXACA',
+  'Delegacion: OAXACA DE JUAREZ',
+  'Servicio: PARTICULAR',
+  'Clase vehiculo: AUTOMOVIL',
+  'Marca vehiculo: NISSAN',
+  'Linea vehiculo: TSURU',
+  'Tipo procedimiento: INFRACCION',
+  'Motivo: ESTACIONARSE EN LUGAR PROHIBIDO',
+  'Encierro: ENCIERRO MUNICIPAL',
+  'Estatus: CAPTURADA, PAGADA, LIBERACION_GENERADA, VEHICULO_ENTREGADO',
+];
+
+const MIN_TEST_LOAD_JSON = JSON.stringify(
+  {
+    sexo: ['MASCULINO', 'FEMENINO'],
+    region: 'OAXACA',
+    delegacion: 'OAXACA DE JUAREZ',
+    servicio: 'PARTICULAR',
+    claseVehiculo: 'AUTOMOVIL',
+    marcaVehiculo: 'NISSAN',
+    lineaVehiculo: 'TSURU',
+    tipoProcedimiento: 'INFRACCION',
+    motivo: 'ESTACIONARSE EN LUGAR PROHIBIDO',
+    encierro: 'ENCIERRO MUNICIPAL',
+    estatus: [
+      'CAPTURADA',
+      'PAGADA',
+      'LIBERACION_GENERADA',
+      'VEHICULO_ENTREGADO',
+    ],
+  },
+  null,
+  2,
+);
 
 type FieldType = 'text' | 'select' | 'textarea';
 
@@ -260,14 +298,35 @@ function CatalogosPage({
       <Card>
         <div className="page-stack">
           <div>
-            <p className="section-label">Datos minimos recomendados</p>
+            <p className="section-label">Carga minima sugerida para pruebas</p>
             <p className="page-description">
-              Sexo: MASCULINO, FEMENINO. Region: OAXACA. Delegacion: OAXACA DE JUAREZ.
-              Servicio: PARTICULAR. Clase vehiculo: AUTOMOVIL. Marca vehiculo: NISSAN.
-              Linea vehiculo: TSURU. Tipo procedimiento: INFRACCION. Motivo:
-              ESTACIONARSE EN LUGAR PROHIBIDO. Encierro: ENCIERRO MUNICIPAL. Estatus:
-              CAPTURADA, PAGADA, LIBERACION_GENERADA, VEHICULO_ENTREGADO.
+              Usa estos valores para preparar un entorno minimo y probar el flujo
+              completo sin improvisar catalogos base. El motivo sigue como deuda
+              tecnica: la entidad actual no guarda descripcionMotivo.
             </p>
+          </div>
+
+          <ul className="catalog-list">
+            {MIN_TEST_LOAD_LINES.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+
+          <div className="button-row">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void copyTextToClipboard(MIN_TEST_LOAD_LINES.join('\n'))}
+            >
+              Copiar lista
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void copyTextToClipboard(MIN_TEST_LOAD_JSON)}
+            >
+              Copiar JSON
+            </Button>
           </div>
         </div>
       </Card>
@@ -489,7 +548,7 @@ function CatalogosPage({
 
       <CatalogSection
         title="Motivo"
-        description="Alta de motivos con un campo principal persistido en la tabla actual."
+        description="Alta de motivos con un campo principal persistido en la tabla actual. descripcionMotivo sigue como deuda tecnica."
         items={motivos}
         emptyLabel="Sin motivos registrados."
         fields={[

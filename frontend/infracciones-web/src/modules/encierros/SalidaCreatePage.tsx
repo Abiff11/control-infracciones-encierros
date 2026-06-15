@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react';
 
+import { OperationResultCard } from '../../components/operation/OperationResultCard';
+import { getResponseText } from '../../utils/response';
 import type { RegistrarSalidaPayload } from '../infracciones/infracciones.types';
 
 function getCurrentDateTimeLocal(): string {
@@ -12,6 +14,10 @@ function toNullableString(value: string): string | null | undefined {
   }
 
   return value;
+}
+
+function isFilled(value: string): boolean {
+  return value.trim() !== '';
 }
 
 interface SalidaCreatePageProps {
@@ -37,6 +43,7 @@ function SalidaCreatePage({ onCompleted, onSubmit }: SalidaCreatePageProps) {
 
   function updateField(field: keyof typeof INITIAL_FORM, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
+    setError(null);
   }
 
   function resetForm() {
@@ -48,8 +55,35 @@ function SalidaCreatePage({ onCompleted, onSubmit }: SalidaCreatePageProps) {
     setResult(null);
   }
 
+  function getValidationError(): string | null {
+    if (!isFilled(form.idRetencionVehiculo)) {
+      return 'Ingresa el ID de la retencion.';
+    }
+
+    if (!isFilled(form.idLiberacionVehiculo)) {
+      return 'Ingresa el ID de la liberacion.';
+    }
+
+    if (!isFilled(form.validadoPor) || !isFilled(form.personaRecibeVehiculo)) {
+      return 'Completa los nombres requeridos para la salida.';
+    }
+
+    if (!isFilled(form.estadoSalida)) {
+      return 'Ingresa el estado de la salida.';
+    }
+
+    return null;
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    const validationError = getValidationError();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -78,14 +112,35 @@ function SalidaCreatePage({ onCompleted, onSubmit }: SalidaCreatePageProps) {
     }
   }
 
+  const exitId = getResponseText(result, 'idSalidaVehiculo');
+  const exitSummary = exitId
+    ? [
+        { label: 'ID salida', value: exitId },
+        {
+          label: 'Retencion',
+          value: getResponseText(result, 'idRetencionVehiculo') ?? 'Sin dato',
+        },
+        {
+          label: 'Liberacion',
+          value: getResponseText(result, 'idLiberacionVehiculo') ?? 'Sin dato',
+        },
+      ]
+    : [];
+  const canSubmit =
+    isFilled(form.idRetencionVehiculo) &&
+    isFilled(form.idLiberacionVehiculo) &&
+    isFilled(form.validadoPor) &&
+    isFilled(form.personaRecibeVehiculo) &&
+    isFilled(form.estadoSalida);
+
   return (
     <section className="page-stack">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Operación</p>
+          <p className="eyebrow">Operacion</p>
           <h1>Salida</h1>
           <p className="page-description">
-            Registra la entrega física del vehículo en el encierro.
+            Registra la entrega fisica del vehiculo en el encierro.
           </p>
         </div>
       </header>
@@ -93,7 +148,7 @@ function SalidaCreatePage({ onCompleted, onSubmit }: SalidaCreatePageProps) {
       <form className="panel form-stack" onSubmit={handleSubmit}>
         <div className="form-grid form-grid-2">
           <div className="field">
-            <label htmlFor="salida-id-retencion">ID retención</label>
+            <label htmlFor="salida-id-retencion">ID retencion</label>
             <input
               id="salida-id-retencion"
               type="number"
@@ -107,7 +162,7 @@ function SalidaCreatePage({ onCompleted, onSubmit }: SalidaCreatePageProps) {
           </div>
 
           <div className="field">
-            <label htmlFor="salida-id-liberacion">ID liberación</label>
+            <label htmlFor="salida-id-liberacion">ID liberacion</label>
             <input
               id="salida-id-liberacion"
               type="number"
@@ -131,7 +186,7 @@ function SalidaCreatePage({ onCompleted, onSubmit }: SalidaCreatePageProps) {
           </div>
 
           <div className="field">
-            <label htmlFor="salida-recibe">Persona recibe vehículo</label>
+            <label htmlFor="salida-recibe">Persona recibe vehiculo</label>
             <input
               id="salida-recibe"
               value={form.personaRecibeVehiculo}
@@ -178,7 +233,11 @@ function SalidaCreatePage({ onCompleted, onSubmit }: SalidaCreatePageProps) {
         {error ? <div className="notice notice-error">{error}</div> : null}
 
         <div className="button-row">
-          <button className="button-primary" type="submit" disabled={saving}>
+          <button
+            className="button-primary"
+            type="submit"
+            disabled={saving || !canSubmit}
+          >
             {saving ? 'Guardando...' : 'Registrar salida'}
           </button>
           <button className="button-secondary" type="button" onClick={resetForm}>
@@ -187,18 +246,14 @@ function SalidaCreatePage({ onCompleted, onSubmit }: SalidaCreatePageProps) {
         </div>
       </form>
 
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <p className="section-label">Resultado</p>
-            <h2>Respuesta del backend</h2>
-          </div>
-        </div>
-
-        <pre className="result-box">
-          {result ? JSON.stringify(result, null, 2) : 'Sin respuesta aún.'}
-        </pre>
-      </section>
+      <OperationResultCard
+        title="Salida registrada"
+        description="El backend devuelve la salida con el identificador que cierra el flujo."
+        result={result}
+        emptyLabel="Sin respuesta aun."
+        copyValue={exitId}
+        summary={exitSummary}
+      />
     </section>
   );
 }

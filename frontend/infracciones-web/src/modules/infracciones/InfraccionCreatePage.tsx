@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 
+import { OperationResultCard } from '../../components/operation/OperationResultCard';
 import type { CatalogosBundle } from '../catalogos/catalogos.types';
 import type {
   CreateInfraccionCompletaPayload,
@@ -28,6 +29,10 @@ function toNullableString(value: string): string | null | undefined {
   }
 
   return value;
+}
+
+function isFilled(value: string): boolean {
+  return value.trim() !== '';
 }
 
 interface InfraccionCreatePageProps {
@@ -89,6 +94,7 @@ function InfraccionCreatePage({
       ...current,
       [field]: value,
     }));
+    setError(null);
   }
 
   function toggleMotivo(idMotivo: number) {
@@ -97,6 +103,7 @@ function InfraccionCreatePage({
         ? current.filter((currentId) => currentId !== idMotivo)
         : [...current, idMotivo],
     );
+    setError(null);
   }
 
   function resetForm() {
@@ -110,16 +117,73 @@ function InfraccionCreatePage({
     setResult(null);
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
+  function getValidationError(): string | null {
     if (!catalogs) {
-      setError('Los catálogos todavía no están disponibles.');
-      return;
+      return 'Los catalogos todavia no estan disponibles.';
+    }
+
+    if (!isFilled(form.idSexo)) {
+      return 'Selecciona el sexo.';
+    }
+
+    if (!isFilled(form.nombre) || !isFilled(form.apellidoPaterno)) {
+      return 'Completa los datos personales obligatorios.';
+    }
+
+    if (
+      !isFilled(form.idClaseVehiculo) ||
+      !isFilled(form.idLineaVehiculo) ||
+      !isFilled(form.idServicio)
+    ) {
+      return 'Completa los datos obligatorios del vehiculo.';
+    }
+
+    if (!isFilled(form.municipio)) {
+      return 'Ingresa el municipio.';
+    }
+
+    if (
+      !isFilled(form.idDelegacion) ||
+      !isFilled(form.idTipoProcedimiento) ||
+      !isFilled(form.idEstatusInfraccion) ||
+      !isFilled(form.folioInfraccion) ||
+      !isFilled(form.fechaInfraccion) ||
+      !isFilled(form.horaInfraccion)
+    ) {
+      return 'Completa los datos operativos obligatorios.';
     }
 
     if (selectedMotivos.length === 0) {
-      setError('Selecciona al menos un motivo.');
+      return 'Selecciona al menos un motivo.';
+    }
+
+    return null;
+  }
+
+  const canSubmit =
+    Boolean(catalogs) &&
+    selectedMotivos.length > 0 &&
+    isFilled(form.idSexo) &&
+    isFilled(form.nombre) &&
+    isFilled(form.apellidoPaterno) &&
+    isFilled(form.idClaseVehiculo) &&
+    isFilled(form.idLineaVehiculo) &&
+    isFilled(form.idServicio) &&
+    isFilled(form.municipio) &&
+    isFilled(form.idDelegacion) &&
+    isFilled(form.idTipoProcedimiento) &&
+    isFilled(form.idEstatusInfraccion) &&
+    isFilled(form.folioInfraccion) &&
+    isFilled(form.fechaInfraccion) &&
+    isFilled(form.horaInfraccion);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const validationError = getValidationError();
+
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
@@ -166,6 +230,7 @@ function InfraccionCreatePage({
     };
 
     setSaving(true);
+
     try {
       const response = await onSubmit(payload);
       setResult(response);
@@ -175,29 +240,45 @@ function InfraccionCreatePage({
       setError(
         submissionError instanceof Error
           ? submissionError.message
-          : 'Error desconocido al guardar la infracción.',
+          : 'Error desconocido al guardar la infraccion.',
       );
     } finally {
       setSaving(false);
     }
   }
 
+  const infraccionId = result ? String(result.infraccion.idInfraccion) : null;
+  const infraccionSummary = result
+    ? [
+        {
+          label: 'ID infraccion',
+          value: String(result.infraccion.idInfraccion),
+        },
+        {
+          label: 'Folio',
+          value: result.infraccion.folioInfraccion,
+        },
+        {
+          label: 'Estatus',
+          value: result.infraccion.estatusInfraccion.nombreEstatus,
+        },
+      ]
+    : [];
+
   return (
     <section className="page-stack">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Operación</p>
-          <h1>Nueva infracción</h1>
+          <p className="eyebrow">Operacion</p>
+          <h1>Nueva infraccion</h1>
           <p className="page-description">
-            Captura completa en una sola transacción. El usuario operativo ya no
-            se envía desde el cliente.
+            Captura completa en una sola transaccion. El usuario operativo ya no
+            se envia desde el cliente.
           </p>
         </div>
       </header>
 
-      {!catalogs ? (
-        <div className="notice">Cargando catálogos...</div>
-      ) : null}
+      {!catalogs ? <div className="notice">Cargando catalogos...</div> : null}
 
       <form className="panel form-stack" onSubmit={handleSubmit}>
         <section className="form-section">
@@ -282,8 +363,8 @@ function InfraccionCreatePage({
         <section className="form-section">
           <div className="panel-header">
             <div>
-              <p className="section-label">Vehículo</p>
-              <h2>Características</h2>
+              <p className="section-label">Vehiculo</p>
+              <h2>Caracteristicas</h2>
             </div>
           </div>
 
@@ -308,7 +389,7 @@ function InfraccionCreatePage({
             </div>
 
             <div className="field">
-              <label htmlFor="vehiculo-linea">Línea</label>
+              <label htmlFor="vehiculo-linea">Linea</label>
               <select
                 id="vehiculo-linea"
                 value={form.idLineaVehiculo}
@@ -346,7 +427,7 @@ function InfraccionCreatePage({
             </div>
 
             <div className="field">
-              <label htmlFor="vehiculo-anio">Año modelo</label>
+              <label htmlFor="vehiculo-anio">Anio modelo</label>
               <input
                 id="vehiculo-anio"
                 type="number"
@@ -402,7 +483,7 @@ function InfraccionCreatePage({
             </div>
 
             <div className="field">
-              <label htmlFor="vehiculo-sitio">Sitio servicio público</label>
+              <label htmlFor="vehiculo-sitio">Sitio servicio publico</label>
               <input
                 id="vehiculo-sitio"
                 value={form.sitioServicioPublico}
@@ -418,7 +499,7 @@ function InfraccionCreatePage({
           <div className="panel-header">
             <div>
               <p className="section-label">Lugar</p>
-              <h2>Ubicación</h2>
+              <h2>Ubicacion</h2>
             </div>
           </div>
 
@@ -452,7 +533,7 @@ function InfraccionCreatePage({
             </div>
 
             <div className="field">
-              <label htmlFor="lugar-numero">Número</label>
+              <label htmlFor="lugar-numero">Numero</label>
               <input
                 id="lugar-numero"
                 value={form.numero}
@@ -465,14 +546,14 @@ function InfraccionCreatePage({
         <section className="form-section">
           <div className="panel-header">
             <div>
-              <p className="section-label">Infracción</p>
+              <p className="section-label">Infraccion</p>
               <h2>Datos operativos</h2>
             </div>
           </div>
 
           <div className="form-grid form-grid-3">
             <div className="field">
-              <label htmlFor="infraccion-delegacion">Delegación</label>
+              <label htmlFor="infraccion-delegacion">Delegacion</label>
               <select
                 id="infraccion-delegacion"
                 value={form.idDelegacion}
@@ -500,10 +581,7 @@ function InfraccionCreatePage({
               >
                 <option value="">Selecciona</option>
                 {catalogs?.tiposProcedimiento.map((tipo) => (
-                  <option
-                    key={tipo.idTipoProcedimiento}
-                    value={tipo.idTipoProcedimiento}
-                  >
+                  <option key={tipo.idTipoProcedimiento} value={tipo.idTipoProcedimiento}>
                     {tipo.nombreTipoProcedimiento}
                   </option>
                 ))}
@@ -581,7 +659,7 @@ function InfraccionCreatePage({
             </div>
 
             <div className="field">
-              <label htmlFor="infraccion-clave-policia">Clave policía</label>
+              <label htmlFor="infraccion-clave-policia">Clave policia</label>
               <input
                 id="infraccion-clave-policia"
                 value={form.clavePolicia}
@@ -590,7 +668,7 @@ function InfraccionCreatePage({
             </div>
 
             <div className="field">
-              <label htmlFor="infraccion-num-parte">Número parte informativo</label>
+              <label htmlFor="infraccion-num-parte">Numero parte informativo</label>
               <input
                 id="infraccion-num-parte"
                 value={form.numParteInformativo}
@@ -615,7 +693,7 @@ function InfraccionCreatePage({
             <div className="panel-header">
               <div>
                 <p className="section-label">Motivos</p>
-                <h2>Selecciona uno o más</h2>
+                <h2>Selecciona uno o mas</h2>
               </div>
             </div>
 
@@ -637,8 +715,12 @@ function InfraccionCreatePage({
         {error ? <div className="notice notice-error">{error}</div> : null}
 
         <div className="button-row">
-          <button className="button-primary" type="submit" disabled={saving || loading}>
-            {saving ? 'Guardando...' : 'Guardar infracción'}
+          <button
+            className="button-primary"
+            type="submit"
+            disabled={saving || loading || !canSubmit}
+          >
+            {saving ? 'Guardando...' : 'Guardar infraccion'}
           </button>
           <button className="button-secondary" type="button" onClick={resetForm}>
             Limpiar
@@ -646,18 +728,14 @@ function InfraccionCreatePage({
         </div>
       </form>
 
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <p className="section-label">Resultado</p>
-            <h2>JSON devuelto</h2>
-          </div>
-        </div>
-
-        <pre className="result-box">
-          {result ? JSON.stringify(result, null, 2) : 'Aún no se ha guardado una infracción.'}
-        </pre>
-      </section>
+      <OperationResultCard
+        title="Infraccion creada"
+        description="El backend devuelve la infraccion completa con los IDs necesarios para continuar el flujo."
+        result={result}
+        emptyLabel="Aun no se ha guardado una infraccion."
+        copyValue={infraccionId}
+        summary={infraccionSummary}
+      />
     </section>
   );
 }

@@ -652,6 +652,36 @@ tbody tr:hover {
   background: #f1f5f9;
 }
 
+.result-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.result-summary-item {
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fff;
+}
+
+.result-summary dt {
+  margin: 0 0 6px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #64748b;
+}
+
+.result-summary dd {
+  margin: 0;
+  font-weight: 700;
+  color: #0f172a;
+  word-break: break-word;
+}
+
 .chip-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -691,6 +721,20 @@ tbody tr:hover {
   font-weight: 800;
 }
 
+.flow-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.flow-card {
+  min-height: 100%;
+}
+
+.flow-card-wide {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 1200px) {
   .card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -721,6 +765,7 @@ tbody tr:hover {
     padding: 14px 16px;
   }
 
+  .flow-grid,
   .auth-card,
   .form-grid-2,
   .form-grid-3,
@@ -731,6 +776,10 @@ tbody tr:hover {
   }
 
   .field-span-2 {
+    grid-column: span 1;
+  }
+
+  .flow-card-wide {
     grid-column: span 1;
   }
 }

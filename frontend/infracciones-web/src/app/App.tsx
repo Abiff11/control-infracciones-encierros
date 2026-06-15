@@ -5,11 +5,14 @@ import { Sidebar } from '../components/layout/Sidebar';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../hooks/useAuth';
 import { useCatalogos } from '../hooks/useCatalogos';
-import { createInfraccion } from '../services/api/infracciones.api';
+import {
+  createInfraccion,
+  getInfraccionFlujo,
+  getInfracciones,
+} from '../services/api/infracciones.api';
 import { createLiberacion } from '../services/api/liberaciones.api';
 import { createPago } from '../services/api/pagos.api';
 import { createRetencion, createSalida } from '../services/api/encierros.api';
-import { getInfracciones } from '../services/api/infracciones.api';
 import { swaggerUrl } from '../services/api/apiClient';
 import CatalogosPage from '../pages/CatalogosPage';
 import DashboardPage from '../pages/DashboardPage';
@@ -18,6 +21,7 @@ import InfraccionesListPage from '../pages/InfraccionesListPage';
 import LiberacionCreatePage from '../pages/LiberacionCreatePage';
 import LoginPage from '../pages/LoginPage';
 import PagoCreatePage from '../pages/PagoCreatePage';
+import FlujoOperativoPage from '../pages/FlujoOperativoPage';
 import RetencionCreatePage from '../pages/RetencionCreatePage';
 import SalidaCreatePage from '../pages/SalidaCreatePage';
 import type { PageKey } from './app.types';
@@ -153,6 +157,10 @@ function App() {
     return runProtectedRequest((token) => createSalida(token, payload));
   }
 
+  async function submitFlujoOperativo(idInfraccion: number): Promise<InfraccionFlujoResponse> {
+    return runProtectedRequest((token) => getInfraccionFlujo(token, idInfraccion));
+  }
+
   const apiStatusLabel = !session
     ? 'No autenticado'
     : catalogsError || infraccionesState.status === 'error'
@@ -266,6 +274,8 @@ function App() {
             token={activeSession.token}
           />
         );
+      case 'flujo-operativo':
+        return <FlujoOperativoPage onSubmit={submitFlujoOperativo} />;
       default:
         return null;
     }

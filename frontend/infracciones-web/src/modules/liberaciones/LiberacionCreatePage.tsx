@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react';
 
+import { OperationResultCard } from '../../components/operation/OperationResultCard';
+import { getResponseText } from '../../utils/response';
 import type { GenerarLiberacionPayload } from '../infracciones/infracciones.types';
 
 function getCurrentDateTimeLocal(): string {
@@ -12,6 +14,10 @@ function toNullableString(value: string): string | null | undefined {
   }
 
   return value;
+}
+
+function isFilled(value: string): boolean {
+  return value.trim() !== '';
 }
 
 interface LiberacionCreatePageProps {
@@ -40,6 +46,7 @@ function LiberacionCreatePage({
 
   function updateField(field: keyof typeof INITIAL_FORM, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
+    setError(null);
   }
 
   function resetForm() {
@@ -51,8 +58,35 @@ function LiberacionCreatePage({
     setResult(null);
   }
 
+  function getValidationError(): string | null {
+    if (!isFilled(form.idInfraccion)) {
+      return 'Ingresa el ID de infraccion.';
+    }
+
+    if (!isFilled(form.idPagoInfraccion)) {
+      return 'Ingresa el ID del pago.';
+    }
+
+    if (!isFilled(form.folioLiberacion)) {
+      return 'Ingresa el folio de liberacion.';
+    }
+
+    if (!isFilled(form.liberadoPor) || !isFilled(form.nombreRecibeLiberacion)) {
+      return 'Completa los nombres requeridos para la liberacion.';
+    }
+
+    return null;
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    const validationError = getValidationError();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -75,21 +109,42 @@ function LiberacionCreatePage({
       setError(
         submissionError instanceof Error
           ? submissionError.message
-          : 'Error desconocido al guardar la liberación.',
+          : 'Error desconocido al guardar la liberacion.',
       );
     } finally {
       setSaving(false);
     }
   }
 
+  const releaseId = getResponseText(result, 'idLiberacionVehiculo');
+  const releaseSummary = releaseId
+    ? [
+        { label: 'ID liberacion', value: releaseId },
+        {
+          label: 'Folio',
+          value: getResponseText(result, 'folioLiberacion') ?? 'Sin folio',
+        },
+        {
+          label: 'Recibe',
+          value: getResponseText(result, 'nombreRecibeLiberacion') ?? 'Sin dato',
+        },
+      ]
+    : [];
+  const canSubmit =
+    isFilled(form.idInfraccion) &&
+    isFilled(form.idPagoInfraccion) &&
+    isFilled(form.folioLiberacion) &&
+    isFilled(form.liberadoPor) &&
+    isFilled(form.nombreRecibeLiberacion);
+
   return (
     <section className="page-stack">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Operación</p>
-          <h1>Liberación</h1>
+          <p className="eyebrow">Operacion</p>
+          <h1>Liberacion</h1>
           <p className="page-description">
-            Genera una liberación vehicular usando el usuario autenticado del JWT.
+            Genera una liberacion vehicular usando el usuario autenticado del JWT.
           </p>
         </div>
       </header>
@@ -97,7 +152,7 @@ function LiberacionCreatePage({
       <form className="panel form-stack" onSubmit={handleSubmit}>
         <div className="form-grid form-grid-2">
           <div className="field">
-            <label htmlFor="liberacion-id-infraccion">ID infracción</label>
+            <label htmlFor="liberacion-id-infraccion">ID infraccion</label>
             <input
               id="liberacion-id-infraccion"
               type="number"
@@ -123,7 +178,7 @@ function LiberacionCreatePage({
           </div>
 
           <div className="field">
-            <label htmlFor="liberacion-folio">Folio liberación</label>
+            <label htmlFor="liberacion-folio">Folio liberacion</label>
             <input
               id="liberacion-folio"
               value={form.folioLiberacion}
@@ -155,7 +210,7 @@ function LiberacionCreatePage({
           </div>
 
           <div className="field">
-            <label htmlFor="liberacion-fecha">Fecha liberación</label>
+            <label htmlFor="liberacion-fecha">Fecha liberacion</label>
             <input
               id="liberacion-fecha"
               type="datetime-local"
@@ -165,7 +220,7 @@ function LiberacionCreatePage({
           </div>
 
           <div className="field field-span-2">
-            <label htmlFor="liberacion-observacion">Observación</label>
+            <label htmlFor="liberacion-observacion">Observacion</label>
             <textarea
               id="liberacion-observacion"
               value={form.observacion}
@@ -178,8 +233,12 @@ function LiberacionCreatePage({
         {error ? <div className="notice notice-error">{error}</div> : null}
 
         <div className="button-row">
-          <button className="button-primary" type="submit" disabled={saving}>
-            {saving ? 'Guardando...' : 'Generar liberación'}
+          <button
+            className="button-primary"
+            type="submit"
+            disabled={saving || !canSubmit}
+          >
+            {saving ? 'Guardando...' : 'Generar liberacion'}
           </button>
           <button className="button-secondary" type="button" onClick={resetForm}>
             Limpiar
@@ -187,18 +246,14 @@ function LiberacionCreatePage({
         </div>
       </form>
 
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <p className="section-label">Resultado</p>
-            <h2>Respuesta del backend</h2>
-          </div>
-        </div>
-
-        <pre className="result-box">
-          {result ? JSON.stringify(result, null, 2) : 'Sin respuesta aún.'}
-        </pre>
-      </section>
+      <OperationResultCard
+        title="Liberacion generada"
+        description="El backend devuelve la liberacion con el identificador para la salida."
+        result={result}
+        emptyLabel="Sin respuesta aun."
+        copyValue={releaseId}
+        summary={releaseSummary}
+      />
     </section>
   );
 }

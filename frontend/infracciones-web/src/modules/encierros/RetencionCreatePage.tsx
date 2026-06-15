@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react';
 
+import { OperationResultCard } from '../../components/operation/OperationResultCard';
 import type { CatalogosBundle } from '../catalogos/catalogos.types';
+import { getResponseText } from '../../utils/response';
 import type { RegistrarRetencionPayload } from '../infracciones/infracciones.types';
 
 function getCurrentDateTimeLocal(): string {
@@ -13,6 +15,10 @@ function toNullableString(value: string): string | null | undefined {
   }
 
   return value;
+}
+
+function isFilled(value: string): boolean {
+  return value.trim() !== '';
 }
 
 interface RetencionCreatePageProps {
@@ -43,6 +49,7 @@ function RetencionCreatePage({
 
   function updateField(field: keyof typeof INITIAL_FORM, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
+    setError(null);
   }
 
   function resetForm() {
@@ -54,11 +61,32 @@ function RetencionCreatePage({
     setResult(null);
   }
 
+  function getValidationError(): string | null {
+    if (!catalogs) {
+      return 'Los catalogos todavia no estan disponibles.';
+    }
+
+    if (!isFilled(form.idInfraccion)) {
+      return 'Ingresa el ID de infraccion.';
+    }
+
+    if (!isFilled(form.idEncierro)) {
+      return 'Selecciona el encierro.';
+    }
+
+    if (!isFilled(form.recibidoPor)) {
+      return 'Ingresa quien recibe la retencion.';
+    }
+
+    return null;
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!catalogs) {
-      setError('Los catálogos todavía no están disponibles.');
+    const validationError = getValidationError();
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
@@ -85,31 +113,51 @@ function RetencionCreatePage({
       setError(
         submissionError instanceof Error
           ? submissionError.message
-          : 'Error desconocido al guardar la retención.',
+          : 'Error desconocido al guardar la retencion.',
       );
     } finally {
       setSaving(false);
     }
   }
 
+  const retencionId = getResponseText(result, 'idRetencionVehiculo');
+  const retencionSummary = retencionId
+    ? [
+        { label: 'ID retencion', value: retencionId },
+        {
+          label: 'Encierro',
+          value: getResponseText(result, 'idEncierro') ?? 'Sin encierro',
+        },
+        {
+          label: 'Recibio',
+          value: getResponseText(result, 'recibidoPor') ?? 'Sin dato',
+        },
+      ]
+    : [];
+  const canSubmit =
+    Boolean(catalogs) &&
+    isFilled(form.idInfraccion) &&
+    isFilled(form.idEncierro) &&
+    isFilled(form.recibidoPor);
+
   return (
     <section className="page-stack">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Operación</p>
-          <h1>Retención</h1>
+          <p className="eyebrow">Operacion</p>
+          <h1>Retencion</h1>
           <p className="page-description">
-            Registra el ingreso físico del vehículo al encierro.
+            Registra el ingreso fisico del vehiculo al encierro.
           </p>
         </div>
       </header>
 
-      {!catalogs ? <div className="notice">Cargando catálogos...</div> : null}
+      {!catalogs ? <div className="notice">Cargando catalogos...</div> : null}
 
       <form className="panel form-stack" onSubmit={handleSubmit}>
         <div className="form-grid form-grid-2">
           <div className="field">
-            <label htmlFor="retencion-id-infraccion">ID infracción</label>
+            <label htmlFor="retencion-id-infraccion">ID infraccion</label>
             <input
               id="retencion-id-infraccion"
               type="number"
@@ -191,8 +239,12 @@ function RetencionCreatePage({
         {error ? <div className="notice notice-error">{error}</div> : null}
 
         <div className="button-row">
-          <button className="button-primary" type="submit" disabled={saving}>
-            {saving ? 'Guardando...' : 'Registrar retención'}
+          <button
+            className="button-primary"
+            type="submit"
+            disabled={saving || !canSubmit}
+          >
+            {saving ? 'Guardando...' : 'Registrar retencion'}
           </button>
           <button className="button-secondary" type="button" onClick={resetForm}>
             Limpiar
@@ -200,18 +252,14 @@ function RetencionCreatePage({
         </div>
       </form>
 
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <p className="section-label">Resultado</p>
-            <h2>Respuesta del backend</h2>
-          </div>
-        </div>
-
-        <pre className="result-box">
-          {result ? JSON.stringify(result, null, 2) : 'Sin respuesta aún.'}
-        </pre>
-      </section>
+      <OperationResultCard
+        title="Retencion registrada"
+        description="El backend devuelve la retencion con el identificador para la salida."
+        result={result}
+        emptyLabel="Sin respuesta aun."
+        copyValue={retencionId}
+        summary={retencionSummary}
+      />
     </section>
   );
 }

@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react';
 
+import { OperationResultCard } from '../../components/operation/OperationResultCard';
+import { getResponseText } from '../../utils/response';
 import type { RegistrarPagoPayload } from '../infracciones/infracciones.types';
 
 function getCurrentDateTimeLocal(): string {
@@ -12,6 +14,10 @@ function toNullableString(value: string): string | null | undefined {
   }
 
   return value;
+}
+
+function isFilled(value: string): boolean {
+  return value.trim() !== '';
 }
 
 interface PagoCreatePageProps {
@@ -35,6 +41,7 @@ function PagoCreatePage({ onCompleted, onSubmit }: PagoCreatePageProps) {
 
   function updateField(field: keyof typeof INITIAL_FORM, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
+    setError(null);
   }
 
   function resetForm() {
@@ -46,8 +53,31 @@ function PagoCreatePage({ onCompleted, onSubmit }: PagoCreatePageProps) {
     setResult(null);
   }
 
+  function getValidationError(): string | null {
+    if (!isFilled(form.idInfraccion)) {
+      return 'Ingresa el ID de infraccion.';
+    }
+
+    if (!isFilled(form.folioPago)) {
+      return 'Ingresa el folio del pago.';
+    }
+
+    if (!isFilled(form.monto)) {
+      return 'Ingresa el monto del pago.';
+    }
+
+    return null;
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    const validationError = getValidationError();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -73,11 +103,22 @@ function PagoCreatePage({ onCompleted, onSubmit }: PagoCreatePageProps) {
     }
   }
 
+  const paymentId = getResponseText(result, 'idPagoInfraccion');
+  const paymentSummary = paymentId
+    ? [
+        { label: 'ID pago', value: paymentId },
+        { label: 'Folio', value: getResponseText(result, 'folioPago') ?? 'Sin folio' },
+        { label: 'Monto', value: getResponseText(result, 'monto') ?? 'Sin monto' },
+      ]
+    : [];
+  const canSubmit =
+    isFilled(form.idInfraccion) && isFilled(form.folioPago) && isFilled(form.monto);
+
   return (
     <section className="page-stack">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Operación</p>
+          <p className="eyebrow">Operacion</p>
           <h1>Pago</h1>
           <p className="page-description">
             Registra un pago y deja que el backend tome el usuario autenticado
@@ -89,7 +130,7 @@ function PagoCreatePage({ onCompleted, onSubmit }: PagoCreatePageProps) {
       <form className="panel form-stack" onSubmit={handleSubmit}>
         <div className="form-grid form-grid-2">
           <div className="field">
-            <label htmlFor="pago-id-infraccion">ID infracción</label>
+            <label htmlFor="pago-id-infraccion">ID infraccion</label>
             <input
               id="pago-id-infraccion"
               type="number"
@@ -145,7 +186,11 @@ function PagoCreatePage({ onCompleted, onSubmit }: PagoCreatePageProps) {
         {error ? <div className="notice notice-error">{error}</div> : null}
 
         <div className="button-row">
-          <button className="button-primary" type="submit" disabled={saving}>
+          <button
+            className="button-primary"
+            type="submit"
+            disabled={saving || !canSubmit}
+          >
             {saving ? 'Guardando...' : 'Registrar pago'}
           </button>
           <button className="button-secondary" type="button" onClick={resetForm}>
@@ -154,18 +199,14 @@ function PagoCreatePage({ onCompleted, onSubmit }: PagoCreatePageProps) {
         </div>
       </form>
 
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <p className="section-label">Resultado</p>
-            <h2>Respuesta del backend</h2>
-          </div>
-        </div>
-
-        <pre className="result-box">
-          {result ? JSON.stringify(result, null, 2) : 'Sin respuesta aún.'}
-        </pre>
-      </section>
+      <OperationResultCard
+        title="Pago registrado"
+        description="El backend devuelve el pago con su identificador para continuar la liberacion."
+        result={result}
+        emptyLabel="Sin respuesta aun."
+        copyValue={paymentId}
+        summary={paymentSummary}
+      />
     </section>
   );
 }

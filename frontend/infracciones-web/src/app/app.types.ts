@@ -6,4 +6,5 @@ export type PageKey =
   | 'liberacion'
   | 'retencion'
   | 'salida'
+  | 'flujo-operativo'
   | 'catalogos';
