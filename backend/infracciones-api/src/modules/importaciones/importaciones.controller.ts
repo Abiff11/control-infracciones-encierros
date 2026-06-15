@@ -33,6 +33,7 @@ import {
   type ImportacionDetalleResponse,
   type ImportacionPreviewResponse,
 } from './importaciones.service';
+import { ImportacionesReportesService } from './importaciones-reportes.service';
 
 @ApiTags('importaciones')
 @ApiBearerAuth('JWT-auth')
@@ -40,7 +41,10 @@ import {
 @Roles(...WRITE_ROLES)
 @Controller('importaciones/infracciones')
 export class ImportacionesController {
-  constructor(private readonly importacionesService: ImportacionesService) {}
+  constructor(
+    private readonly importacionesService: ImportacionesService,
+    private readonly reportesService: ImportacionesReportesService,
+  ) {}
 
   @Post('preview')
   @UseInterceptors(FileInterceptor('file'))
@@ -103,6 +107,15 @@ export class ImportacionesController {
   @ApiOperation({ summary: 'Listar importaciones de infracciones' })
   findAll(@Query() query: ImportacionInfraccionesQueryDto) {
     return this.importacionesService.findAll(query);
+  }
+
+  @Get(':idImportacionInfracciones/resumen')
+  @ApiOperation({ summary: 'Obtener resumen agrupado de la importacion' })
+  getResumen(
+    @Param('idImportacionInfracciones', ParseIntPipe)
+    idImportacionInfracciones: number,
+  ) {
+    return this.reportesService.getResumenErrores(idImportacionInfracciones);
   }
 
   @Get(':idImportacionInfracciones')
