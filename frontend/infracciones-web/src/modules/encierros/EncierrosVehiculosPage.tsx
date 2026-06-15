@@ -15,11 +15,8 @@ import {
 } from '../../services/api/encierros.api';
 import { getInfraccionDetalle } from '../../services/api/infracciones.api';
 import {
-  formatCurrencyMxn,
-  formatDate,
   formatDateTime,
   formatEmptyValue,
-  formatTimeOfDay,
 } from '../../lib/formatters';
 import type { CatalogosBundle } from '../../types/catalogos.types';
 import type {
@@ -33,6 +30,7 @@ import type {
   VehiculoEncierroItem,
 } from '../../types/encierros.types';
 import { InfraccionDetalleModal } from '../infracciones/InfraccionDetalleModal';
+import './EncierrosVehiculosPage.css';
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -102,6 +100,8 @@ const DEFAULT_FILTERS: FiltersForm = {
   sortBy: 'fechaIngreso',
   sortOrder: 'DESC',
 };
+
+const ONE_DAY_MS = 1000 * 60 * 60 * 24;
 
 function createIdleState<T>(): LoadState<T> {
   return {
@@ -178,42 +178,37 @@ function getVehicleLabel(item: VehiculoEncierroItem): string {
   return parts.length > 0 ? parts.join(' - ') : 'Sin informacion registrada';
 }
 
-function getPagoLabel(item: VehiculoEncierroItem): string {
-  if (!item.pago.tienePago) {
-    return 'Sin pago';
+function getDiasEnEncierro(item: VehiculoEncierroItem): string {
+  const fechaIngreso = new Date(item.retencion.fechaIngreso);
+  const fechaSalida = item.salida.tieneSalida && item.salida.fechaSalida
+    ? new Date(item.salida.fechaSalida)
+    : new Date();
+
+  if (Number.isNaN(fechaIngreso.getTime()) || Number.isNaN(fechaSalida.getTime())) {
+    return 'Sin cálculo';
   }
 
-  return [formatDateTime(item.pago.fechaUltimoPago), formatCurrencyMxn(item.pago.montoPagado)]
-    .filter((value) => value !== 'Sin informacion registrada')
-    .join(' | ');
+  const diff = Math.max(0, fechaSalida.getTime() - fechaIngreso.getTime());
+  const dias = Math.max(1, Math.ceil(diff / ONE_DAY_MS));
+  const suffix = item.salida.tieneSalida ? 'total' : 'retenido';
+
+  return `${dias} día${dias === 1 ? '' : 's'} ${suffix}`;
 }
 
-function getLiberacionLabel(item: VehiculoEncierroItem): string {
-  if (!item.liberacion.tieneLiberacion) {
-    return 'Sin liberacion';
-  }
-
-  return formatDateTime(item.liberacion.fechaLiberacion);
-}
-
-function getSalidaLabel(item: VehiculoEncierroItem): string {
-  if (!item.salida.tieneSalida) {
-    return 'Sin salida';
-  }
-
-  return formatDateTime(item.salida.fechaSalida);
-}
-
-function isActionVisible(item: VehiculoEncierroItem, action: 'pago' | 'liberacion' | 'salida'): boolean {
-  switch (action) {
-    case 'pago':
-      return item.estadoOperativo === 'EN_ENCIERRO_SIN_PAGO';
-    case 'liberacion':
-      return item.estadoOperativo === 'PAGADO_PENDIENTE_LIBERACION';
-    case 'salida':
-      return item.estadoOperativo === 'LIBERADO_PENDIENTE_SALIDA';
+function getInventoryPendingLabel(item: VehiculoEncierroItem): string {
+  switch (item.estadoOperativo) {
+    case 'EN_ENCIERRO_SIN_PAGO':
+      return 'Pendiente pago';
+    case 'PAGADO_PENDIENTE_LIBERACION':
+      return 'Pendiente liberación';
+    case 'LIBERADO_PENDIENTE_SALIDA':
+      return 'Listo para salida';
+    case 'VEHICULO_ENTREGADO':
+      return 'Entregado';
+    case 'SIN_RETENCION':
+      return 'Sin retención';
     default:
-      return false;
+      return 'Revisar expediente';
   }
 }
 
@@ -221,9 +216,6 @@ function EncierrosVehiculosPage({
   catalogs,
   refreshKey,
   token,
-  onNavigatePago,
-  onNavigateLiberacion,
-  onNavigateSalida,
 }: EncierrosVehiculosPageProps) {
   const [draftFilters, setDraftFilters] = useState<FiltersForm>(DEFAULT_FILTERS);
   const [activeFilters, setActiveFilters] = useState<FiltersForm>(DEFAULT_FILTERS);
@@ -393,13 +385,13 @@ function EncierrosVehiculosPage({
   }
 
   return (
-    <section className="page-stack">
+    <section className="page-stack inventory-page">
       <header className="page-header page-header-row">
         <div>
-          <p className="eyebrow">Operacion</p>
-          <h1>Vehiculos en encierro</h1>
+          <p className="eyebrow">Encierros</p>
+          <h1>Inventario de encierros</h1>
           <p className="page-description">
-            Consulta histórica y operativa de retenciones, pagos, liberaciones y salidas.
+            Control logístico de vehículos retenidos por patio, antigüedad y estado operativo.
           </p>
         </div>
       </header>
@@ -409,7 +401,7 @@ function EncierrosVehiculosPage({
           <div className="panel-header">
             <div>
               <p className="section-label">Filtros</p>
-              <h2>Busqueda operativa</h2>
+              <h2>Busqueda de inventario</h2>
             </div>
             <div className="button-row">
               <Button type="button" variant="secondary" onClick={resetFilters}>
@@ -427,16 +419,23 @@ function EncierrosVehiculosPage({
                 id="encierros-search"
                 value={draftFilters.search}
                 onChange={(event) => updateDraftField('search', event.target.value)}
-                placeholder="Buscar por coincidencia en cualquier campo"
+                placeholder="Folio, placas, infractor, licencia, serie o motor"
               />
             </Field>
 
-            <Field htmlFor="encierros-folio" label="Folio infraccion">
-              <TextInput
-                id="encierros-folio"
-                value={draftFilters.folioInfraccion}
-                onChange={(event) => updateDraftField('folioInfraccion', event.target.value)}
-              />
+            <Field htmlFor="encierros-encierro" label="Encierro">
+              <SelectField
+                id="encierros-encierro"
+                value={draftFilters.idEncierro}
+                onChange={(event) => updateDraftField('idEncierro', event.target.value)}
+              >
+                <option value="">Todos</option>
+                {(catalogs?.encierros ?? []).map((encierro) => (
+                  <option key={encierro.idEncierro} value={encierro.idEncierro}>
+                    {encierro.nombreEncierro}
+                  </option>
+                ))}
+              </SelectField>
             </Field>
           </div>
 
@@ -459,18 +458,17 @@ function EncierrosVehiculosPage({
               />
             </Field>
 
-            <Field htmlFor="encierros-delegacion" label="Delegacion">
+            <Field htmlFor="encierros-estado" label="Estado operativo">
               <SelectField
-                id="encierros-delegacion"
-                value={draftFilters.idDelegacion}
-                onChange={(event) => updateDraftField('idDelegacion', event.target.value)}
+                id="encierros-estado"
+                value={draftFilters.estadoOperativo}
+                onChange={(event) => updateDraftField('estadoOperativo', event.target.value)}
               >
-                <option value="">Todas</option>
-                {(catalogs?.delegaciones ?? []).map((delegacion) => (
-                  <option key={delegacion.idDelegacion} value={delegacion.idDelegacion}>
-                    {delegacion.nombreDelegacion}
-                  </option>
-                ))}
+                <option value="">Todos</option>
+                <option value="EN_ENCIERRO_SIN_PAGO">En encierro sin pago</option>
+                <option value="PAGADO_PENDIENTE_LIBERACION">Pagado pendiente liberación</option>
+                <option value="LIBERADO_PENDIENTE_SALIDA">Liberado pendiente salida</option>
+                <option value="VEHICULO_ENTREGADO">Vehículo entregado</option>
               </SelectField>
             </Field>
           </div>
@@ -492,45 +490,16 @@ function EncierrosVehiculosPage({
               />
             </Field>
 
-            <Field htmlFor="encierros-licencia" label="Licencia">
-              <TextInput
-                id="encierros-licencia"
-                value={draftFilters.licencia}
-                onChange={(event) => updateDraftField('licencia', event.target.value)}
-              />
-            </Field>
-          </div>
-
-          <div className="form-grid form-grid-3">
-            <Field htmlFor="encierros-estado" label="Estado operativo">
+            <Field htmlFor="encierros-delegacion" label="Delegacion">
               <SelectField
-                id="encierros-estado"
-                value={draftFilters.estadoOperativo}
-                onChange={(event) => updateDraftField('estadoOperativo', event.target.value)}
+                id="encierros-delegacion"
+                value={draftFilters.idDelegacion}
+                onChange={(event) => updateDraftField('idDelegacion', event.target.value)}
               >
-                <option value="">Todos</option>
-                <option value="SIN_RETENCION">SIN_RETENCION</option>
-                <option value="EN_ENCIERRO_SIN_PAGO">EN_ENCIERRO_SIN_PAGO</option>
-                <option value="PAGADO_PENDIENTE_LIBERACION">
-                  PAGADO_PENDIENTE_LIBERACION
-                </option>
-                <option value="LIBERADO_PENDIENTE_SALIDA">
-                  LIBERADO_PENDIENTE_SALIDA
-                </option>
-                <option value="VEHICULO_ENTREGADO">VEHICULO_ENTREGADO</option>
-              </SelectField>
-            </Field>
-
-            <Field htmlFor="encierros-encierro" label="Encierro">
-              <SelectField
-                id="encierros-encierro"
-                value={draftFilters.idEncierro}
-                onChange={(event) => updateDraftField('idEncierro', event.target.value)}
-              >
-                <option value="">Todos</option>
-                {(catalogs?.encierros ?? []).map((encierro) => (
-                  <option key={encierro.idEncierro} value={encierro.idEncierro}>
-                    {encierro.nombreEncierro}
+                <option value="">Todas</option>
+                {(catalogs?.delegaciones ?? []).map((delegacion) => (
+                  <option key={delegacion.idDelegacion} value={delegacion.idDelegacion}>
+                    {delegacion.nombreDelegacion}
                   </option>
                 ))}
               </SelectField>
@@ -539,7 +508,7 @@ function EncierrosVehiculosPage({
         </form>
       </Card>
 
-      <div className="summary-strip">
+      <div className="summary-strip inventory-summary-strip">
         <Card className="summary-card">
           <p className="card-label">Retenidos</p>
           <strong>{summary?.totalVehiculosRetenidos ?? 0}</strong>
@@ -549,11 +518,11 @@ function EncierrosVehiculosPage({
           <strong>{summary?.totalSinPago ?? 0}</strong>
         </Card>
         <Card className="summary-card">
-          <p className="card-label">Pagados pendientes</p>
+          <p className="card-label">Listos para liberar</p>
           <strong>{summary?.totalPagadosPendienteLiberacion ?? 0}</strong>
         </Card>
         <Card className="summary-card">
-          <p className="card-label">Liberados pendientes</p>
+          <p className="card-label">Listos para entregar</p>
           <strong>{summary?.totalLiberadosPendienteSalida ?? 0}</strong>
         </Card>
         <Card className="summary-card">
@@ -562,15 +531,15 @@ function EncierrosVehiculosPage({
         </Card>
       </div>
 
-      {listState.status === 'loading' ? <LoadingMessage message="Cargando vehiculos..." /> : null}
+      {listState.status === 'loading' ? <LoadingMessage message="Cargando inventario..." /> : null}
       <ErrorMessage message={listState.error ?? summaryState.error} />
 
       <Card>
         <div className="page-stack">
           <div className="panel-header">
             <div>
-              <p className="section-label">Resultados</p>
-              <h2>Vehiculos en encierro</h2>
+              <p className="section-label">Inventario</p>
+              <h2>Vehículos por encierro</h2>
             </div>
 
             {meta ? (
@@ -581,46 +550,42 @@ function EncierrosVehiculosPage({
           </div>
 
           <div className="table-wrap">
-            <table className="data-table">
+            <table className="data-table inventory-table">
               <thead>
                 <tr>
-                  <th>Folio</th>
-                  <th>Fecha</th>
-                  <th>Infractor</th>
-                  <th>Placas</th>
-                  <th>Vehiculo</th>
                   <th>Encierro</th>
+                  <th>Folio</th>
+                  <th>Placas</th>
+                  <th>Vehículo</th>
+                  <th>Infractor</th>
                   <th>Ingreso</th>
-                  <th>Pago</th>
-                  <th>Liberacion</th>
-                  <th>Salida</th>
-                  <th>Estado operativo</th>
-                  <th>Acciones</th>
+                  <th>Días</th>
+                  <th>Estado</th>
+                  <th>Acción</th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="empty-state">
+                    <td colSpan={9} className="empty-state">
                       {listState.status === 'loading'
-                        ? 'Cargando vehiculos...'
-                        : 'No hay vehiculos para mostrar.'}
+                        ? 'Cargando inventario...'
+                        : 'No hay vehículos para mostrar.'}
                     </td>
                   </tr>
                 ) : (
                   items.map((item) => (
                     <tr key={`${item.idRetencionVehiculo}-${item.idInfraccion}`}>
-                      <td>{item.folioInfraccion}</td>
                       <td>
-                        <div className="table-cell-stack">
-                          <strong>{formatDate(item.fechaInfraccion)}</strong>
-                          <span>{formatTimeOfDay(item.horaInfraccion)}</span>
+                        <div className="table-cell-stack inventory-encierro-cell">
+                          <strong>{formatEmptyValue(item.retencion.encierro)}</strong>
+                          <span>Resguardo: {formatEmptyValue(item.retencion.folioResguardo)}</span>
                         </div>
                       </td>
                       <td>
                         <div className="table-cell-stack">
-                          <strong>{getInfractorLabel(item)}</strong>
-                          <span>{formatEmptyValue(item.licencia)}</span>
+                          <strong>{item.folioInfraccion}</strong>
+                          <span>{formatEmptyValue(item.retencion.estadoIngreso)}</span>
                         </div>
                       </td>
                       <td>
@@ -637,67 +602,30 @@ function EncierrosVehiculosPage({
                       </td>
                       <td>
                         <div className="table-cell-stack">
-                          <strong>{formatEmptyValue(item.retencion.encierro)}</strong>
-                          <span>{formatEmptyValue(item.retencion.folioResguardo)}</span>
+                          <strong>{getInfractorLabel(item)}</strong>
+                          <span>Licencia: {formatEmptyValue(item.licencia)}</span>
                         </div>
                       </td>
                       <td>
                         <div className="table-cell-stack">
                           <strong>{formatDateTime(item.retencion.fechaIngreso)}</strong>
-                          <span>{formatEmptyValue(item.retencion.estadoIngreso)}</span>
+                          <span>Ingreso registrado</span>
                         </div>
+                      </td>
+                      <td>
+                        <span className="inventory-days-pill">{getDiasEnEncierro(item)}</span>
                       </td>
                       <td>
                         <div className="table-cell-stack">
-                          <strong>{getPagoLabel(item)}</strong>
-                          <span>{formatEmptyValue(item.pago.montoPagado)}</span>
+                          <StatusBadge value={item.estadoOperativo} />
+                          <span>{getInventoryPendingLabel(item)}</span>
                         </div>
                       </td>
                       <td>
-                        <div className="table-cell-stack">
-                          <strong>{getLiberacionLabel(item)}</strong>
-                          <span>
-                            {item.liberacion.tieneLiberacion
-                              ? 'Liberacion registrada'
-                              : 'Pendiente'}
-                          </span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="table-cell-stack">
-                          <strong>{getSalidaLabel(item)}</strong>
-                          <span>
-                            {item.salida.tieneSalida ? 'Salida registrada' : 'Pendiente'}
-                          </span>
-                        </div>
-                      </td>
-                      <td>
-                        <StatusBadge value={item.estadoOperativo} />
-                      </td>
-                      <td>
-                        <div className="button-row">
-                          <Button type="button" variant="link" onClick={() => openDetail(item.idInfraccion)}>
-                            Ver detalle
+                        <div className="inventory-action-stack">
+                          <Button type="button" variant="secondary" onClick={() => openDetail(item.idInfraccion)}>
+                            Ver expediente
                           </Button>
-                          {isActionVisible(item, 'pago') ? (
-                            <Button type="button" variant="link" onClick={() => onNavigatePago(item.idInfraccion)}>
-                              Registrar pago
-                            </Button>
-                          ) : null}
-                          {isActionVisible(item, 'liberacion') ? (
-                            <Button type="button" variant="link" onClick={() => onNavigateLiberacion(item.idInfraccion)}>
-                              Generar liberacion
-                            </Button>
-                          ) : null}
-                          {isActionVisible(item, 'salida') ? (
-                            <Button
-                              type="button"
-                              variant="link"
-                              onClick={() => onNavigateSalida(item.retencion.idRetencionVehiculo)}
-                            >
-                              Registrar salida
-                            </Button>
-                          ) : null}
                         </div>
                       </td>
                     </tr>
