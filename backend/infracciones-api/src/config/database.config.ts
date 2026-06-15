@@ -8,4 +8,5 @@ export default registerAs('database', () => ({
   database: process.env.DB_DATABASE ?? 'control_infracciones_db',
   synchronize: process.env.DB_SYNCHRONIZE === 'true',
   logging: process.env.DB_LOGGING === 'true',
+  maxQueryExecutionTime: Number(process.env.DB_MAX_QUERY_EXECUTION_TIME ?? 500),
 }));
