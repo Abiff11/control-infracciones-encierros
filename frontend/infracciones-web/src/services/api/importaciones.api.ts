@@ -1,6 +1,9 @@
 import { buildQuery, request } from './apiClient';
 import type {
   ImportacionDetalleResponse,
+  ImportacionErroresJsonResponse,
+  ImportacionErroresQuery,
+  ImportacionErroresResumenResponse,
   ImportacionInfraccionesConfirmarPayload,
   ImportacionInfraccionesPreviewPayload,
   ImportacionInfraccionesQuery,
@@ -92,6 +95,29 @@ export function getImportacionInfraccionesDetalle(
 ): Promise<ImportacionDetalleResponse> {
   return request<ImportacionDetalleResponse>(
     `/importaciones/infracciones/${idImportacionInfracciones}`,
+    {},
+    token,
+  );
+}
+
+export function getImportacionErroresResumen(
+  token: string,
+  idImportacionInfracciones: number,
+): Promise<ImportacionErroresResumenResponse> {
+  return request<ImportacionErroresResumenResponse>(
+    `/importaciones/infracciones/${idImportacionInfracciones}/resumen`,
+    {},
+    token,
+  );
+}
+
+export function getImportacionErrores(
+  token: string,
+  idImportacionInfracciones: number,
+  query?: ImportacionErroresQuery,
+): Promise<ImportacionErroresJsonResponse> {
+  return request<ImportacionErroresJsonResponse>(
+    `/importaciones/infracciones/${idImportacionInfracciones}/lista-errores${buildQuery(query)}`,
     {},
     token,
   );
