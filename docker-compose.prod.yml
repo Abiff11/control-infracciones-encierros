@@ -1,0 +1,52 @@
+services:
+  postgres_infracciones:
+    image: postgres:16-alpine
+    container_name: postgres_infracciones
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_infracciones_data:/var/lib/postgresql/data
+    networks:
+      - infracciones_net
+
+  infracciones_api:
+    build:
+      context: ./backend/infracciones-api
+      dockerfile: Dockerfile
+    container_name: infracciones_api
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    depends_on:
+      - postgres_infracciones
+    expose:
+      - "3000"
+    networks:
+      - infracciones_net
+
+  infracciones_web:
+    build:
+      context: ./frontend/infracciones-web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+    container_name: infracciones_web
+    restart: unless-stopped
+    depends_on:
+      - infracciones_api
+    ports:
+      - "8080:80"
+    networks:
+      - infracciones_net
+
+volumes:
+  postgres_infracciones_data:
+
+networks:
+  infracciones_net:
+    driver: bridge
