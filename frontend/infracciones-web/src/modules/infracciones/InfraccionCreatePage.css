@@ -1,0 +1,147 @@
+.create-infraccion-page {
+  padding-bottom: 18px;
+}
+
+.create-required-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.create-required-summary span,
+.create-section-counter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--slate-700);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.create-form-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.create-form-card {
+  display: grid;
+  gap: 16px;
+  background:
+    radial-gradient(circle at top right, rgba(30, 41, 59, 0.035), transparent 16rem),
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.create-section-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.create-section-header h2 {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.create-field-value {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.create-motivos-card {
+  border-color: #cbd5e1;
+}
+
+.create-motivo-select-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.create-motivo-slot {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.create-motivo-slot .button-secondary {
+  width: fit-content;
+  min-height: 30px;
+  padding: 0 10px;
+}
+
+.create-selected-motivos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 34px;
+  align-items: center;
+  padding: 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.create-sticky-actions {
+  position: sticky;
+  bottom: 10px;
+  z-index: 5;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(10px);
+}
+
+.create-sticky-actions .button-row {
+  flex-shrink: 0;
+}
+
+@media (max-width: 1320px) {
+  .create-motivo-select-grid {
+    grid-template-columns: repeat(3, minmax(190px, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .create-required-summary,
+  .create-section-header,
+  .create-sticky-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .create-motivo-select-grid {
+    grid-template-columns: repeat(2, minmax(190px, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .create-motivo-select-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .create-sticky-actions {
+    bottom: 6px;
+  }
+}
