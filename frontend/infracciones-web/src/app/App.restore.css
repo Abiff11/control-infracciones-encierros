@@ -1,0 +1,248 @@
+.summary-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.table-cell-stack {
+  display: grid;
+  gap: 3px;
+}
+
+.table-cell-stack strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.table-cell-stack span,
+.table-empty,
+.motivo-preview {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: #ffffff;
+  color: var(--slate-700);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.status-badge-neutral {
+  background: #f8fafc;
+}
+
+.status-badge-success {
+  border-color: var(--success-border);
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.status-badge-info {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.status-badge-danger {
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.62);
+  backdrop-filter: blur(10px);
+}
+
+.modal-card {
+  width: min(1180px, 100%);
+  max-height: calc(100vh - 36px);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 24px 68px rgba(15, 23, 42, 0.28);
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-body {
+  padding: 18px 20px 20px;
+  overflow: auto;
+}
+
+.modal-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.modal-tab {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--slate-700);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.modal-tab:hover {
+  background: #ffffff;
+  color: var(--text);
+  box-shadow: none;
+  transform: none;
+}
+
+.modal-tab-active {
+  background: #ffffff;
+  border-color: var(--border-strong);
+  color: var(--text);
+  box-shadow: var(--shadow-soft);
+}
+
+.info-grid,
+.detail-grid,
+.detail-shell,
+.detail-stack,
+.tag-list,
+.timeline {
+  display: grid;
+  gap: 12px;
+}
+
+.info-grid-2,
+.detail-dl {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.info-grid-3,
+.detail-dl-wide {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.info-grid-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.info-item,
+.detail-mini-card,
+.motivo-card,
+.tag-item,
+.timeline-content {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.info-label,
+.detail-dl dt {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.info-value,
+.detail-dl dd {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.detail-hero-top,
+.detail-mini-header,
+.timeline-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.detail-hero-name {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.motivo-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.motivo-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: #ffffff;
+  color: var(--slate-700);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.motivo-chip-muted {
+  background: #f8fafc;
+}
+
+@media (max-width: 1200px) {
+  .summary-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .summary-strip,
+  .info-grid-2,
+  .info-grid-3,
+  .info-grid-4,
+  .detail-dl,
+  .detail-dl-wide {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-hero-top,
+  .detail-mini-header,
+  .timeline-header,
+  .pagination-bar {
+    flex-direction: column;
+  }
+}
