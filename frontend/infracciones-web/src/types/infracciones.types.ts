@@ -26,6 +26,33 @@ export interface VehiculoSummary {
   serie: string | null;
   motor: string | null;
   color: string | null;
+  marca?: string | null;
+  linea?: string | null;
+  clase?: string | null;
+}
+
+export interface InfraccionListRetencionSummary {
+  idRetencionVehiculo: number;
+  encierro: string | null;
+  fechaIngreso: string | null;
+  folioResguardo: string | null;
+  estadoIngreso: string | null;
+}
+
+export interface InfraccionListPagoSummary {
+  tienePago: boolean;
+  fechaUltimoPago: string | null;
+  montoPagado: string | null;
+}
+
+export interface InfraccionListLiberacionSummary {
+  tieneLiberacion: boolean;
+  fechaLiberacion: string | null;
+}
+
+export interface InfraccionListSalidaSummary {
+  tieneSalida: boolean;
+  fechaSalida: string | null;
 }
 
 export interface InfraccionListItem {
@@ -43,6 +70,10 @@ export interface InfraccionListItem {
   estatusInfraccion: EstatusInfraccion;
   tipoProcedimiento: TipoProcedimiento;
   motivos: InfraccionMotivoDetalle[];
+  retencion?: InfraccionListRetencionSummary | null;
+  pago?: InfraccionListPagoSummary;
+  liberacion?: InfraccionListLiberacionSummary;
+  salida?: InfraccionListSalidaSummary;
   estadoOperativoCalculado: EstadoOperativoVehiculo;
 }
 
