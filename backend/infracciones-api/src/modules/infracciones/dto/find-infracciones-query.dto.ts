@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsIn,
   IsDateString,
   IsInt,
   IsOptional,
@@ -7,6 +8,8 @@ import {
   Max,
   Min,
 } from 'class-validator';
+
+import { ESTADOS_OPERATIVOS_VEHICULO } from '../constants/estado-operativo-vehiculo.constants';
 
 export class FindInfraccionesQueryDto {
   @IsOptional()
@@ -22,6 +25,14 @@ export class FindInfraccionesQueryDto {
   fechaFin?: string;
 
   @IsOptional()
+  @IsDateString()
+  fechaDesde?: string;
+
+  @IsOptional()
+  @IsDateString()
+  fechaHasta?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -34,18 +45,70 @@ export class FindInfraccionesQueryDto {
   idDelegacion?: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idRegion?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idTipoProcedimiento?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idMotivo?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idEncierro?: number;
+
+  @IsOptional()
   @IsString()
   placas?: string;
+
+  @IsOptional()
+  @IsString()
+  serie?: string;
+
+  @IsOptional()
+  @IsString()
+  motor?: string;
 
   @IsOptional()
   @IsString()
   nombreInfractor?: string;
 
   @IsOptional()
+  @IsString()
+  licencia?: string;
+
+  @IsOptional()
+  @IsString()
+  clavePolicia?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1900)
   anio?: number;
+
+  @IsOptional()
+  @IsIn(ESTADOS_OPERATIVOS_VEHICULO)
+  estadoOperativo?: string;
+
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
+
+  @IsOptional()
+  @IsString()
+  sortOrder?: string;
 
   @Type(() => Number)
   @IsInt()
