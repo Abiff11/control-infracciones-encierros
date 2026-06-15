@@ -1,11 +1,18 @@
-import { useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
 
 import { OperationResultCard } from '../../components/operation/OperationResultCard';
-import type { CatalogosBundle } from '../catalogos/catalogos.types';
+import { Button } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
+import { Field, TextInput } from '../../components/ui/Field';
+import { SelectField } from '../../components/ui/SelectField';
+import type { CatalogosBundle, Motivo } from '../catalogos/catalogos.types';
 import type {
   CreateInfraccionCompletaPayload,
   InfraccionFlujoResponse,
 } from './infracciones.types';
+import './InfraccionCreatePage.css';
+
+const MAX_MOTIVOS = 5;
 
 function getTodayDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -28,7 +35,7 @@ function toNullableString(value: string): string | null | undefined {
     return undefined;
   }
 
-  return value;
+  return value.trim();
 }
 
 function isFilled(value: string): boolean {
@@ -77,19 +84,101 @@ const INITIAL_FORM = {
   numParteInformativo: '',
 };
 
+type FormState = typeof INITIAL_FORM;
+
+function getEmptyMotivoSlots(): string[] {
+  return Array.from({ length: MAX_MOTIVOS }, () => '');
+}
+
+function getMotivoLabel(motivo: Motivo): string {
+  const clave = motivo.nombreMotivo.trim();
+  const descripcion = motivo.descripcionMotivo.trim();
+
+  if (!descripcion || descripcion === clave) {
+    return clave;
+  }
+
+  return `${clave} - ${descripcion}`;
+}
+
+function getSectionStatus(total: number, completed: number): string {
+  return `${completed}/${total}`;
+}
+
+function FieldValue({ children }: { children: ReactNode }) {
+  return <span className="create-field-value">{children}</span>;
+}
+
+function SectionCard({
+  children,
+  completed,
+  eyebrow,
+  title,
+  total,
+}: {
+  children: ReactNode;
+  completed: number;
+  eyebrow: string;
+  title: string;
+  total: number;
+}) {
+  return (
+    <Card className="create-form-card">
+      <div className="create-section-header">
+        <div>
+          <p className="section-label">{eyebrow}</p>
+          <h2>{title}</h2>
+        </div>
+        <span className="create-section-counter">{getSectionStatus(total, completed)}</span>
+      </div>
+      {children}
+    </Card>
+  );
+}
+
+function countFilled(values: string[]): number {
+  return values.filter(isFilled).length;
+}
+
+function getUniqueSelectedMotivos(slots: string[]): number[] {
+  return Array.from(
+    new Set(
+      slots
+        .filter(isFilled)
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value > 0),
+    ),
+  );
+}
+
 function InfraccionCreatePage({
   catalogs,
   loading,
   onCreated,
   onSubmit,
 }: InfraccionCreatePageProps) {
-  const [form, setForm] = useState(INITIAL_FORM);
-  const [selectedMotivos, setSelectedMotivos] = useState<number[]>([]);
+  const [form, setForm] = useState<FormState>(INITIAL_FORM);
+  const [motivoSlots, setMotivoSlots] = useState<string[]>(getEmptyMotivoSlots);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<InfraccionFlujoResponse | null>(null);
 
-  function updateField(field: keyof typeof INITIAL_FORM, value: string) {
+  const sortedMotivos = useMemo(
+    () => [...(catalogs?.motivos ?? [])].sort((a, b) => getMotivoLabel(a).localeCompare(getMotivoLabel(b))),
+    [catalogs?.motivos],
+  );
+  const selectedMotivos = useMemo(() => getUniqueSelectedMotivos(motivoSlots), [motivoSlots]);
+  const selectedMotivoSet = useMemo(() => new Set(selectedMotivos), [selectedMotivos]);
+  const selectedMotivoLabels = useMemo(
+    () =>
+      selectedMotivos
+        .map((idMotivo) => sortedMotivos.find((motivo) => motivo.idMotivo === idMotivo))
+        .filter((motivo): motivo is Motivo => Boolean(motivo))
+        .map(getMotivoLabel),
+    [selectedMotivos, sortedMotivos],
+  );
+
+  function updateField(field: keyof FormState, value: string) {
     setForm((current) => ({
       ...current,
       [field]: value,
@@ -97,13 +186,17 @@ function InfraccionCreatePage({
     setError(null);
   }
 
-  function toggleMotivo(idMotivo: number) {
-    setSelectedMotivos((current) =>
-      current.includes(idMotivo)
-        ? current.filter((currentId) => currentId !== idMotivo)
-        : [...current, idMotivo],
+  function updateMotivoSlot(index: number, value: string): void {
+    setMotivoSlots((current) =>
+      current.map((currentValue, currentIndex) =>
+        currentIndex === index ? value : currentValue,
+      ),
     );
     setError(null);
+  }
+
+  function clearMotivoSlot(index: number): void {
+    updateMotivoSlot(index, '');
   }
 
   function resetForm() {
@@ -112,7 +205,7 @@ function InfraccionCreatePage({
       fechaInfraccion: getTodayDate(),
       horaInfraccion: getCurrentTime(),
     });
-    setSelectedMotivos([]);
+    setMotivoSlots(getEmptyMotivoSlots());
     setError(null);
     setResult(null);
   }
@@ -157,25 +250,40 @@ function InfraccionCreatePage({
       return 'Selecciona al menos un motivo.';
     }
 
+    if (selectedMotivos.length !== countFilled(motivoSlots)) {
+      return 'No repitas motivos en la captura.';
+    }
+
     return null;
   }
 
+  const infractorRequiredCompleted = countFilled([
+    form.idSexo,
+    form.nombre,
+    form.apellidoPaterno,
+  ]);
+  const vehiculoRequiredCompleted = countFilled([
+    form.idClaseVehiculo,
+    form.idLineaVehiculo,
+    form.idServicio,
+  ]);
+  const lugarRequiredCompleted = countFilled([form.municipio]);
+  const infraccionRequiredCompleted = countFilled([
+    form.idDelegacion,
+    form.idTipoProcedimiento,
+    form.idEstatusInfraccion,
+    form.folioInfraccion,
+    form.fechaInfraccion,
+    form.horaInfraccion,
+  ]);
   const canSubmit =
     Boolean(catalogs) &&
     selectedMotivos.length > 0 &&
-    isFilled(form.idSexo) &&
-    isFilled(form.nombre) &&
-    isFilled(form.apellidoPaterno) &&
-    isFilled(form.idClaseVehiculo) &&
-    isFilled(form.idLineaVehiculo) &&
-    isFilled(form.idServicio) &&
-    isFilled(form.municipio) &&
-    isFilled(form.idDelegacion) &&
-    isFilled(form.idTipoProcedimiento) &&
-    isFilled(form.idEstatusInfraccion) &&
-    isFilled(form.folioInfraccion) &&
-    isFilled(form.fechaInfraccion) &&
-    isFilled(form.horaInfraccion);
+    selectedMotivos.length === countFilled(motivoSlots) &&
+    infractorRequiredCompleted === 3 &&
+    vehiculoRequiredCompleted === 3 &&
+    lugarRequiredCompleted === 1 &&
+    infraccionRequiredCompleted === 6;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -247,13 +355,9 @@ function InfraccionCreatePage({
     }
   }
 
-  const infraccionId = result ? String(result.infraccion.idInfraccion) : null;
+  const folioCreado = result?.infraccion.folioInfraccion ?? null;
   const infraccionSummary = result
     ? [
-        {
-          label: 'ID infraccion',
-          value: String(result.infraccion.idInfraccion),
-        },
         {
           label: 'Folio',
           value: result.infraccion.folioInfraccion,
@@ -262,37 +366,41 @@ function InfraccionCreatePage({
           label: 'Estatus',
           value: result.infraccion.estatusInfraccion.nombreEstatus,
         },
+        {
+          label: 'Motivos',
+          value: String(selectedMotivos.length),
+        },
       ]
     : [];
 
   return (
-    <section className="page-stack">
-      <header className="page-header">
+    <section className="page-stack create-infraccion-page">
+      <header className="page-header page-header-row">
         <div>
           <p className="eyebrow">Operacion</p>
           <h1>Nueva infraccion</h1>
           <p className="page-description">
-            Captura completa en una sola transaccion. El usuario operativo ya no
-            se envia desde el cliente.
+            Captura completa en una sola transaccion. Los campos tecnicos internos no se muestran al usuario.
           </p>
+        </div>
+        <div className="create-required-summary">
+          <span>{selectedMotivos.length}/{MAX_MOTIVOS} motivos</span>
+          <span>{canSubmit ? 'Lista para guardar' : 'Captura pendiente'}</span>
         </div>
       </header>
 
       {!catalogs ? <div className="notice">Cargando catalogos...</div> : null}
 
-      <form className="panel form-stack" onSubmit={handleSubmit}>
-        <section className="form-section">
-          <div className="panel-header">
-            <div>
-              <p className="section-label">Infractor</p>
-              <h2>Datos personales</h2>
-            </div>
-          </div>
-
+      <form className="create-form-layout" onSubmit={handleSubmit}>
+        <SectionCard
+          eyebrow="Infractor"
+          title="Datos personales"
+          completed={infractorRequiredCompleted}
+          total={3}
+        >
           <div className="form-grid form-grid-3">
-            <div className="field">
-              <label htmlFor="infractor-sexo">Sexo</label>
-              <select
+            <Field htmlFor="infractor-sexo" label="Sexo">
+              <SelectField
                 id="infractor-sexo"
                 value={form.idSexo}
                 onChange={(event) => updateField('idSexo', event.target.value)}
@@ -304,79 +412,65 @@ function InfraccionCreatePage({
                     {sexo.nombreSexo}
                   </option>
                 ))}
-              </select>
-            </div>
+              </SelectField>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="infractor-nombre">Nombre</label>
-              <input
+            <Field htmlFor="infractor-nombre" label="Nombre">
+              <TextInput
                 id="infractor-nombre"
                 value={form.nombre}
                 onChange={(event) => updateField('nombre', event.target.value)}
                 required
               />
-            </div>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="infractor-apellido-paterno">Apellido paterno</label>
-              <input
+            <Field htmlFor="infractor-apellido-paterno" label="Apellido paterno">
+              <TextInput
                 id="infractor-apellido-paterno"
                 value={form.apellidoPaterno}
-                onChange={(event) =>
-                  updateField('apellidoPaterno', event.target.value)
-                }
+                onChange={(event) => updateField('apellidoPaterno', event.target.value)}
                 required
               />
-            </div>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="infractor-apellido-materno">Apellido materno</label>
-              <input
+            <Field htmlFor="infractor-apellido-materno" label="Apellido materno">
+              <TextInput
                 id="infractor-apellido-materno"
                 value={form.apellidoMaterno}
-                onChange={(event) =>
-                  updateField('apellidoMaterno', event.target.value)
-                }
+                onChange={(event) => updateField('apellidoMaterno', event.target.value)}
               />
-            </div>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="infractor-licencia">Licencia</label>
-              <input
+            <Field htmlFor="infractor-licencia" label="Licencia">
+              <TextInput
                 id="infractor-licencia"
                 value={form.licencia}
                 onChange={(event) => updateField('licencia', event.target.value)}
               />
-            </div>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="infractor-curp">CURP</label>
-              <input
+            <Field htmlFor="infractor-curp" label="CURP">
+              <TextInput
                 id="infractor-curp"
                 value={form.curp}
                 onChange={(event) => updateField('curp', event.target.value)}
               />
-            </div>
+            </Field>
           </div>
-        </section>
+        </SectionCard>
 
-        <section className="form-section">
-          <div className="panel-header">
-            <div>
-              <p className="section-label">Vehiculo</p>
-              <h2>Caracteristicas</h2>
-            </div>
-          </div>
-
+        <SectionCard
+          eyebrow="Vehiculo"
+          title="Caracteristicas"
+          completed={vehiculoRequiredCompleted}
+          total={3}
+        >
           <div className="form-grid form-grid-3">
-            <div className="field">
-              <label htmlFor="vehiculo-clase">Clase</label>
-              <select
+            <Field htmlFor="vehiculo-clase" label="Clase">
+              <SelectField
                 id="vehiculo-clase"
                 value={form.idClaseVehiculo}
-                onChange={(event) =>
-                  updateField('idClaseVehiculo', event.target.value)
-                }
+                onChange={(event) => updateField('idClaseVehiculo', event.target.value)}
                 required
               >
                 <option value="">Selecciona</option>
@@ -385,17 +479,14 @@ function InfraccionCreatePage({
                     {clase.nombreClaseVehiculo}
                   </option>
                 ))}
-              </select>
-            </div>
+              </SelectField>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="vehiculo-linea">Linea</label>
-              <select
+            <Field htmlFor="vehiculo-linea" label="Linea">
+              <SelectField
                 id="vehiculo-linea"
                 value={form.idLineaVehiculo}
-                onChange={(event) =>
-                  updateField('idLineaVehiculo', event.target.value)
-                }
+                onChange={(event) => updateField('idLineaVehiculo', event.target.value)}
                 required
               >
                 <option value="">Selecciona</option>
@@ -406,12 +497,11 @@ function InfraccionCreatePage({
                       : linea.nombreLineaVehiculo}
                   </option>
                 ))}
-              </select>
-            </div>
+              </SelectField>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="vehiculo-servicio">Servicio</label>
-              <select
+            <Field htmlFor="vehiculo-servicio" label="Servicio">
+              <SelectField
                 id="vehiculo-servicio"
                 value={form.idServicio}
                 onChange={(event) => updateField('idServicio', event.target.value)}
@@ -423,138 +513,115 @@ function InfraccionCreatePage({
                     {servicio.nombreServicio}
                   </option>
                 ))}
-              </select>
-            </div>
+              </SelectField>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="vehiculo-anio">Anio modelo</label>
-              <input
+            <Field htmlFor="vehiculo-anio" label="Año modelo">
+              <TextInput
                 id="vehiculo-anio"
                 type="number"
                 min="1"
                 value={form.anioModelo}
                 onChange={(event) => updateField('anioModelo', event.target.value)}
               />
-            </div>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="vehiculo-color">Color</label>
-              <input
+            <Field htmlFor="vehiculo-color" label="Color">
+              <TextInput
                 id="vehiculo-color"
                 value={form.color}
                 onChange={(event) => updateField('color', event.target.value)}
               />
-            </div>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="vehiculo-placas">Placas</label>
-              <input
+            <Field htmlFor="vehiculo-placas" label="Placas">
+              <TextInput
                 id="vehiculo-placas"
                 value={form.placas}
                 onChange={(event) => updateField('placas', event.target.value)}
               />
-            </div>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="vehiculo-estado-placas">Estado placas</label>
-              <input
+            <Field htmlFor="vehiculo-estado-placas" label="Estado placas">
+              <TextInput
                 id="vehiculo-estado-placas"
                 value={form.estadoPlacas}
                 onChange={(event) => updateField('estadoPlacas', event.target.value)}
               />
-            </div>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="vehiculo-serie">Serie</label>
-              <input
+            <Field htmlFor="vehiculo-serie" label="Serie">
+              <TextInput
                 id="vehiculo-serie"
                 value={form.serie}
                 onChange={(event) => updateField('serie', event.target.value)}
               />
-            </div>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="vehiculo-motor">Motor</label>
-              <input
+            <Field htmlFor="vehiculo-motor" label="Motor">
+              <TextInput
                 id="vehiculo-motor"
                 value={form.motor}
                 onChange={(event) => updateField('motor', event.target.value)}
               />
-            </div>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="vehiculo-sitio">Sitio servicio publico</label>
-              <input
+            <Field htmlFor="vehiculo-sitio" label="Sitio servicio publico" className="field-span-3">
+              <TextInput
                 id="vehiculo-sitio"
                 value={form.sitioServicioPublico}
-                onChange={(event) =>
-                  updateField('sitioServicioPublico', event.target.value)
-                }
+                onChange={(event) => updateField('sitioServicioPublico', event.target.value)}
               />
-            </div>
+            </Field>
           </div>
-        </section>
+        </SectionCard>
 
-        <section className="form-section">
-          <div className="panel-header">
-            <div>
-              <p className="section-label">Lugar</p>
-              <h2>Ubicacion</h2>
-            </div>
-          </div>
-
-          <div className="form-grid form-grid-2">
-            <div className="field">
-              <label htmlFor="lugar-municipio">Municipio</label>
-              <input
+        <SectionCard eyebrow="Lugar" title="Ubicacion" completed={lugarRequiredCompleted} total={1}>
+          <div className="form-grid form-grid-4">
+            <Field htmlFor="lugar-municipio" label="Municipio">
+              <TextInput
                 id="lugar-municipio"
                 value={form.municipio}
                 onChange={(event) => updateField('municipio', event.target.value)}
                 required
               />
-            </div>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="lugar-colonia">Colonia</label>
-              <input
+            <Field htmlFor="lugar-colonia" label="Colonia">
+              <TextInput
                 id="lugar-colonia"
                 value={form.colonia}
                 onChange={(event) => updateField('colonia', event.target.value)}
               />
-            </div>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="lugar-calle">Calle</label>
-              <input
+            <Field htmlFor="lugar-calle" label="Calle">
+              <TextInput
                 id="lugar-calle"
                 value={form.calle}
                 onChange={(event) => updateField('calle', event.target.value)}
               />
-            </div>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="lugar-numero">Numero</label>
-              <input
+            <Field htmlFor="lugar-numero" label="Numero">
+              <TextInput
                 id="lugar-numero"
                 value={form.numero}
                 onChange={(event) => updateField('numero', event.target.value)}
               />
-            </div>
+            </Field>
           </div>
-        </section>
+        </SectionCard>
 
-        <section className="form-section">
-          <div className="panel-header">
-            <div>
-              <p className="section-label">Infraccion</p>
-              <h2>Datos operativos</h2>
-            </div>
-          </div>
-
+        <SectionCard
+          eyebrow="Infraccion"
+          title="Datos operativos"
+          completed={infraccionRequiredCompleted}
+          total={6}
+        >
           <div className="form-grid form-grid-3">
-            <div className="field">
-              <label htmlFor="infraccion-delegacion">Delegacion</label>
-              <select
+            <Field htmlFor="infraccion-delegacion" label="Delegacion">
+              <SelectField
                 id="infraccion-delegacion"
                 value={form.idDelegacion}
                 onChange={(event) => updateField('idDelegacion', event.target.value)}
@@ -566,17 +633,14 @@ function InfraccionCreatePage({
                     {delegacion.nombreDelegacion}
                   </option>
                 ))}
-              </select>
-            </div>
+              </SelectField>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="infraccion-tipo">Tipo procedimiento</label>
-              <select
+            <Field htmlFor="infraccion-tipo" label="Tipo procedimiento">
+              <SelectField
                 id="infraccion-tipo"
                 value={form.idTipoProcedimiento}
-                onChange={(event) =>
-                  updateField('idTipoProcedimiento', event.target.value)
-                }
+                onChange={(event) => updateField('idTipoProcedimiento', event.target.value)}
                 required
               >
                 <option value="">Selecciona</option>
@@ -585,34 +649,27 @@ function InfraccionCreatePage({
                     {tipo.nombreTipoProcedimiento}
                   </option>
                 ))}
-              </select>
-            </div>
+              </SelectField>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="infraccion-estatus">Estatus</label>
-              <select
+            <Field htmlFor="infraccion-estatus" label="Estatus">
+              <SelectField
                 id="infraccion-estatus"
                 value={form.idEstatusInfraccion}
-                onChange={(event) =>
-                  updateField('idEstatusInfraccion', event.target.value)
-                }
+                onChange={(event) => updateField('idEstatusInfraccion', event.target.value)}
                 required
               >
                 <option value="">Selecciona</option>
                 {catalogs?.estatusInfraccion.map((estatus) => (
-                  <option
-                    key={estatus.idEstatusInfraccion}
-                    value={estatus.idEstatusInfraccion}
-                  >
+                  <option key={estatus.idEstatusInfraccion} value={estatus.idEstatusInfraccion}>
                     {estatus.nombreEstatus}
                   </option>
                 ))}
-              </select>
-            </div>
+              </SelectField>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="infraccion-operativo">Operativo opcional</label>
-              <select
+            <Field htmlFor="infraccion-operativo" label="Operativo opcional">
+              <SelectField
                 id="infraccion-operativo"
                 value={form.idOperativo}
                 onChange={(event) => updateField('idOperativo', event.target.value)}
@@ -623,62 +680,55 @@ function InfraccionCreatePage({
                     {operativo.nombreOperativo}
                   </option>
                 ))}
-              </select>
-            </div>
+              </SelectField>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="infraccion-folio">Folio</label>
-              <input
+            <Field htmlFor="infraccion-folio" label="Folio infraccion">
+              <TextInput
                 id="infraccion-folio"
                 value={form.folioInfraccion}
                 onChange={(event) => updateField('folioInfraccion', event.target.value)}
                 required
               />
-            </div>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="infraccion-fecha">Fecha</label>
-              <input
+            <Field htmlFor="infraccion-fecha" label="Fecha">
+              <TextInput
                 id="infraccion-fecha"
                 type="date"
                 value={form.fechaInfraccion}
                 onChange={(event) => updateField('fechaInfraccion', event.target.value)}
                 required
               />
-            </div>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="infraccion-hora">Hora</label>
-              <input
+            <Field htmlFor="infraccion-hora" label="Hora">
+              <TextInput
                 id="infraccion-hora"
                 type="time"
                 value={form.horaInfraccion}
                 onChange={(event) => updateField('horaInfraccion', event.target.value)}
                 required
               />
-            </div>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="infraccion-clave-policia">Clave policia</label>
-              <input
+            <Field htmlFor="infraccion-clave-policia" label="Clave policia">
+              <TextInput
                 id="infraccion-clave-policia"
                 value={form.clavePolicia}
                 onChange={(event) => updateField('clavePolicia', event.target.value)}
               />
-            </div>
+            </Field>
 
-            <div className="field">
-              <label htmlFor="infraccion-num-parte">Numero parte informativo</label>
-              <input
+            <Field htmlFor="infraccion-num-parte" label="Numero parte informativo">
+              <TextInput
                 id="infraccion-num-parte"
                 value={form.numParteInformativo}
-                onChange={(event) =>
-                  updateField('numParteInformativo', event.target.value)
-                }
+                onChange={(event) => updateField('numParteInformativo', event.target.value)}
               />
-            </div>
+            </Field>
 
-            <div className="field field-span-2">
+            <div className="field field-span-3">
               <label htmlFor="infraccion-observaciones">Observaciones</label>
               <textarea
                 id="infraccion-observaciones"
@@ -688,54 +738,95 @@ function InfraccionCreatePage({
               />
             </div>
           </div>
+        </SectionCard>
 
-          <div className="motivos-block">
-            <div className="panel-header">
-              <div>
-                <p className="section-label">Motivos</p>
-                <h2>Selecciona uno o mas</h2>
-              </div>
+        <Card className="create-form-card create-motivos-card">
+          <div className="create-section-header">
+            <div>
+              <p className="section-label">Motivos</p>
+              <h2>Selecciona hasta {MAX_MOTIVOS}</h2>
+              <p className="page-description">
+                Usa un selector por motivo. No se permiten motivos repetidos.
+              </p>
             </div>
-
-            <div className="chip-grid">
-              {catalogs?.motivos.map((motivo) => (
-                <label key={motivo.idMotivo} className="chip-option">
-                  <input
-                    type="checkbox"
-                    checked={selectedMotivos.includes(motivo.idMotivo)}
-                    onChange={() => toggleMotivo(motivo.idMotivo)}
-                  />
-                  <span>
-                    {motivo.nombreMotivo} - {motivo.descripcionMotivo}
-                  </span>
-                </label>
-              ))}
-            </div>
+            <span className="create-section-counter">
+              {selectedMotivos.length}/{MAX_MOTIVOS}
+            </span>
           </div>
-        </section>
+
+          <div className="create-motivo-select-grid">
+            {motivoSlots.map((motivoValue, index) => (
+              <div key={`motivo-slot-${index}`} className="create-motivo-slot">
+                <Field htmlFor={`motivo-${index}`} label={`Motivo ${index + 1}`}>
+                  <SelectField
+                    id={`motivo-${index}`}
+                    value={motivoValue}
+                    onChange={(event) => updateMotivoSlot(index, event.target.value)}
+                    required={index === 0}
+                  >
+                    <option value="">Sin motivo</option>
+                    {sortedMotivos.map((motivo) => {
+                      const value = String(motivo.idMotivo);
+                      const alreadySelected = selectedMotivoSet.has(motivo.idMotivo) && value !== motivoValue;
+
+                      return (
+                        <option key={motivo.idMotivo} value={value} disabled={alreadySelected}>
+                          {getMotivoLabel(motivo)}
+                        </option>
+                      );
+                    })}
+                  </SelectField>
+                </Field>
+                {motivoValue ? (
+                  <Button type="button" variant="secondary" onClick={() => clearMotivoSlot(index)}>
+                    Quitar
+                  </Button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+
+          <div className="create-selected-motivos">
+            {selectedMotivoLabels.length === 0 ? (
+              <FieldValue>Sin motivos seleccionados.</FieldValue>
+            ) : (
+              selectedMotivoLabels.map((label) => (
+                <span key={label} className="motivo-chip">
+                  {label}
+                </span>
+              ))
+            )}
+          </div>
+        </Card>
 
         {error ? <div className="notice notice-error">{error}</div> : null}
 
-        <div className="button-row">
-          <button
-            className="button-primary"
-            type="submit"
-            disabled={saving || loading || !canSubmit}
-          >
-            {saving ? 'Guardando...' : 'Guardar infraccion'}
-          </button>
-          <button className="button-secondary" type="button" onClick={resetForm}>
-            Limpiar
-          </button>
+        <div className="create-sticky-actions">
+          <div>
+            <p className="section-label">Guardar captura</p>
+            <FieldValue>
+              {canSubmit
+                ? 'La infraccion tiene los datos obligatorios completos.'
+                : 'Completa los campos obligatorios y al menos un motivo.'}
+            </FieldValue>
+          </div>
+          <div className="button-row button-row-end">
+            <Button type="button" variant="secondary" onClick={resetForm}>
+              Limpiar
+            </Button>
+            <Button type="submit" variant="primary" disabled={saving || loading || !canSubmit}>
+              {saving ? 'Guardando...' : 'Guardar infraccion'}
+            </Button>
+          </div>
         </div>
       </form>
 
       <OperationResultCard
         title="Infraccion creada"
-        description="El backend devuelve la infraccion completa con los IDs necesarios para continuar el flujo."
+        description="El expediente quedo registrado y listo para continuar el flujo operativo."
         result={result}
         emptyLabel="Aun no se ha guardado una infraccion."
-        copyValue={infraccionId}
+        copyValue={folioCreado}
         summary={infraccionSummary}
       />
     </section>
