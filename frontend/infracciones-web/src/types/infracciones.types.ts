@@ -41,12 +41,14 @@ export interface InfraccionListRetencionSummary {
 
 export interface InfraccionListPagoSummary {
   tienePago: boolean;
+  idPagoInfraccion: number | null;
   fechaUltimoPago: string | null;
   montoPagado: string | null;
 }
 
 export interface InfraccionListLiberacionSummary {
   tieneLiberacion: boolean;
+  idLiberacionVehiculo: number | null;
   fechaLiberacion: string | null;
 }
 
