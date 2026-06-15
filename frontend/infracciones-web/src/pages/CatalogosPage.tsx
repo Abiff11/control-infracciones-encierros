@@ -52,7 +52,7 @@ const MIN_TEST_LOAD_LINES = [
   'Marca vehiculo: NISSAN',
   'Linea vehiculo: TSURU',
   'Tipo procedimiento: INFRACCION',
-  'Motivo: ESTACIONARSE EN LUGAR PROHIBIDO',
+  'Motivo: T - ESTACIONARSE EN LUGAR PROHIBIDO',
   'Encierro: ENCIERRO MUNICIPAL',
   'Estatus: CAPTURADA, PAGADA, LIBERACION_GENERADA, VEHICULO_ENTREGADO',
 ];
@@ -67,7 +67,7 @@ const MIN_TEST_LOAD_JSON = JSON.stringify(
     marcaVehiculo: 'NISSAN',
     lineaVehiculo: 'TSURU',
     tipoProcedimiento: 'INFRACCION',
-    motivo: 'ESTACIONARSE EN LUGAR PROHIBIDO',
+    motivo: 'T - ESTACIONARSE EN LUGAR PROHIBIDO',
     encierro: 'ENCIERRO MUNICIPAL',
     estatus: [
       'CAPTURADA',
@@ -301,8 +301,7 @@ function CatalogosPage({
             <p className="section-label">Carga minima sugerida para pruebas</p>
             <p className="page-description">
               Usa estos valores para preparar un entorno minimo y probar el flujo
-              completo sin improvisar catalogos base. El motivo sigue como deuda
-              tecnica: la entidad actual no guarda descripcionMotivo.
+              completo sin improvisar catalogos base.
             </p>
           </div>
 
@@ -548,7 +547,7 @@ function CatalogosPage({
 
       <CatalogSection
         title="Motivo"
-        description="Alta de motivos con un campo principal persistido en la tabla actual. descripcionMotivo sigue como deuda tecnica."
+        description="Alta de motivos con clave y descripcion persistidas en la tabla."
         items={motivos}
         emptyLabel="Sin motivos registrados."
         fields={[
@@ -573,7 +572,10 @@ function CatalogosPage({
             descripcionMotivo: values.descripcionMotivo.trim() || undefined,
           })
         }
-        renderItem={(item) => (item as Motivo).nombreMotivo}
+        renderItem={(item) => {
+          const motivo = item as Motivo;
+          return `${motivo.nombreMotivo} - ${motivo.descripcionMotivo}`;
+        }}
       />
 
       <CatalogSection

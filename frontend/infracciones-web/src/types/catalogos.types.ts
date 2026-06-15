@@ -58,6 +58,7 @@ export interface EstatusInfraccion {
 export interface Motivo {
   idMotivo: number;
   nombreMotivo: string;
+  descripcionMotivo: string;
 }
 
 export interface Encierro {

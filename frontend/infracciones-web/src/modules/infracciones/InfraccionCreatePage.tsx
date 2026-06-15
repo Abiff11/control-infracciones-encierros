@@ -705,7 +705,9 @@ function InfraccionCreatePage({
                     checked={selectedMotivos.includes(motivo.idMotivo)}
                     onChange={() => toggleMotivo(motivo.idMotivo)}
                   />
-                  <span>{motivo.nombreMotivo}</span>
+                  <span>
+                    {motivo.nombreMotivo} - {motivo.descripcionMotivo}
+                  </span>
                 </label>
               ))}
             </div>

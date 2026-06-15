@@ -334,7 +334,8 @@ export class CatalogosService {
   }
 
   async createMotivo(dto: CreateMotivoDto): Promise<Motivo> {
-    const nombreMotivo = this.resolveMotivoNombre(dto);
+    const nombreMotivo = dto.claveMotivo.trim();
+    const descripcionMotivo = dto.descripcionMotivo?.trim() || nombreMotivo;
     await this.throwIfExists(
       this.motivosRepository,
       { nombreMotivo },
@@ -342,7 +343,10 @@ export class CatalogosService {
     );
 
     return this.motivosRepository.save(
-      this.motivosRepository.create({ nombreMotivo }),
+      this.motivosRepository.create({
+        nombreMotivo,
+        descripcionMotivo,
+      }),
     );
   }
 
@@ -420,9 +424,5 @@ export class CatalogosService {
     }
 
     return marcaVehiculo;
-  }
-
-  private resolveMotivoNombre(dto: CreateMotivoDto): string {
-    return dto.descripcionMotivo?.trim() || dto.claveMotivo.trim();
   }
 }

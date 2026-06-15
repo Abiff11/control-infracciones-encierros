@@ -7,4 +7,11 @@ export class Motivo {
 
   @Column({ name: 'nombre_motivo', type: 'varchar', length: 255, unique: true })
   nombreMotivo!: string;
+
+  @Column({
+    name: 'descripcion_motivo',
+    type: 'varchar',
+    length: 255,
+  })
+  descripcionMotivo!: string;
 }
