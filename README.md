@@ -101,6 +101,10 @@ Puerto local:
 - La salida del vehículo se modela con `salida_vehiculo`.
 - El historial del flujo se modela con `infraccion_movimiento`.
 
+## Importaciones
+
+- Flujo anual 2025: [docs/importaciones/informe-anual-infracciones-2025.md](docs/importaciones/informe-anual-infracciones-2025.md)
+
 ## Despliegue
 
 - Revisa `docs/deployment/produccion-docker.md`.
