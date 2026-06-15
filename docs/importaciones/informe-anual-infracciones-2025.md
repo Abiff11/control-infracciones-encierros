@@ -95,8 +95,11 @@
 
 - Se leen desde `M1` a `M5`
 - Se buscan por `motivo.claveMotivo`
-- Los motivos desconocidos se reportan
-- Si no queda ningun motivo valido, la fila no se importa
+- El importador soporta hasta 5 motivos por infraccion en esas columnas.
+- El valor `0` se trata como vacio.
+- Si el motivo no existe en el catalogo, se crea al confirmar la importacion con la misma clave del archivo.
+- Los motivos sin clave valida se omiten.
+- Si no queda ningun motivo valido, la fila no se importa.
 
 ## Duplicados
 

@@ -130,6 +130,11 @@ export function normalizeCatalogKey(value: unknown): string | null {
   return normalized ? normalized.replace(/\s+/g, ' ') : null;
 }
 
+export function normalizeMotivoKey(value: unknown): string | null {
+  const normalized = normalizeText(value);
+  return normalized ? normalized.toUpperCase() : null;
+}
+
 export function parseExcelTime(value: unknown): {
   hora: string;
   warning: string | null;
@@ -139,7 +144,7 @@ export function parseExcelTime(value: unknown): {
   if (!text) {
     return {
       hora: '00:00:00',
-      warning: 'Hora vacia. Se usara 00:00:00.',
+      warning: null,
     };
   }
 
@@ -156,12 +161,16 @@ export function parseExcelTime(value: unknown): {
       };
     }
 
-    if (value < 0 || value >= 24) {
-      return {
-        hora: '00:00:00',
-        warning: `Hora numerica no soportada: ${value}. Se usara 00:00:00.`,
-      };
-    }
+    const normalizedHours = ((value % 24) + 24) % 24;
+    const totalSeconds = Math.round(normalizedHours * 60 * 60);
+    const hours = Math.floor(totalSeconds / 3600) % 24;
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    return {
+      hora: `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`,
+      warning: null,
+    };
   }
 
   if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(text)) {
@@ -172,22 +181,44 @@ export function parseExcelTime(value: unknown): {
     };
   }
 
-  if (/^\d{1,2}\.\d{1,2}$/.test(text)) {
-    const [hoursPart, minutesPart] = text.split('.');
-    const minutesValue =
-      minutesPart.length === 1 ? Number(minutesPart) * 10 : Number(minutesPart);
+  const numericGroups = text.match(/\d+/g);
 
-    if (Number.isFinite(minutesValue) && minutesValue < 60) {
-      return {
-        hora: `${String(Number(hoursPart)).padStart(2, '0')}:${String(minutesValue).padStart(2, '0')}:00`,
-        warning: null,
-      };
-    }
+  if (numericGroups?.length === 1 && /^\d+$/.test(text)) {
+    const hours = Number(numericGroups[0]) % 24;
+    return {
+      hora: `${String(hours).padStart(2, '0')}:00:00`,
+      warning: null,
+    };
+  }
+
+  if (/^\d+(?:[.,]\d+)?$/.test(text)) {
+    const hoursValue = Number(text.replace(',', '.'));
+    const normalizedHours = ((hoursValue % 24) + 24) % 24;
+    const totalSeconds = Math.round(normalizedHours * 60 * 60);
+    const hours = Math.floor(totalSeconds / 3600) % 24;
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    return {
+      hora: `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`,
+      warning: null,
+    };
+  }
+
+  if (numericGroups && numericGroups.length >= 2) {
+    const hours = Number(numericGroups[0]) % 24;
+    const minutes = Number(numericGroups[1]) % 60;
+    const seconds = numericGroups[2] ? Number(numericGroups[2]) % 60 : 0;
+
+    return {
+      hora: `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`,
+      warning: null,
+    };
   }
 
   return {
     hora: '00:00:00',
-    warning: `Hora no interpretable: ${text}. Se usara 00:00:00.`,
+    warning: null,
   };
 }
 
@@ -300,7 +331,7 @@ export function mapInfraccionesExcelRow(
   }
 
   const motivos = [24, 25, 26, 27, 28]
-    .map((index) => normalizeCatalogKey(getCellValue(row.values, index)))
+    .map((index) => normalizeMotivoKey(getCellValue(row.values, index)))
     .filter((value): value is string => Boolean(value));
 
   return {

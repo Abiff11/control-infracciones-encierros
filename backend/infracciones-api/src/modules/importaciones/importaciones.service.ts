@@ -108,7 +108,6 @@ export interface ImportacionDetalleResponse {
 }
 
 const CHUNK_SIZE = 250;
-const MOTIVO_INVALIDO_WARNING = 'Motivo no encontrado en catalogo oficial.';
 
 @Injectable()
 export class ImportacionesService {
@@ -185,15 +184,12 @@ export class ImportacionesService {
       }
 
       for (const motivoKey of row.motivos) {
+        if (!motivoKey || motivoKey === '0') {
+          continue;
+        }
+
         if (!officialMotivos.has(motivoKey)) {
           unknownMotivos.add(motivoKey);
-          errors.push({
-            numeroFila: row.numeroFila,
-            tipo: RowIssueType.ERROR,
-            campo: 'motivos',
-            valor: motivoKey,
-            mensaje: MOTIVO_INVALIDO_WARNING,
-          });
         }
       }
     }
@@ -604,7 +600,7 @@ export class ImportacionesService {
       });
     }
 
-    const motivosResolvidos = this.resolveMotivos(
+    const motivosResolvidos = await this.resolveMotivos(
       params.row.motivos,
       params.row.numeroFila,
       params.officialMotivos,
@@ -748,38 +744,52 @@ export class ImportacionesService {
     };
   }
 
-  private resolveMotivos(
+  private async resolveMotivos(
     motivosClaves: string[],
     numeroFila: number,
     officialMotivos: Map<string, Motivo>,
-  ): { motivos: Motivo[]; issues: Array<RowIssue & { numeroFila: number }> } {
+  ): Promise<{
+    motivos: Motivo[];
+    issues: Array<RowIssue & { numeroFila: number }>;
+  }> {
     const issues: Array<RowIssue & { numeroFila: number }> = [];
     const motivos: Motivo[] = [];
-    const seen = new Set<string>();
+    const seen = new Set<number>();
 
     for (const motivoKey of motivosClaves) {
-      if (seen.has(motivoKey)) {
-        continue;
-      }
-      seen.add(motivoKey);
-
-      if (!motivoKey) {
+      if (!motivoKey || motivoKey === '0') {
         continue;
       }
 
-      const motivo = officialMotivos.get(motivoKey);
+      let motivo: Motivo | null = officialMotivos.get(motivoKey) ?? null;
 
       if (!motivo) {
-        issues.push({
-          numeroFila,
-          tipo: RowIssueType.ERROR,
-          campo: 'motivos',
-          valor: motivoKey,
-          mensaje: MOTIVO_INVALIDO_WARNING,
+        motivo = await this.motivosRepository.findOne({
+          where: { nombreMotivo: motivoKey },
         });
+      }
+
+      if (!motivo) {
+        motivo = await this.motivosRepository.save(
+          this.motivosRepository.create({
+            nombreMotivo: motivoKey,
+            descripcionMotivo: motivoKey,
+          }),
+        );
+        officialMotivos.set(motivoKey, motivo);
+      } else if (!officialMotivos.has(motivoKey)) {
+        officialMotivos.set(motivoKey, motivo);
+      }
+
+      if (!motivo) {
         continue;
       }
 
+      if (seen.has(motivo.idMotivo)) {
+        continue;
+      }
+
+      seen.add(motivo.idMotivo);
       motivos.push(motivo);
     }
 
