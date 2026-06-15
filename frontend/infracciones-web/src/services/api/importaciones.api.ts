@@ -1,15 +1,50 @@
 import { buildQuery, request } from './apiClient';
 import type {
   ImportacionDetalleResponse,
-  ImportacionErroresJsonResponse,
-  ImportacionErroresQuery,
-  ImportacionErroresResumenResponse,
+  ImportacionInfraccionError,
+  ImportacionInfraccionErrorTipo,
   ImportacionInfraccionesConfirmarPayload,
   ImportacionInfraccionesPreviewPayload,
   ImportacionInfraccionesQuery,
   ImportacionInfraccionesResumen,
   ImportacionPreviewResponse,
 } from '../../types/importaciones.types';
+
+export interface ImportacionErroresResumenItem {
+  clave: string;
+  total: number;
+}
+
+export interface ImportacionErroresTopItem {
+  campo: string;
+  valor: string | null;
+  mensaje: string;
+  total: number;
+}
+
+export interface ImportacionErroresResumenResponse {
+  idImportacionInfracciones: number;
+  totalErrores: number;
+  porTipo: ImportacionErroresResumenItem[];
+  porCampo: ImportacionErroresResumenItem[];
+  porMensaje: ImportacionErroresResumenItem[];
+  topErrores: ImportacionErroresTopItem[];
+  topValores: ImportacionErroresTopItem[];
+}
+
+export interface ImportacionErroresJsonResponse {
+  data: ImportacionInfraccionError[];
+  page: number;
+  limit: number;
+  total: number;
+}
+
+export interface ImportacionErroresQuery {
+  tipo?: ImportacionInfraccionErrorTipo;
+  campo?: string;
+  page?: number;
+  limit?: number;
+}
 
 function buildImportacionFormData(
   payload:
