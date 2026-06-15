@@ -22,6 +22,7 @@ import { ImportacionInfraccionError } from './entities/importacion-infraccion-er
 import { ImportacionInfracciones } from './entities/importacion-infracciones.entity';
 import { ImportacionesController } from './importaciones.controller';
 import { ImportacionesService } from './importaciones.service';
+import { ImportacionesReportesService } from './importaciones-reportes.service';
 
 @Module({
   imports: [
@@ -48,6 +49,6 @@ import { ImportacionesService } from './importaciones.service';
     EncierrosModule,
   ],
   controllers: [ImportacionesController],
-  providers: [ImportacionesService],
+  providers: [ImportacionesService, ImportacionesReportesService],
 })
 export class ImportacionesModule {}
