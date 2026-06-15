@@ -75,7 +75,6 @@ function App() {
   );
   const [pagoInitialId, setPagoInitialId] = useState<number | null>(null);
   const [liberacionInitialId, setLiberacionInitialId] = useState<number | null>(null);
-  const [retencionInitialId, setRetencionInitialId] = useState<number | null>(null);
   const [salidaInitialId, setSalidaInitialId] = useState<number | null>(null);
   const [operationReturnPage, setOperationReturnPage] = useState<PageKey>('infracciones');
 
@@ -137,12 +136,6 @@ function App() {
 
   function completeOperation(): void {
     setCurrentPage(operationReturnPage);
-  }
-
-  function openRetencionFrom(page: PageKey, idInfraccion: number | null): void {
-    setOperationReturnPage(page);
-    setRetencionInitialId(idInfraccion);
-    setCurrentPage('retencion');
   }
 
   function openPagoFrom(page: PageKey, idInfraccion: number): void {
@@ -295,12 +288,6 @@ function App() {
           refreshKey={refreshKey}
           token={session.token}
           onNavigateCreate={() => setCurrentPage('nueva-infraccion')}
-          onNavigateRetencion={(idInfraccion) => openRetencionFrom('infracciones', idInfraccion)}
-          onNavigatePago={(idInfraccion) => openPagoFrom('infracciones', idInfraccion)}
-          onNavigateLiberacion={(idInfraccion) => openLiberacionFrom('infracciones', idInfraccion)}
-          onNavigateSalida={(idRetencionVehiculo) =>
-            openSalidaFrom('infracciones', idRetencionVehiculo)
-          }
         />
       ) : null}
 
@@ -332,7 +319,6 @@ function App() {
       {currentPage === 'retencion' ? (
         <RetencionCreatePage
           catalogs={catalogs}
-          initialIdInfraccion={retencionInitialId}
           onCompleted={completeOperation}
           onSubmit={handleRegistrarRetencion}
         />
