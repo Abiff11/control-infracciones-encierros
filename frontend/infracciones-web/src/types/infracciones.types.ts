@@ -42,6 +42,7 @@ export interface InfraccionListItem {
   delegacion: Delegacion;
   estatusInfraccion: EstatusInfraccion;
   tipoProcedimiento: TipoProcedimiento;
+  motivos: InfraccionMotivoDetalle[];
   estadoOperativoCalculado: EstadoOperativoVehiculo;
 }
 

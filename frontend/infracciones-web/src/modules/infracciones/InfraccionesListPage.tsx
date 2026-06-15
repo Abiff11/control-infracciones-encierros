@@ -9,6 +9,12 @@ import { SelectField } from '../../components/ui/SelectField';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { getErrorMessage } from '../../services/api/apiClient';
 import { getInfraccionDetalle, getInfracciones } from '../../services/api/infracciones.api';
+import {
+  formatDate,
+  formatEmptyValue,
+  formatFullName,
+  formatTimeOfDay,
+} from '../../lib/formatters';
 import type { CatalogosBundle } from '../../types/catalogos.types';
 import type {
   EstadoOperativoVehiculo,
@@ -133,13 +139,40 @@ function buildQuery(filters: FiltersForm): InfraccionesQuery {
 }
 
 function getInfractorLabel(item: InfraccionListItem): string {
-  const parts = [
+  return formatFullName([
     item.infractor.nombre,
     item.infractor.apellidoPaterno,
     item.infractor.apellidoMaterno,
-  ].filter((value): value is string => Boolean(value && value.trim()));
+  ]);
+}
 
-  return parts.join(' ');
+function formatMotivoLabel(motivo: InfraccionListItem['motivos'][number]): string {
+  const descripcion = formatEmptyValue(motivo.descripcionMotivo);
+  if (descripcion === motivo.nombreMotivo) {
+    return motivo.nombreMotivo;
+  }
+
+  return `${motivo.nombreMotivo} - ${descripcion}`;
+}
+
+function renderMotivosChips(item: InfraccionListItem) {
+  if (item.motivos.length === 0) {
+    return <span className="table-empty">Sin informacion registrada</span>;
+  }
+
+  const visible = item.motivos.slice(0, 2);
+  const hiddenCount = Math.max(0, item.motivos.length - visible.length);
+
+  return (
+    <div className="motivo-chip-row">
+      {visible.map((motivo) => (
+        <span key={motivo.idMotivo} className="motivo-chip" title={formatMotivoLabel(motivo)}>
+          {motivo.nombreMotivo}
+        </span>
+      ))}
+      {hiddenCount > 0 ? <span className="motivo-chip motivo-chip-muted">+{hiddenCount}</span> : null}
+    </div>
+  );
 }
 
 function InfraccionesListPage({
@@ -297,9 +330,14 @@ function InfraccionesListPage({
               <p className="section-label">Filtros</p>
               <h2>Busqueda operativa</h2>
             </div>
-            <Button type="button" variant="secondary" onClick={resetFilters}>
-              Limpiar
-            </Button>
+            <div className="button-row">
+              <Button type="button" variant="secondary" onClick={resetFilters}>
+                Limpiar filtros
+              </Button>
+              <Button type="submit" variant="primary">
+                Buscar
+              </Button>
+            </div>
           </div>
 
           <div className="form-grid form-grid-3">
@@ -558,10 +596,8 @@ function InfraccionesListPage({
               />
             </Field>
 
-            <div className="button-row button-row-end">
-              <Button type="submit" variant="primary">
-                Aplicar filtros
-              </Button>
+            <div className="form-hint form-hint-inline">
+              Usa el boton superior para aplicar filtros.
             </div>
           </div>
         </form>
@@ -593,9 +629,9 @@ function InfraccionesListPage({
                   <th>Fecha</th>
                   <th>Infractor</th>
                   <th>Placas</th>
-                  <th>Region</th>
-                  <th>Delegacion</th>
+                  <th>Motivos</th>
                   <th>Estado operativo</th>
+                  <th>Estatus</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -612,14 +648,31 @@ function InfraccionesListPage({
                   items.map((item) => (
                     <tr key={item.idInfraccion}>
                       <td>{item.folioInfraccion}</td>
-                      <td>{item.fechaInfraccion}</td>
-                      <td>{getInfractorLabel(item)}</td>
-                      <td>{item.vehiculo.placas ?? 'Sin placas'}</td>
-                      <td>{item.region.nombreRegion}</td>
-                      <td>{item.delegacion.nombreDelegacion}</td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{formatDate(item.fechaInfraccion)}</strong>
+                          <span>{formatTimeOfDay(item.horaInfraccion)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{getInfractorLabel(item)}</strong>
+                          <span>{formatEmptyValue(item.infractor.licencia)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{formatEmptyValue(item.vehiculo.placas)}</strong>
+                          <span>{formatEmptyValue(item.vehiculo.estadoPlacas)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        {renderMotivosChips(item)}
+                      </td>
                       <td>
                         <StatusBadge value={item.estadoOperativoCalculado} />
                       </td>
+                      <td>{item.estatusInfraccion.nombreEstatus}</td>
                       <td>
                         <Button type="button" variant="link" onClick={() => openDetail(item.idInfraccion)}>
                           Ver detalle

@@ -1,8 +1,19 @@
-import type { ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 
 import { Card } from '../../components/ui/Card';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { InfoGrid } from '../../components/ui/InfoGrid';
 import { Modal } from '../../components/ui/Modal';
 import { StatusBadge } from '../../components/ui/StatusBadge';
+import { Timeline } from '../../components/ui/Timeline';
+import {
+  formatCurrencyMxn,
+  formatDate,
+  formatDateTime,
+  formatEmptyValue,
+  formatFullName,
+  formatTimeOfDay,
+} from '../../lib/formatters';
 import type { InfraccionDetalleResponse } from '../../types/infracciones.types';
 
 interface InfraccionDetalleModalProps {
@@ -13,49 +24,137 @@ interface InfraccionDetalleModalProps {
   onClose: () => void;
 }
 
-function formatDateTime(value: string | null | undefined): string {
-  if (!value) {
-    return 'Sin información registrada';
+type DetailTab =
+  | 'resumen'
+  | 'infractor'
+  | 'vehiculo'
+  | 'motivos'
+  | 'encierro'
+  | 'pagos'
+  | 'liberacion'
+  | 'salida'
+  | 'movimientos';
+
+interface TabDefinition {
+  id: DetailTab;
+  label: string;
+}
+
+function getMotivoLabel(
+  motivo: InfraccionDetalleResponse['motivos'][number],
+): string {
+  const descripcion = formatEmptyValue(motivo.descripcionMotivo);
+  if (descripcion === motivo.nombreMotivo) {
+    return motivo.nombreMotivo;
   }
 
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
+  return `${motivo.nombreMotivo} - ${descripcion}`;
+}
+
+function getAvailableTabs(data: InfraccionDetalleResponse): TabDefinition[] {
+  const tabs: TabDefinition[] = [
+    { id: 'resumen', label: 'Resumen' },
+    { id: 'infractor', label: 'Infractor' },
+    { id: 'vehiculo', label: 'Vehiculo' },
+    { id: 'motivos', label: 'Motivos' },
+  ];
+
+  if (data.retencionVehiculo) {
+    tabs.push({ id: 'encierro', label: 'Encierro' });
   }
 
-  return new Intl.DateTimeFormat('es-MX', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(parsed);
+  if (data.pagos.length > 0) {
+    tabs.push({ id: 'pagos', label: 'Pagos' });
+  }
+
+  if (data.liberaciones.length > 0) {
+    tabs.push({ id: 'liberacion', label: 'Liberacion' });
+  }
+
+  if (data.salidas.length > 0) {
+    tabs.push({ id: 'salida', label: 'Salida' });
+  }
+
+  if (data.movimientos.length > 0) {
+    tabs.push({ id: 'movimientos', label: 'Movimientos' });
+  }
+
+  return tabs;
 }
 
-function formatText(value: string | null | undefined): string {
-  return value?.trim() || 'Sin información registrada';
-}
-
-function renderEmptyState() {
-  return <div className="notice">Sin información registrada.</div>;
-}
-
-function DetailBlock({
-  title,
+function TabButton({
+  active,
   children,
+  onClick,
 }: {
-  title: string;
+  active: boolean;
   children: ReactNode;
+  onClick: () => void;
 }) {
   return (
-    <Card className="detail-block">
+    <button
+      type="button"
+      className={active ? 'modal-tab modal-tab-active' : 'modal-tab'}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function DetailStack({
+  children,
+  title,
+  description,
+}: {
+  children: ReactNode;
+  title: string;
+  description?: string;
+}) {
+  return (
+    <Card className="detail-section-card">
       <div className="page-stack">
         <div className="panel-header">
           <div>
             <p className="section-label">Detalle</p>
             <h3>{title}</h3>
+            {description ? <p className="page-description">{description}</p> : null}
           </div>
         </div>
         {children}
       </div>
     </Card>
+  );
+}
+
+function RenderCardList({
+  emptyLabel = 'Sin informacion registrada.',
+  items,
+}: {
+  emptyLabel?: string;
+  items: Array<{
+    key: string | number;
+    header: ReactNode;
+    meta?: ReactNode;
+    children: ReactNode;
+  }>;
+}) {
+  if (items.length === 0) {
+    return <EmptyState title={emptyLabel} />;
+  }
+
+  return (
+    <div className="detail-stack">
+      {items.map((item) => (
+        <Card key={item.key} className="detail-mini-card">
+          <div className="detail-mini-header">
+            <div>{item.header}</div>
+            {item.meta ? <div className="detail-mini-meta">{item.meta}</div> : null}
+          </div>
+          {item.children}
+        </Card>
+      ))}
+    </div>
   );
 }
 
@@ -66,322 +165,370 @@ export function InfraccionDetalleModal({
   onClose,
   open,
 }: InfraccionDetalleModalProps) {
+  const tabs = useMemo(() => (data ? getAvailableTabs(data) : []), [data]);
+  const [activeTab, setActiveTab] = useState<DetailTab>('resumen');
+
+  const safeActiveTab =
+    tabs.some((tab) => tab.id === activeTab) || tabs.length === 0 ? activeTab : 'resumen';
+
   return (
     <Modal
       open={open}
-      title={data?.infraccion.folioInfraccion ?? 'Detalle de infracción'}
+      title={data?.infraccion.folioInfraccion ?? 'Detalle de infraccion'}
       description="Vista completa del expediente operativo."
       onClose={onClose}
     >
       {loading ? <div className="notice">Cargando detalle...</div> : null}
       {error ? <div className="notice notice-error">{error}</div> : null}
       {!loading && !error && data ? (
-        <div className="detail-grid">
+        <div className="detail-shell">
           <Card className="detail-hero">
-            <div className="page-stack">
-              <div className="panel-header">
-                <div>
-                  <p className="section-label">Resumen</p>
-                  <h3>{data.infraccion.folioInfraccion}</h3>
-                  <p className="page-description">
-                    {formatText(data.infractor.nombre)}{' '}
-                    {formatText(data.infractor.apellidoPaterno)}{' '}
-                    {formatText(data.infractor.apellidoMaterno)}
-                  </p>
+            <div className="detail-hero-top">
+              <div className="detail-hero-copy">
+                <p className="section-label">Expediente operativo</p>
+                <h3>{data.infraccion.folioInfraccion}</h3>
+                <p className="detail-hero-name">
+                  {formatFullName([
+                    data.infractor.nombre,
+                    data.infractor.apellidoPaterno,
+                    data.infractor.apellidoMaterno,
+                  ])}
+                </p>
+                <div className="detail-hero-subline">
+                  <span>Fecha: {formatDate(data.infraccion.fechaInfraccion)}</span>
+                  <span>Hora: {formatTimeOfDay(data.infraccion.horaInfraccion)}</span>
+                  <span>Placas: {formatEmptyValue(data.vehiculo.placas)}</span>
                 </div>
-
-                <StatusBadge value={data.estadoOperativoCalculado} />
+                {data.retencionVehiculo ? (
+                  <div className="detail-hero-subline">
+                    <span>Encierro: {data.retencionVehiculo.encierro.nombreEncierro}</span>
+                    <span>Ingreso: {formatDateTime(data.retencionVehiculo.fechaIngreso)}</span>
+                  </div>
+                ) : null}
               </div>
 
-              <dl className="result-summary">
-                <div className="result-summary-item">
-                  <dt>Fecha</dt>
-                  <dd>{formatDateTime(data.infraccion.fechaInfraccion)}</dd>
-                </div>
-                <div className="result-summary-item">
-                  <dt>Hora</dt>
-                  <dd>{data.infraccion.horaInfraccion}</dd>
-                </div>
-                <div className="result-summary-item">
-                  <dt>Estatus</dt>
-                  <dd>{data.estatusInfraccion.nombreEstatus}</dd>
-                </div>
-                <div className="result-summary-item">
-                  <dt>Tipo procedimiento</dt>
-                  <dd>{data.tipoProcedimiento.nombreTipoProcedimiento}</dd>
-                </div>
-                <div className="result-summary-item">
-                  <dt>Region</dt>
-                  <dd>{data.region.nombreRegion}</dd>
-                </div>
-                <div className="result-summary-item">
-                  <dt>Delegacion</dt>
-                  <dd>{data.delegacion.nombreDelegacion}</dd>
-                </div>
-              </dl>
+              <div className="detail-hero-status">
+                <StatusBadge value={data.estadoOperativoCalculado} />
+                <p className="detail-hero-status-label">Estado operativo</p>
+              </div>
             </div>
+
+            <InfoGrid
+              columns={3}
+              items={[
+                {
+                  label: 'Estatus',
+                  value: data.estatusInfraccion.nombreEstatus,
+                },
+                {
+                  label: 'Region',
+                  value: data.region.nombreRegion,
+                },
+                {
+                  label: 'Delegacion',
+                  value: data.delegacion.nombreDelegacion,
+                },
+              ]}
+            />
           </Card>
 
-          <DetailBlock title="Infractor">
-            <dl className="detail-dl">
-              <div>
-                <dt>Nombre</dt>
-                <dd>{formatText(data.infractor.nombre)}</dd>
-              </div>
-              <div>
-                <dt>Apellido paterno</dt>
-                <dd>{formatText(data.infractor.apellidoPaterno)}</dd>
-              </div>
-              <div>
-                <dt>Apellido materno</dt>
-                <dd>{formatText(data.infractor.apellidoMaterno)}</dd>
-              </div>
-              <div>
-                <dt>Licencia</dt>
-                <dd>{formatText(data.infractor.licencia)}</dd>
-              </div>
-              <div>
-                <dt>Sexo</dt>
-                <dd>{data.infractor.sexo?.nombreSexo ?? 'Sin información registrada'}</dd>
-              </div>
-            </dl>
-          </DetailBlock>
+          <div className="modal-tabs" role="tablist" aria-label="Detalle de infraccion">
+            {tabs.map((tab) => (
+              <TabButton
+                key={tab.id}
+                active={safeActiveTab === tab.id}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+              </TabButton>
+            ))}
+          </div>
 
-          <DetailBlock title="Vehiculo">
-            <dl className="detail-dl detail-dl-wide">
-              <div>
-                <dt>Placas</dt>
-                <dd>{formatText(data.vehiculo.placas)}</dd>
-              </div>
-              <div>
-                <dt>Estado placas</dt>
-                <dd>{formatText(data.vehiculo.estadoPlacas)}</dd>
-              </div>
-              <div>
-                <dt>Serie</dt>
-                <dd>{formatText(data.vehiculo.serie)}</dd>
-              </div>
-              <div>
-                <dt>Motor</dt>
-                <dd>{formatText(data.vehiculo.motor)}</dd>
-              </div>
-              <div>
-                <dt>Modelo</dt>
-                <dd>{data.vehiculo.anioModelo ?? 'Sin información registrada'}</dd>
-              </div>
-              <div>
-                <dt>Color</dt>
-                <dd>{formatText(data.vehiculo.color)}</dd>
-              </div>
-              <div>
-                <dt>Clase</dt>
-                <dd>{data.vehiculo.claseVehiculo.nombreClaseVehiculo}</dd>
-              </div>
-              <div>
-                <dt>Marca</dt>
-                <dd>{data.vehiculo.marcaVehiculo.nombreMarcaVehiculo}</dd>
-              </div>
-              <div>
-                <dt>Linea</dt>
-                <dd>{data.vehiculo.lineaVehiculo.nombreLineaVehiculo}</dd>
-              </div>
-              <div>
-                <dt>Servicio</dt>
-                <dd>{data.vehiculo.servicio.nombreServicio}</dd>
-              </div>
-              <div className="detail-span-2">
-                <dt>Sitio servicio publico</dt>
-                <dd>{formatText(data.vehiculo.sitioServicioPublico)}</dd>
-              </div>
-            </dl>
-          </DetailBlock>
+          {safeActiveTab === 'resumen' ? (
+            <DetailStack title="Resumen" description="Datos generales de la infraccion.">
+              <InfoGrid
+                columns={3}
+                items={[
+                  { label: 'Folio', value: data.infraccion.folioInfraccion },
+                  {
+                    label: 'Fecha',
+                    value: formatDate(data.infraccion.fechaInfraccion),
+                  },
+                  {
+                    label: 'Hora',
+                    value: formatTimeOfDay(data.infraccion.horaInfraccion),
+                  },
+                  {
+                    label: 'Estado operativo',
+                    value: <StatusBadge value={data.estadoOperativoCalculado} compact />,
+                    span: 2,
+                  },
+                  {
+                    label: 'Estatus de infraccion',
+                    value: data.estatusInfraccion.nombreEstatus,
+                  },
+                  { label: 'Region', value: data.region.nombreRegion },
+                  { label: 'Delegacion', value: data.delegacion.nombreDelegacion },
+                  {
+                    label: 'Tipo procedimiento',
+                    value: data.tipoProcedimiento.nombreTipoProcedimiento,
+                  },
+                  {
+                    label: 'Clave policia',
+                    value: formatEmptyValue(data.infraccion.clavePolicia),
+                  },
+                  {
+                    label: 'Numero de parte',
+                    value: formatEmptyValue(data.infraccion.numParteInformativo),
+                  },
+                  {
+                    label: 'Observaciones',
+                    value: formatEmptyValue(data.infraccion.observaciones),
+                    span: 2,
+                  },
+                ]}
+              />
+            </DetailStack>
+          ) : null}
 
-          <DetailBlock title="Lugar">
-            <dl className="detail-dl">
-              <div className="detail-span-2">
-                <dt>Lugar de infraccion</dt>
-                <dd>{data.lugarInfraccion.nombreLugarInfraccion}</dd>
-              </div>
-              <div>
-                <dt>Clave policia</dt>
-                <dd>{formatText(data.infraccion.clavePolicia)}</dd>
-              </div>
-              <div>
-                <dt>Parte informativo</dt>
-                <dd>{formatText(data.infraccion.numParteInformativo)}</dd>
-              </div>
-              <div className="detail-span-2">
-                <dt>Observaciones</dt>
-                <dd>{formatText(data.infraccion.observaciones)}</dd>
-              </div>
-            </dl>
-          </DetailBlock>
+          {safeActiveTab === 'infractor' ? (
+            <DetailStack title="Infractor" description="Identificacion del conductor o propietario.">
+              <InfoGrid
+                columns={2}
+                items={[
+                  {
+                    label: 'Nombre completo',
+                    value: formatFullName([
+                      data.infractor.nombre,
+                      data.infractor.apellidoPaterno,
+                      data.infractor.apellidoMaterno,
+                    ]),
+                    span: 2,
+                  },
+                  {
+                    label: 'Licencia',
+                    value: formatEmptyValue(data.infractor.licencia),
+                  },
+                  {
+                    label: 'Sexo',
+                    value: data.infractor.sexo?.nombreSexo ?? 'Sin informacion registrada',
+                  },
+                ]}
+              />
+            </DetailStack>
+          ) : null}
 
-          <DetailBlock title="Motivos">
-            {data.motivos.length === 0 ? (
-              renderEmptyState()
-            ) : (
-              <ul className="tag-list">
-                {data.motivos.map((motivo) => (
-                  <li key={motivo.idMotivo} className="tag-item">
-                    <strong>{motivo.nombreMotivo}</strong>
-                    <span>{formatText(motivo.descripcionMotivo)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </DetailBlock>
+          {safeActiveTab === 'vehiculo' ? (
+            <DetailStack title="Vehiculo" description="Ficha tecnica del vehiculo infraccionado.">
+              <InfoGrid
+                columns={3}
+                items={[
+                  { label: 'Placas', value: formatEmptyValue(data.vehiculo.placas) },
+                  {
+                    label: 'Estado placas',
+                    value: formatEmptyValue(data.vehiculo.estadoPlacas),
+                  },
+                  { label: 'Marca', value: data.vehiculo.marcaVehiculo.nombreMarcaVehiculo },
+                  { label: 'Linea', value: data.vehiculo.lineaVehiculo.nombreLineaVehiculo },
+                  {
+                    label: 'Clase',
+                    value: data.vehiculo.claseVehiculo.nombreClaseVehiculo,
+                  },
+                  { label: 'Servicio', value: data.vehiculo.servicio.nombreServicio },
+                  { label: 'Color', value: formatEmptyValue(data.vehiculo.color) },
+                  {
+                    label: 'Modelo',
+                    value: data.vehiculo.anioModelo ?? 'Sin informacion registrada',
+                  },
+                  { label: 'Serie', value: formatEmptyValue(data.vehiculo.serie) },
+                  { label: 'Motor', value: formatEmptyValue(data.vehiculo.motor) },
+                  {
+                    label: 'Sitio servicio publico',
+                    value: formatEmptyValue(data.vehiculo.sitioServicioPublico),
+                    span: 2,
+                  },
+                ]}
+              />
+            </DetailStack>
+          ) : null}
 
-          <DetailBlock title="Encierro">
-            {data.retencionVehiculo ? (
-              <dl className="detail-dl">
-                <div>
-                  <dt>Encierro</dt>
-                  <dd>{data.retencionVehiculo.encierro.nombreEncierro}</dd>
+          {safeActiveTab === 'motivos' ? (
+            <DetailStack title="Motivos" description="Motivos capturados para la infraccion.">
+              {data.motivos.length === 0 ? (
+                <EmptyState />
+              ) : (
+                <div className="motivo-grid">
+                  {data.motivos.map((motivo) => (
+                    <article key={motivo.idMotivo} className="motivo-card">
+                      <strong>{motivo.nombreMotivo}</strong>
+                      <span>{getMotivoLabel(motivo)}</span>
+                    </article>
+                  ))}
                 </div>
-                <div>
-                  <dt>Fecha ingreso</dt>
-                  <dd>{formatDateTime(data.retencionVehiculo.fechaIngreso)}</dd>
-                </div>
-                <div>
-                  <dt>Recibido por</dt>
-                  <dd>{formatText(data.retencionVehiculo.recibidoPor)}</dd>
-                </div>
-                <div>
-                  <dt>Folio resguardo</dt>
-                  <dd>{formatText(data.retencionVehiculo.folioResguardo)}</dd>
-                </div>
-                <div>
-                  <dt>Estado ingreso</dt>
-                  <dd>{formatText(data.retencionVehiculo.estadoIngreso)}</dd>
-                </div>
-                <div className="detail-span-2">
-                  <dt>Observaciones ingreso</dt>
-                  <dd>{formatText(data.retencionVehiculo.observacionesIngreso)}</dd>
-                </div>
-              </dl>
-            ) : (
-              renderEmptyState()
-            )}
-          </DetailBlock>
+              )}
+            </DetailStack>
+          ) : null}
 
-          <DetailBlock title="Pagos">
-            {data.pagos.length === 0 ? (
-              renderEmptyState()
-            ) : (
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Folio</th>
-                      <th>Fecha</th>
-                      <th>Monto</th>
-                      <th>Observaciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.pagos.map((pago) => (
-                      <tr key={pago.idPagoInfraccion}>
-                        <td>{pago.folioPago}</td>
-                        <td>{formatDateTime(pago.fechaPago)}</td>
-                        <td>{pago.monto}</td>
-                        <td>{formatText(pago.observaciones)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </DetailBlock>
+          {safeActiveTab === 'encierro' && data.retencionVehiculo ? (
+              <DetailStack title="Encierro" description="Ingreso y resguardo vehicular.">
+                <div className="detail-section-badge">
+                  <StatusBadge value={data.estadoOperativoCalculado} />
+                </div>
+              <InfoGrid
+                columns={2}
+                items={[
+                  { label: 'Encierro', value: data.retencionVehiculo.encierro.nombreEncierro },
+                  {
+                    label: 'Fecha ingreso',
+                    value: formatDateTime(data.retencionVehiculo.fechaIngreso),
+                  },
+                  {
+                    label: 'Folio resguardo',
+                    value: formatEmptyValue(data.retencionVehiculo.folioResguardo),
+                  },
+                  {
+                    label: 'Recibido por',
+                    value: formatEmptyValue(data.retencionVehiculo.recibidoPor),
+                  },
+                  {
+                    label: 'Estado ingreso',
+                    value: formatEmptyValue(data.retencionVehiculo.estadoIngreso),
+                  },
+                  {
+                    label: 'Observaciones ingreso',
+                    value: formatEmptyValue(data.retencionVehiculo.observacionesIngreso),
+                    span: 2,
+                  },
+                ]}
+              />
+            </DetailStack>
+          ) : null}
 
-          <DetailBlock title="Liberacion">
-            {data.liberaciones.length === 0 ? (
-              renderEmptyState()
-            ) : (
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Folio</th>
-                      <th>Fecha</th>
-                      <th>Liberado por</th>
-                      <th>Recibe</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.liberaciones.map((liberacion) => (
-                      <tr key={liberacion.idLiberacionVehiculo}>
-                        <td>{liberacion.folioLiberacion}</td>
-                        <td>{formatDateTime(liberacion.fechaLiberacion)}</td>
-                        <td>{formatText(liberacion.liberadoPor)}</td>
-                        <td>{formatText(liberacion.nombreRecibeLiberacion)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </DetailBlock>
+          {safeActiveTab === 'pagos' ? (
+            <DetailStack title="Pagos" description="Historial de pagos registrados.">
+              <RenderCardList
+                items={data.pagos.map((pago) => ({
+                  key: pago.idPagoInfraccion,
+                  header: (
+                    <div>
+                      <p className="card-label">Folio pago</p>
+                      <h4>{pago.folioPago}</h4>
+                    </div>
+                  ),
+                  meta: <strong>{formatCurrencyMxn(pago.monto)}</strong>,
+                  children: (
+                    <InfoGrid
+                      columns={2}
+                      items={[
+                        { label: 'Fecha', value: formatDateTime(pago.fechaPago) },
+                        {
+                          label: 'Observaciones',
+                          value: formatEmptyValue(pago.observaciones),
+                          span: 2,
+                        },
+                      ]}
+                    />
+                  ),
+                }))}
+              />
+            </DetailStack>
+          ) : null}
 
-          <DetailBlock title="Salida">
-            {data.salidas.length === 0 ? (
-              renderEmptyState()
-            ) : (
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Fecha</th>
-                      <th>Validado por</th>
-                      <th>Recibe</th>
-                      <th>Estatus</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.salidas.map((salida) => (
-                      <tr key={salida.idSalidaVehiculo}>
-                        <td>{formatDateTime(salida.fechaSalida)}</td>
-                        <td>{formatText(salida.validadoPor)}</td>
-                        <td>{formatText(salida.personaRecibeVehiculo)}</td>
-                        <td>{formatText(salida.estadoSalida)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </DetailBlock>
+          {safeActiveTab === 'liberacion' ? (
+            <DetailStack title="Liberacion" description="Liberaciones asociadas a la infraccion.">
+              <RenderCardList
+                items={data.liberaciones.map((liberacion) => ({
+                  key: liberacion.idLiberacionVehiculo,
+                  header: (
+                    <div>
+                      <p className="card-label">Folio liberacion</p>
+                      <h4>{liberacion.folioLiberacion}</h4>
+                    </div>
+                  ),
+                  meta: <span>{formatDateTime(liberacion.fechaLiberacion)}</span>,
+                  children: (
+                    <InfoGrid
+                      columns={2}
+                      items={[
+                        { label: 'Liberado por', value: formatEmptyValue(liberacion.liberadoPor) },
+                        {
+                          label: 'Persona que recibe liberacion',
+                          value: formatEmptyValue(liberacion.nombreRecibeLiberacion),
+                          span: 2,
+                        },
+                        {
+                          label: 'Observaciones',
+                          value: formatEmptyValue(liberacion.observacion),
+                          span: 2,
+                        },
+                      ]}
+                    />
+                  ),
+                }))}
+              />
+            </DetailStack>
+          ) : null}
 
-          <DetailBlock title="Movimientos">
-            {data.movimientos.length === 0 ? (
-              renderEmptyState()
-            ) : (
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Fecha</th>
-                      <th>Estatus</th>
-                      <th>Usuario</th>
-                      <th>Accion</th>
-                      <th>Observaciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.movimientos.map((movimiento) => (
-                      <tr key={movimiento.idInfraccionMovimiento}>
-                        <td>{formatDateTime(movimiento.fechaMovimiento)}</td>
-                        <td>{movimiento.estatus}</td>
-                        <td>{movimiento.usuario}</td>
-                        <td>{movimiento.accion}</td>
-                        <td>{formatText(movimiento.observaciones)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </DetailBlock>
+          {safeActiveTab === 'salida' ? (
+            <DetailStack title="Salida" description="Salida del vehiculo del encierro.">
+              <RenderCardList
+                items={data.salidas.map((salida) => ({
+                  key: salida.idSalidaVehiculo,
+                  header: (
+                    <div>
+                      <p className="card-label">Fecha salida</p>
+                      <h4>{formatDateTime(salida.fechaSalida)}</h4>
+                    </div>
+                  ),
+                  meta: <StatusBadge value={salida.estadoSalida} compact />,
+                  children: (
+                    <InfoGrid
+                      columns={2}
+                      items={[
+                        { label: 'Validado por', value: formatEmptyValue(salida.validadoPor) },
+                        {
+                          label: 'Persona que recibe vehiculo',
+                          value: formatEmptyValue(salida.personaRecibeVehiculo),
+                          span: 2,
+                        },
+                        {
+                          label: 'Observaciones',
+                          value: formatEmptyValue(salida.observacionesSalida),
+                          span: 2,
+                        },
+                      ]}
+                    />
+                  ),
+                }))}
+              />
+            </DetailStack>
+          ) : null}
+
+          {safeActiveTab === 'movimientos' ? (
+            <DetailStack title="Movimientos" description="Linea de tiempo del expediente.">
+              <Timeline
+                items={data.movimientos.map((movimiento) => ({
+                  id: movimiento.idInfraccionMovimiento,
+                  title: formatDateTime(movimiento.fechaMovimiento),
+                  meta: <StatusBadge value={movimiento.estatus} compact />,
+                  description: (
+                    <InfoGrid
+                      columns={2}
+                      items={[
+                        { label: 'Accion', value: formatEmptyValue(movimiento.accion) },
+                        { label: 'Usuario', value: formatEmptyValue(movimiento.usuario) },
+                        {
+                          label: 'Observaciones',
+                          value: formatEmptyValue(movimiento.observaciones),
+                          span: 2,
+                        },
+                      ]}
+                    />
+                  ),
+                }))}
+              />
+            </DetailStack>
+          ) : null}
         </div>
       ) : null}
     </Modal>

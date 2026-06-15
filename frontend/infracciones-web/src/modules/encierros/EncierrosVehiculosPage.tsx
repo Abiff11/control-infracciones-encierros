@@ -13,6 +13,13 @@ import {
   getVehiculosEnEncierroResumen,
 } from '../../services/api/encierros.api';
 import { getInfraccionDetalle } from '../../services/api/infracciones.api';
+import {
+  formatCurrencyMxn,
+  formatDate,
+  formatDateTime,
+  formatEmptyValue,
+  formatTimeOfDay,
+} from '../../lib/formatters';
 import type { CatalogosBundle } from '../../types/catalogos.types';
 import type {
   EstadoOperativoVehiculo,
@@ -163,6 +170,48 @@ function buildQuery(filters: FiltersForm): VehiculosEncierroQuery {
 
 function getInfractorLabel(item: VehiculoEncierroItem): string {
   return item.infractorNombreCompleto || 'Sin información registrada';
+}
+
+function getVehicleLabel(item: VehiculoEncierroItem): string {
+  const parts = [item.vehiculo.marca, item.vehiculo.linea, item.vehiculo.clase].filter(
+    (value): value is string => Boolean(value && value.trim()),
+  );
+
+  if (parts.length === 0) {
+    return 'Sin informacion registrada';
+  }
+
+  return parts.join(' - ');
+}
+
+function getPagoLabel(item: VehiculoEncierroItem): string {
+  if (!item.pago.tienePago) {
+    return 'Sin pago';
+  }
+
+  return [formatDateTime(item.pago.fechaUltimoPago), formatCurrencyMxn(item.pago.montoPagado)]
+    .filter((value) => value !== 'Sin informacion registrada')
+    .join(' | ');
+}
+
+function getLiberacionLabel(item: VehiculoEncierroItem): string {
+  if (!item.liberacion.tieneLiberacion) {
+    return 'Sin liberacion';
+  }
+
+  return formatDateTime(item.liberacion.fechaLiberacion);
+}
+
+function getSalidaLabel(item: VehiculoEncierroItem): string {
+  if (!item.salida.tieneSalida) {
+    return 'Sin salida';
+  }
+
+  return formatDateTime(item.salida.fechaSalida);
+}
+
+function getInfractorDisplay(item: VehiculoEncierroItem): string {
+  return getInfractorLabel(item);
 }
 
 function isActionVisible(item: VehiculoEncierroItem, action: 'pago' | 'liberacion' | 'salida'): boolean {
@@ -357,10 +406,10 @@ function EncierrosVehiculosPage({
             </div>
             <div className="button-row">
               <Button type="button" variant="secondary" onClick={resetFilters}>
-                Limpiar
+                Limpiar filtros
               </Button>
               <Button type="submit" variant="primary">
-                Aplicar filtros
+                Buscar
               </Button>
             </div>
           </div>
@@ -707,15 +756,66 @@ function EncierrosVehiculosPage({
                   items.map((item) => (
                     <tr key={`${item.idRetencionVehiculo}-${item.idInfraccion}`}>
                       <td>{item.folioInfraccion}</td>
-                      <td>{item.fechaInfraccion}</td>
-                      <td>{getInfractorLabel(item)}</td>
-                      <td>{item.vehiculo.placas ?? 'Sin placas'}</td>
-                      <td>{item.vehiculo.marca ?? 'Sin marca'}</td>
-                      <td>{item.retencion.encierro ?? 'Sin encierro'}</td>
-                      <td>{item.retencion.fechaIngreso}</td>
-                      <td>{item.pago.tienePago ? item.pago.fechaUltimoPago ?? 'Si' : 'No'}</td>
-                      <td>{item.liberacion.tieneLiberacion ? item.liberacion.fechaLiberacion ?? 'Si' : 'No'}</td>
-                      <td>{item.salida.tieneSalida ? item.salida.fechaSalida ?? 'Si' : 'No'}</td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{formatDate(item.fechaInfraccion)}</strong>
+                          <span>{formatTimeOfDay(item.horaInfraccion)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{getInfractorDisplay(item)}</strong>
+                          <span>{formatEmptyValue(item.licencia)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{formatEmptyValue(item.vehiculo.placas)}</strong>
+                          <span>{formatEmptyValue(item.vehiculo.clase)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{getVehicleLabel(item)}</strong>
+                          <span>{formatEmptyValue(item.vehiculo.color)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{formatEmptyValue(item.retencion.encierro)}</strong>
+                          <span>{formatEmptyValue(item.retencion.folioResguardo)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{formatDateTime(item.retencion.fechaIngreso)}</strong>
+                          <span>{formatEmptyValue(item.retencion.estadoIngreso)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{getPagoLabel(item)}</strong>
+                          <span>{formatEmptyValue(item.pago.montoPagado)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{getLiberacionLabel(item)}</strong>
+                          <span>
+                            {item.liberacion.tieneLiberacion
+                              ? 'Liberacion registrada'
+                              : 'Pendiente'}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{getSalidaLabel(item)}</strong>
+                          <span>
+                            {item.salida.tieneSalida ? 'Salida registrada' : 'Pendiente'}
+                          </span>
+                        </div>
+                      </td>
                       <td>
                         <StatusBadge value={item.estadoOperativo} />
                       </td>
