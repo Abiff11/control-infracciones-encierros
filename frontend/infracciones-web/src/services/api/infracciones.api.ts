@@ -7,12 +7,27 @@ import type {
   InfraccionesResponse,
 } from '../../types/infracciones.types';
 
+const DEFAULT_INFRACCIONES_LIMIT = 30;
+const LEGACY_INFRACCIONES_LIMIT = 10;
+
+function normalizeInfraccionesQuery(query?: InfraccionesQuery): InfraccionesQuery {
+  const limit = query?.limit;
+
+  return {
+    ...query,
+    limit:
+      limit === undefined || limit === LEGACY_INFRACCIONES_LIMIT
+        ? DEFAULT_INFRACCIONES_LIMIT
+        : limit,
+  };
+}
+
 export function getInfracciones(
   token: string,
   query?: InfraccionesQuery,
 ): Promise<InfraccionesResponse> {
   return request<InfraccionesResponse>(
-    `/infracciones${buildQuery(query)}`,
+    `/infracciones${buildQuery(normalizeInfraccionesQuery(query))}`,
     {},
     token,
   );
