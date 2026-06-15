@@ -51,6 +51,15 @@ export interface NormalizedInfraccionesExcelRow {
   issues: RowIssue[];
 }
 
+const DEFAULT_NOMBRE = 'SIN NOMBRE';
+const DEFAULT_APELLIDO_PATERNO = 'SIN APELLIDO';
+const DEFAULT_SEXO = 'NO ESPECIFICADO';
+const DEFAULT_SERVICIO = 'NO ESPECIFICADO';
+const DEFAULT_CLASE = 'NO ESPECIFICADA';
+const DEFAULT_MARCA = 'NO ESPECIFICADA';
+const DEFAULT_LINEA = 'NO ESPECIFICADA';
+const DEFAULT_MUNICIPIO = 'SIN INFORMACION';
+
 function removeDiacritics(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
@@ -295,6 +304,27 @@ function pushIssue(
   issues.push({ tipo, campo, valor, mensaje });
 }
 
+function valueOrDefault(
+  issues: RowIssue[],
+  campo: string,
+  value: string | null,
+  fallback: string,
+): string {
+  if (value) {
+    return value;
+  }
+
+  pushIssue(
+    issues,
+    RowIssueType.ADVERTENCIA,
+    campo,
+    null,
+    `La celda esta vacia; se usara "${fallback}" para permitir la importacion historica.`,
+  );
+
+  return fallback;
+}
+
 export function mapInfraccionesExcelRow(
   row: ParsedInfraccionesExcelRow,
   expectedYear: number,
@@ -334,6 +364,55 @@ export function mapInfraccionesExcelRow(
     .map((index) => normalizeMotivoKey(getCellValue(row.values, index)))
     .filter((value): value is string => Boolean(value));
 
+  const apellidoPaterno = valueOrDefault(
+    issues,
+    'apellidoPaterno',
+    normalizeCatalogText(getCellValue(row.values, 5)),
+    DEFAULT_APELLIDO_PATERNO,
+  );
+  const nombres = valueOrDefault(
+    issues,
+    'nombres',
+    normalizeCatalogText(getCellValue(row.values, 7)),
+    DEFAULT_NOMBRE,
+  );
+  const sexo = valueOrDefault(
+    issues,
+    'sexo',
+    normalizeSexoText(getCellValue(row.values, 8)),
+    DEFAULT_SEXO,
+  );
+  const servicio = valueOrDefault(
+    issues,
+    'servicio',
+    normalizeServicioText(getCellValue(row.values, 10)),
+    DEFAULT_SERVICIO,
+  );
+  const clase = valueOrDefault(
+    issues,
+    'clase',
+    normalizeClaseVehiculoText(getCellValue(row.values, 11)),
+    DEFAULT_CLASE,
+  );
+  const tipo = valueOrDefault(
+    issues,
+    'tipo',
+    normalizeCatalogText(getCellValue(row.values, 12)),
+    DEFAULT_LINEA,
+  );
+  const marca = valueOrDefault(
+    issues,
+    'marca',
+    normalizeCatalogText(getCellValue(row.values, 13)),
+    DEFAULT_MARCA,
+  );
+  const municipio = valueOrDefault(
+    issues,
+    'municipio',
+    normalizeCatalogText(getCellValue(row.values, 20)),
+    DEFAULT_MUNICIPIO,
+  );
+
   return {
     numeroFila: row.numeroFila,
     rawRow: row.rawRow,
@@ -348,15 +427,15 @@ export function mapInfraccionesExcelRow(
     anio: Number.isFinite(Number(getCellValue(row.values, 4)))
       ? Number(getCellValue(row.values, 4))
       : null,
-    apellidoPaterno: normalizeCatalogText(getCellValue(row.values, 5)),
+    apellidoPaterno,
     apellidoMaterno: normalizeCatalogText(getCellValue(row.values, 6)),
-    nombres: normalizeCatalogText(getCellValue(row.values, 7)),
-    sexo: normalizeSexoText(getCellValue(row.values, 8)),
+    nombres,
+    sexo,
     licencia: normalizeCatalogText(getCellValue(row.values, 9)),
-    servicio: normalizeServicioText(getCellValue(row.values, 10)),
-    clase: normalizeClaseVehiculoText(getCellValue(row.values, 11)),
-    tipo: normalizeCatalogText(getCellValue(row.values, 12)),
-    marca: normalizeCatalogText(getCellValue(row.values, 13)),
+    servicio,
+    clase,
+    tipo,
+    marca,
     modelo: Number.isFinite(Number(getCellValue(row.values, 14)))
       ? Number(getCellValue(row.values, 14))
       : null,
@@ -365,7 +444,7 @@ export function mapInfraccionesExcelRow(
     estado: normalizeCatalogText(getCellValue(row.values, 17)),
     serie: normalizeCatalogText(getCellValue(row.values, 18)),
     motor: normalizeCatalogText(getCellValue(row.values, 19)),
-    municipio: normalizeCatalogText(getCellValue(row.values, 20)),
+    municipio,
     colonia: normalizeCatalogText(getCellValue(row.values, 21)),
     calle: normalizeCatalogText(getCellValue(row.values, 22)),
     hora: hora.hora,
