@@ -93,6 +93,10 @@ Puerto local:
 - El modelo vehicular ya está modelado.
 - El nucleo de captura inicia con `infractor` e `infracciones`.
 - Los motivos se conectan a las infracciones mediante `infraccion_motivo`.
+- Deuda tecnica actual: `motivo` solo persiste `nombre_motivo`. El campo
+  `descripcionMotivo` existe en el DTO y en la UI, pero no existe columna en la
+  entidad ni en la tabla. No inventar un workaround silencioso hasta agregar la
+  columna o documentar el cambio de modelo.
 - La entrada a encierro se modela con `retencion_vehiculo`.
 - Los pagos se modelan con `pago_infraccion`.
 - Las liberaciones se modelan con `liberacion_vehiculo`.
