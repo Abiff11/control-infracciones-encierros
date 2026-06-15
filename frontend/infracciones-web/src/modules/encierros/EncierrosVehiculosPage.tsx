@@ -103,12 +103,6 @@ const DEFAULT_FILTERS: FiltersForm = {
   sortOrder: 'DESC',
 };
 
-const BOOLEAN_OPTIONS = [
-  { value: '', label: 'Todos' },
-  { value: 'true', label: 'Sí' },
-  { value: 'false', label: 'No' },
-];
-
 function createIdleState<T>(): LoadState<T> {
   return {
     status: 'idle',
@@ -415,7 +409,7 @@ function EncierrosVehiculosPage({
           <div className="panel-header">
             <div>
               <p className="section-label">Filtros</p>
-              <h2>Busqueda por encierro</h2>
+              <h2>Busqueda operativa</h2>
             </div>
             <div className="button-row">
               <Button type="button" variant="secondary" onClick={resetFilters}>
@@ -447,34 +441,22 @@ function EncierrosVehiculosPage({
           </div>
 
           <div className="form-grid form-grid-3">
-            <Field htmlFor="encierros-encierro" label="Encierro">
-              <SelectField
-                id="encierros-encierro"
-                value={draftFilters.idEncierro}
-                onChange={(event) => updateDraftField('idEncierro', event.target.value)}
-              >
-                <option value="">Todos</option>
-                {(catalogs?.encierros ?? []).map((encierro) => (
-                  <option key={encierro.idEncierro} value={encierro.idEncierro}>
-                    {encierro.nombreEncierro}
-                  </option>
-                ))}
-              </SelectField>
+            <Field htmlFor="encierros-fecha-ingreso-desde" label="Ingreso desde">
+              <TextInput
+                id="encierros-fecha-ingreso-desde"
+                type="date"
+                value={draftFilters.fechaIngresoDesde}
+                onChange={(event) => updateDraftField('fechaIngresoDesde', event.target.value)}
+              />
             </Field>
 
-            <Field htmlFor="encierros-region" label="Region">
-              <SelectField
-                id="encierros-region"
-                value={draftFilters.idRegion}
-                onChange={(event) => updateDraftField('idRegion', event.target.value)}
-              >
-                <option value="">Todas</option>
-                {(catalogs?.regiones ?? []).map((region) => (
-                  <option key={region.idRegion} value={region.idRegion}>
-                    {region.nombreRegion}
-                  </option>
-                ))}
-              </SelectField>
+            <Field htmlFor="encierros-fecha-ingreso-hasta" label="Ingreso hasta">
+              <TextInput
+                id="encierros-fecha-ingreso-hasta"
+                type="date"
+                value={draftFilters.fechaIngresoHasta}
+                onChange={(event) => updateDraftField('fechaIngresoHasta', event.target.value)}
+              />
             </Field>
 
             <Field htmlFor="encierros-delegacion" label="Delegacion">
@@ -494,24 +476,32 @@ function EncierrosVehiculosPage({
           </div>
 
           <div className="form-grid form-grid-3">
-            <Field htmlFor="encierros-anio" label="Año">
+            <Field htmlFor="encierros-placas" label="Placas">
               <TextInput
-                id="encierros-anio"
-                type="number"
-                min={1900}
-                value={draftFilters.anio}
-                onChange={(event) => updateDraftField('anio', event.target.value)}
+                id="encierros-placas"
+                value={draftFilters.placas}
+                onChange={(event) => updateDraftField('placas', event.target.value)}
               />
             </Field>
 
-            <Field htmlFor="encierros-folio" label="Folio infraccion">
+            <Field htmlFor="encierros-infractor" label="Nombre infractor">
               <TextInput
-                id="encierros-folio"
-                value={draftFilters.folioInfraccion}
-                onChange={(event) => updateDraftField('folioInfraccion', event.target.value)}
+                id="encierros-infractor"
+                value={draftFilters.nombreInfractor}
+                onChange={(event) => updateDraftField('nombreInfractor', event.target.value)}
               />
             </Field>
 
+            <Field htmlFor="encierros-licencia" label="Licencia">
+              <TextInput
+                id="encierros-licencia"
+                value={draftFilters.licencia}
+                onChange={(event) => updateDraftField('licencia', event.target.value)}
+              />
+            </Field>
+          </div>
+
+          <div className="form-grid form-grid-3">
             <Field htmlFor="encierros-estado" label="Estado operativo">
               <SelectField
                 id="encierros-estado"
@@ -530,187 +520,20 @@ function EncierrosVehiculosPage({
                 <option value="VEHICULO_ENTREGADO">VEHICULO_ENTREGADO</option>
               </SelectField>
             </Field>
-          </div>
 
-          <div className="form-grid form-grid-3">
-            <Field htmlFor="encierros-placas" label="Placas">
-              <TextInput
-                id="encierros-placas"
-                value={draftFilters.placas}
-                onChange={(event) => updateDraftField('placas', event.target.value)}
-              />
-            </Field>
-
-            <Field htmlFor="encierros-serie" label="Serie">
-              <TextInput
-                id="encierros-serie"
-                value={draftFilters.serie}
-                onChange={(event) => updateDraftField('serie', event.target.value)}
-              />
-            </Field>
-
-            <Field htmlFor="encierros-motor" label="Motor">
-              <TextInput
-                id="encierros-motor"
-                value={draftFilters.motor}
-                onChange={(event) => updateDraftField('motor', event.target.value)}
-              />
-            </Field>
-          </div>
-
-          <div className="form-grid form-grid-3">
-            <Field htmlFor="encierros-infractor" label="Nombre infractor">
-              <TextInput
-                id="encierros-infractor"
-                value={draftFilters.nombreInfractor}
-                onChange={(event) => updateDraftField('nombreInfractor', event.target.value)}
-              />
-            </Field>
-
-            <Field htmlFor="encierros-licencia" label="Licencia">
-              <TextInput
-                id="encierros-licencia"
-                value={draftFilters.licencia}
-                onChange={(event) => updateDraftField('licencia', event.target.value)}
-              />
-            </Field>
-
-            <Field htmlFor="encierros-sort" label="Orden">
-              <div className="form-grid form-grid-2">
-                <SelectField
-                  id="encierros-sort"
-                  value={draftFilters.sortBy}
-                  onChange={(event) => updateDraftField('sortBy', event.target.value)}
-                >
-                  <option value="fechaIngreso">Fecha ingreso</option>
-                  <option value="fechaInfraccion">Fecha infraccion</option>
-                  <option value="folioInfraccion">Folio</option>
-                  <option value="estadoOperativo">Estado operativo</option>
-                </SelectField>
-                <SelectField
-                  id="encierros-sort-order"
-                  value={draftFilters.sortOrder}
-                  onChange={(event) =>
-                    updateDraftField('sortOrder', event.target.value as 'ASC' | 'DESC')
-                  }
-                >
-                  <option value="DESC">DESC</option>
-                  <option value="ASC">ASC</option>
-                </SelectField>
-              </div>
-            </Field>
-          </div>
-
-          <div className="form-grid form-grid-4">
-            <Field htmlFor="encierros-fecha-ingreso-desde" label="Ingreso desde">
-              <TextInput
-                id="encierros-fecha-ingreso-desde"
-                type="date"
-                value={draftFilters.fechaIngresoDesde}
-                onChange={(event) =>
-                  updateDraftField('fechaIngresoDesde', event.target.value)
-                }
-              />
-            </Field>
-
-            <Field htmlFor="encierros-fecha-ingreso-hasta" label="Ingreso hasta">
-              <TextInput
-                id="encierros-fecha-ingreso-hasta"
-                type="date"
-                value={draftFilters.fechaIngresoHasta}
-                onChange={(event) =>
-                  updateDraftField('fechaIngresoHasta', event.target.value)
-                }
-              />
-            </Field>
-
-            <Field htmlFor="encierros-fecha-infraccion-desde" label="Infraccion desde">
-              <TextInput
-                id="encierros-fecha-infraccion-desde"
-                type="date"
-                value={draftFilters.fechaInfraccionDesde}
-                onChange={(event) =>
-                  updateDraftField('fechaInfraccionDesde', event.target.value)
-                }
-              />
-            </Field>
-
-            <Field htmlFor="encierros-fecha-infraccion-hasta" label="Infraccion hasta">
-              <TextInput
-                id="encierros-fecha-infraccion-hasta"
-                type="date"
-                value={draftFilters.fechaInfraccionHasta}
-                onChange={(event) =>
-                  updateDraftField('fechaInfraccionHasta', event.target.value)
-                }
-              />
-            </Field>
-          </div>
-
-          <div className="form-grid form-grid-4">
-            <Field htmlFor="encierros-pago" label="Con pago">
+            <Field htmlFor="encierros-encierro" label="Encierro">
               <SelectField
-                id="encierros-pago"
-                value={draftFilters.conPago}
-                onChange={(event) => updateDraftField('conPago', event.target.value)}
+                id="encierros-encierro"
+                value={draftFilters.idEncierro}
+                onChange={(event) => updateDraftField('idEncierro', event.target.value)}
               >
-                {BOOLEAN_OPTIONS.map((option) => (
-                  <option key={option.label} value={option.value}>
-                    {option.label}
+                <option value="">Todos</option>
+                {(catalogs?.encierros ?? []).map((encierro) => (
+                  <option key={encierro.idEncierro} value={encierro.idEncierro}>
+                    {encierro.nombreEncierro}
                   </option>
                 ))}
               </SelectField>
-            </Field>
-
-            <Field htmlFor="encierros-liberacion" label="Con liberacion">
-              <SelectField
-                id="encierros-liberacion"
-                value={draftFilters.conLiberacion}
-                onChange={(event) => updateDraftField('conLiberacion', event.target.value)}
-              >
-                {BOOLEAN_OPTIONS.map((option) => (
-                  <option key={option.label} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </SelectField>
-            </Field>
-
-            <Field htmlFor="encierros-salida" label="Con salida">
-              <SelectField
-                id="encierros-salida"
-                value={draftFilters.conSalida}
-                onChange={(event) => updateDraftField('conSalida', event.target.value)}
-              >
-                {BOOLEAN_OPTIONS.map((option) => (
-                  <option key={option.label} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </SelectField>
-            </Field>
-
-            <Field htmlFor="encierros-limit" label="Limite">
-              <TextInput
-                id="encierros-limit"
-                type="number"
-                min={1}
-                max={100}
-                value={draftFilters.limit}
-                onChange={(event) => updateDraftField('limit', event.target.value)}
-              />
-            </Field>
-          </div>
-
-          <div className="form-grid form-grid-3">
-            <Field htmlFor="encierros-page" label="Pagina">
-              <TextInput
-                id="encierros-page"
-                type="number"
-                min={1}
-                value={draftFilters.page}
-                onChange={(event) => updateDraftField('page', event.target.value)}
-              />
             </Field>
           </div>
         </form>
