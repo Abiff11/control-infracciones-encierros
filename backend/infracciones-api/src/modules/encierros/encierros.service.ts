@@ -7,7 +7,6 @@ import { ACCION_MOVIMIENTO } from '../infracciones/constants/accion-movimiento.c
 import { ESTATUS_INFRACCION } from '../infracciones/constants/estatus-infraccion.constants';
 import { ESTADO_OPERATIVO_VEHICULO } from '../infracciones/constants/estado-operativo-vehiculo.constants';
 import { InfraccionesService } from '../infracciones/infracciones.service';
-import { Infraccion } from '../infracciones/entities/infraccion.entity';
 import { LiberacionVehiculo } from '../liberaciones/entities/liberacion-vehiculo.entity';
 import { PagoInfraccion } from '../pagos/entities/pago-infraccion.entity';
 import { Usuario } from '../usuarios/entities/usuario.entity';
@@ -57,6 +56,38 @@ interface VehiculosEnEncierroResumenState {
   totalLiberadosPendienteSalida: number;
   totalEntregados: number;
   porEncierro: Map<string, VehiculosEnEncierroResumenBucket>;
+}
+
+interface VehiculoEnEncierroRow {
+  idInfraccion: string | number;
+  idRetencionVehiculo: string | number;
+  folioInfraccion: string | null;
+  fechaInfraccion: string | Date | null;
+  horaInfraccion: string | null;
+  infractorNombre: string | null;
+  infractorApellidoPaterno: string | null;
+  infractorApellidoMaterno: string | null;
+  licencia: string | null;
+  placas: string | null;
+  marca: string | null;
+  linea: string | null;
+  clase: string | null;
+  color: string | null;
+  serie: string | null;
+  motor: string | null;
+  region: string | null;
+  delegacion: string | null;
+  encierro: string | null;
+  fechaIngreso: string | Date | null;
+  folioResguardo: string | null;
+  estadoIngreso: string | null;
+  tienePago: boolean | number | string | null;
+  fechaUltimoPago: string | Date | null;
+  montoPagado: string | number | null;
+  tieneLiberacion: boolean | number | string | null;
+  fechaLiberacion: string | Date | null;
+  tieneSalida: boolean | number | string | null;
+  fechaSalida: string | Date | null;
 }
 
 @Injectable()
@@ -121,7 +152,7 @@ export class EncierrosService {
         .addOrderBy('retencion.idRetencionVehiculo', 'DESC')
         .skip((page - 1) * limit)
         .take(limit)
-        .getRawMany(),
+        .getRawMany<VehiculoEnEncierroRow>(),
       baseQuery.clone().getCount(),
     ]);
 
@@ -138,7 +169,10 @@ export class EncierrosService {
   async getVehiculosEnEncierroResumen(
     query: VehiculosEncierroQueryDto,
   ): Promise<VehiculosEncierroResumenDto> {
-    const rows = await this.buildVehiculosEnEncierroQuery(query).getRawMany();
+    const rows =
+      await this.buildVehiculosEnEncierroQuery(
+        query,
+      ).getRawMany<VehiculoEnEncierroRow>();
     const resumen = this.createEmptyResumenState();
 
     for (const row of rows) {
@@ -149,7 +183,8 @@ export class EncierrosService {
         hasSalida: this.toBoolean(row.tieneSalida),
       });
       const encierro = row.encierro ?? null;
-      const isEntregado = estado === ESTADO_OPERATIVO_VEHICULO.VEHICULO_ENTREGADO;
+      const isEntregado =
+        estado === ESTADO_OPERATIVO_VEHICULO.VEHICULO_ENTREGADO;
       const bucket = this.ensureResumenBucket(resumen, encierro);
 
       if (isEntregado) {
@@ -164,10 +199,14 @@ export class EncierrosService {
       if (estado === ESTADO_OPERATIVO_VEHICULO.EN_ENCIERRO_SIN_PAGO) {
         resumen.totalSinPago += 1;
         bucket.sinPago += 1;
-      } else if (estado === ESTADO_OPERATIVO_VEHICULO.PAGADO_PENDIENTE_LIBERACION) {
+      } else if (
+        estado === ESTADO_OPERATIVO_VEHICULO.PAGADO_PENDIENTE_LIBERACION
+      ) {
         resumen.totalPagadosPendienteLiberacion += 1;
         bucket.pagadosPendienteLiberacion += 1;
-      } else if (estado === ESTADO_OPERATIVO_VEHICULO.LIBERADO_PENDIENTE_SALIDA) {
+      } else if (
+        estado === ESTADO_OPERATIVO_VEHICULO.LIBERADO_PENDIENTE_SALIDA
+      ) {
         resumen.totalLiberadosPendienteSalida += 1;
         bucket.liberadosPendienteSalida += 1;
       }
@@ -339,7 +378,9 @@ export class EncierrosService {
           subQuery
             .select('salida.fecha_salida')
             .from(SalidaVehiculo, 'salida')
-            .where('salida.id_retencion_vehiculo = retencion.id_retencion_vehiculo')
+            .where(
+              'salida.id_retencion_vehiculo = retencion.id_retencion_vehiculo',
+            )
             .orderBy('salida.fecha_salida', 'DESC')
             .addOrderBy('salida.id_salida_vehiculo', 'DESC')
             .limit(1),
@@ -374,9 +415,12 @@ export class EncierrosService {
     }
 
     if (query.anio) {
-      builder.andWhere('EXTRACT(YEAR FROM infraccion.fechaInfraccion) = :anio', {
-        anio: query.anio,
-      });
+      builder.andWhere(
+        'EXTRACT(YEAR FROM infraccion.fechaInfraccion) = :anio',
+        {
+          anio: query.anio,
+        },
+      );
     }
 
     const folioInfraccion = query.folioInfraccion?.trim();
@@ -425,27 +469,39 @@ export class EncierrosService {
     }
 
     if (query.fechaIngresoDesde) {
-      builder.andWhere('retencion.fechaIngreso >= CAST(:fechaIngresoDesde AS timestamp)', {
-        fechaIngresoDesde: query.fechaIngresoDesde,
-      });
+      builder.andWhere(
+        'retencion.fechaIngreso >= CAST(:fechaIngresoDesde AS timestamp)',
+        {
+          fechaIngresoDesde: query.fechaIngresoDesde,
+        },
+      );
     }
 
     if (query.fechaIngresoHasta) {
-      builder.andWhere('retencion.fechaIngreso <= CAST(:fechaIngresoHasta AS timestamp)', {
-        fechaIngresoHasta: query.fechaIngresoHasta,
-      });
+      builder.andWhere(
+        'retencion.fechaIngreso <= CAST(:fechaIngresoHasta AS timestamp)',
+        {
+          fechaIngresoHasta: query.fechaIngresoHasta,
+        },
+      );
     }
 
     if (query.fechaInfraccionDesde) {
-      builder.andWhere('infraccion.fechaInfraccion >= CAST(:fechaInfraccionDesde AS date)', {
-        fechaInfraccionDesde: query.fechaInfraccionDesde,
-      });
+      builder.andWhere(
+        'infraccion.fechaInfraccion >= CAST(:fechaInfraccionDesde AS date)',
+        {
+          fechaInfraccionDesde: query.fechaInfraccionDesde,
+        },
+      );
     }
 
     if (query.fechaInfraccionHasta) {
-      builder.andWhere('infraccion.fechaInfraccion <= CAST(:fechaInfraccionHasta AS date)', {
-        fechaInfraccionHasta: query.fechaInfraccionHasta,
-      });
+      builder.andWhere(
+        'infraccion.fechaInfraccion <= CAST(:fechaInfraccionHasta AS date)',
+        {
+          fechaInfraccionHasta: query.fechaInfraccionHasta,
+        },
+      );
     }
 
     if (query.conPago !== undefined) {
@@ -603,7 +659,7 @@ export class EncierrosService {
     return sortOrder?.trim().toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
   }
 
-  private mapVehiculoEnEncierroRow(row: Record<string, unknown>) {
+  private mapVehiculoEnEncierroRow(row: VehiculoEnEncierroRow) {
     const hasPago = this.toBoolean(row.tienePago);
     const hasLiberacion = this.toBoolean(row.tieneLiberacion);
     const hasSalida = this.toBoolean(row.tieneSalida);
@@ -750,7 +806,19 @@ export class EncierrosService {
   }
 
   private toStringValue(value: unknown): string {
-    return typeof value === 'string' ? value : String(value ?? '');
+    if (typeof value === 'string') {
+      return value;
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+
+    return '';
   }
 
   private toNullableString(value: unknown): string | null {
@@ -758,7 +826,19 @@ export class EncierrosService {
       return null;
     }
 
-    return String(value);
+    if (
+      typeof value === 'string' ||
+      typeof value === 'number' ||
+      typeof value === 'boolean'
+    ) {
+      return String(value);
+    }
+
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+
+    return null;
   }
 
   private toIsoString(value: unknown): string | null {
@@ -770,12 +850,31 @@ export class EncierrosService {
       return value.toISOString();
     }
 
-    const parsed = new Date(String(value));
+    if (
+      typeof value !== 'string' &&
+      typeof value !== 'number' &&
+      !(value instanceof Date)
+    ) {
+      return null;
+    }
+
+    const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
   }
 
-  private buildNombreCompleto(row: Record<string, unknown>): string {
-    return [row.infractorNombre, row.infractorApellidoPaterno, row.infractorApellidoMaterno]
+  private buildNombreCompleto(
+    row: Pick<
+      VehiculoEnEncierroRow,
+      | 'infractorNombre'
+      | 'infractorApellidoPaterno'
+      | 'infractorApellidoMaterno'
+    >,
+  ): string {
+    return [
+      row.infractorNombre,
+      row.infractorApellidoPaterno,
+      row.infractorApellidoMaterno,
+    ]
       .map((value) => (typeof value === 'string' ? value.trim() : ''))
       .filter(Boolean)
       .join(' ');
