@@ -5,10 +5,12 @@ import type {
 
 interface InfraccionesListPageProps {
   error: string | null;
+  anio: string;
   folioInfraccion: string;
   items: InfraccionListItem[];
   loading: boolean;
   meta: PaginationMeta | null;
+  onAnioChange: (value: string) => void;
   onFolioInfraccionChange: (value: string) => void;
   onNavigateCreate: () => void;
   onRefresh: () => void;
@@ -26,10 +28,12 @@ function getInfractorLabel(item: InfraccionListItem): string {
 
 function InfraccionesListPage({
   error,
+  anio,
   folioInfraccion,
   items,
   loading,
   meta,
+  onAnioChange,
   onFolioInfraccionChange,
   onNavigateCreate,
   onRefresh,
@@ -55,18 +59,28 @@ function InfraccionesListPage({
         <div className="panel-header">
           <div>
             <p className="section-label">Filtro simple</p>
-            <h2>Buscar por folio</h2>
+            <h2>Buscar por folio y año</h2>
           </div>
         </div>
 
-        <div className="search-row">
+        <div className="form-grid form-grid-2">
+          <input
+            type="number"
+            min="1900"
+            value={anio}
+            onChange={(event) => onAnioChange(event.target.value)}
+            placeholder="2025"
+          />
+
           <input
             type="text"
             value={folioInfraccion}
             onChange={(event) => onFolioInfraccionChange(event.target.value)}
             placeholder="INF-2026-0001"
           />
+        </div>
 
+        <div className="button-row">
           <button className="button-secondary" type="button" onClick={onRefresh} disabled={loading}>
             {loading ? 'Actualizando...' : 'Refrescar'}
           </button>

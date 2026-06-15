@@ -24,6 +24,7 @@ import PagoCreatePage from '../pages/PagoCreatePage';
 import FlujoOperativoPage from '../pages/FlujoOperativoPage';
 import RetencionCreatePage from '../pages/RetencionCreatePage';
 import SalidaCreatePage from '../pages/SalidaCreatePage';
+import ImportacionesPage from '../pages/ImportacionesPage';
 import type { PageKey } from './app.types';
 import { NAV_ITEMS } from './navigation';
 import type {
@@ -212,10 +213,20 @@ function App() {
         return (
           <InfraccionesListPage
             error={infraccionesState.error}
+            anio={infraccionesQuery.anio ? String(infraccionesQuery.anio) : ''}
             folioInfraccion={infraccionesQuery.folioInfraccion ?? ''}
             items={infraccionesState.data?.data ?? []}
             loading={infraccionesState.status === 'loading'}
             meta={infraccionesState.data?.meta ?? null}
+            onAnioChange={(value) =>
+              setInfraccionesQuery((current) => ({
+                ...current,
+                anio:
+                  value.trim() && Number.isFinite(Number(value))
+                    ? Number(value)
+                    : undefined,
+              }))
+            }
             onFolioInfraccionChange={(value) =>
               setInfraccionesQuery((current) => ({
                 ...current,
@@ -272,6 +283,14 @@ function App() {
             loading={catalogsLoading}
             onRefreshCatalogs={() => void refreshCatalogs()}
             token={activeSession.token}
+          />
+        );
+      case 'importaciones':
+        return (
+          <ImportacionesPage
+            catalogs={catalogs}
+            token={activeSession.token}
+            onImportCompleted={() => void refreshInfracciones()}
           />
         );
       case 'flujo-operativo':

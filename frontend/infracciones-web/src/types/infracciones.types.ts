@@ -100,6 +100,7 @@ export interface InfraccionesQuery {
   idDelegacion?: number;
   placas?: string;
   nombreInfractor?: string;
+  anio?: number;
   page?: number;
   limit?: number;
 }

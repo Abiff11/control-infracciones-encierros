@@ -7,4 +7,5 @@ export type PageKey =
   | 'retencion'
   | 'salida'
   | 'flujo-operativo'
+  | 'importaciones'
   | 'catalogos';
