@@ -131,6 +131,9 @@ export class InfraccionesService {
     const estadoOperativoMap = await this.loadEstadoOperativoMap(
       data.map((item) => item.idInfraccion),
     );
+    const motivosMap = await this.loadMotivosMap(
+      data.map((item) => item.idInfraccion),
+    );
 
     return {
       data: data.map((item) => ({
@@ -171,6 +174,7 @@ export class InfraccionesService {
           nombreTipoProcedimiento:
             item.tipoProcedimiento.nombreTipoProcedimiento,
         },
+        motivos: motivosMap.get(item.idInfraccion) ?? [],
         estadoOperativoCalculado:
           estadoOperativoMap.get(item.idInfraccion) ??
           this.resolveEstadoOperativo({
@@ -1165,6 +1169,59 @@ export class InfraccionesService {
           hasSalida: hasSalida.has(idInfraccion),
         }),
       );
+    }
+
+    return result;
+  }
+
+  private async loadMotivosMap(
+    idInfracciones: number[],
+  ): Promise<
+    Map<
+      number,
+      Array<{
+        idMotivo: number;
+        nombreMotivo: string;
+        descripcionMotivo: string;
+      }>
+    >
+  > {
+    const result = new Map<
+      number,
+      Array<{
+        idMotivo: number;
+        nombreMotivo: string;
+        descripcionMotivo: string;
+      }>
+    >();
+
+    if (idInfracciones.length === 0) {
+      return result;
+    }
+
+    const rows = await this.infraccionMotivosRepository.find({
+      where: {
+        infraccion: {
+          idInfraccion: In(idInfracciones),
+        },
+      },
+      relations: {
+        infraccion: true,
+        motivo: true,
+      },
+      order: {
+        idInfraccionMotivo: 'ASC',
+      },
+    });
+
+    for (const row of rows) {
+      const items = result.get(row.infraccion.idInfraccion) ?? [];
+      items.push({
+        idMotivo: row.motivo.idMotivo,
+        nombreMotivo: row.motivo.nombreMotivo,
+        descripcionMotivo: row.motivo.descripcionMotivo,
+      });
+      result.set(row.infraccion.idInfraccion, items);
     }
 
     return result;
