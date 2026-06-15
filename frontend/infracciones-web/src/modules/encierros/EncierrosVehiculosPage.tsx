@@ -5,6 +5,7 @@ import { Card } from '../../components/ui/Card';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Field, TextInput } from '../../components/ui/Field';
 import { LoadingMessage } from '../../components/ui/LoadingMessage';
+import { PaginationControls } from '../../components/ui/PaginationControls';
 import { SelectField } from '../../components/ui/SelectField';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { getErrorMessage } from '../../services/api/apiClient';
@@ -177,11 +178,7 @@ function getVehicleLabel(item: VehiculoEncierroItem): string {
     (value): value is string => Boolean(value && value.trim()),
   );
 
-  if (parts.length === 0) {
-    return 'Sin informacion registrada';
-  }
-
-  return parts.join(' - ');
+  return parts.length > 0 ? parts.join(' - ') : 'Sin informacion registrada';
 }
 
 function getPagoLabel(item: VehiculoEncierroItem): string {
@@ -208,10 +205,6 @@ function getSalidaLabel(item: VehiculoEncierroItem): string {
   }
 
   return formatDateTime(item.salida.fechaSalida);
-}
-
-function getInfractorDisplay(item: VehiculoEncierroItem): string {
-  return getInfractorLabel(item);
 }
 
 function isActionVisible(item: VehiculoEncierroItem, action: 'pago' | 'liberacion' | 'salida'): boolean {
@@ -247,6 +240,9 @@ function EncierrosVehiculosPage({
   );
 
   const query = useMemo(() => buildQuery(activeFilters), [activeFilters]);
+  const items = listState.data?.data ?? [];
+  const meta = listState.data?.meta ?? null;
+  const summary = summaryState.data;
 
   useEffect(() => {
     let mounted = true;
@@ -364,12 +360,30 @@ function EncierrosVehiculosPage({
 
   function applyFilters(event?: FormEvent<HTMLFormElement>): void {
     event?.preventDefault();
-    setActiveFilters(draftFilters);
+    const nextFilters = {
+      ...draftFilters,
+      page: draftFilters.page || '1',
+      limit: draftFilters.limit || '10',
+    };
+    setDraftFilters(nextFilters);
+    setActiveFilters(nextFilters);
   }
 
   function resetFilters(): void {
     setDraftFilters(DEFAULT_FILTERS);
     setActiveFilters(DEFAULT_FILTERS);
+  }
+
+  function changePage(page: number): void {
+    const nextPage = String(page);
+    setDraftFilters((current) => ({
+      ...current,
+      page: nextPage,
+    }));
+    setActiveFilters((current) => ({
+      ...current,
+      page: nextPage,
+    }));
   }
 
   function openDetail(idInfraccion: number): void {
@@ -380,10 +394,6 @@ function EncierrosVehiculosPage({
     setSelectedId(null);
     setDetailState(createIdleState());
   }
-
-  const items = listState.data?.data ?? [];
-  const meta = listState.data?.meta ?? null;
-  const summary = summaryState.data;
 
   return (
     <section className="page-stack">
@@ -764,7 +774,7 @@ function EncierrosVehiculosPage({
                       </td>
                       <td>
                         <div className="table-cell-stack">
-                          <strong>{getInfractorDisplay(item)}</strong>
+                          <strong>{getInfractorLabel(item)}</strong>
                           <span>{formatEmptyValue(item.licencia)}</span>
                         </div>
                       </td>
@@ -851,6 +861,15 @@ function EncierrosVehiculosPage({
               </tbody>
             </table>
           </div>
+
+          {meta ? (
+            <PaginationControls
+              page={meta.page}
+              limit={meta.limit}
+              total={meta.total}
+              onPageChange={changePage}
+            />
+          ) : null}
         </div>
       </Card>
 
