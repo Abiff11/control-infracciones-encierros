@@ -75,7 +75,9 @@ function App() {
   );
   const [pagoInitialId, setPagoInitialId] = useState<number | null>(null);
   const [liberacionInitialId, setLiberacionInitialId] = useState<number | null>(null);
+  const [retencionInitialId, setRetencionInitialId] = useState<number | null>(null);
   const [salidaInitialId, setSalidaInitialId] = useState<number | null>(null);
+  const [operationReturnPage, setOperationReturnPage] = useState<PageKey>('infracciones');
 
   useEffect(() => {
     if (!session?.token) {
@@ -133,6 +135,34 @@ function App() {
     setCurrentPage(page);
   }
 
+  function completeOperation(): void {
+    setCurrentPage(operationReturnPage);
+  }
+
+  function openRetencionFrom(page: PageKey, idInfraccion: number | null): void {
+    setOperationReturnPage(page);
+    setRetencionInitialId(idInfraccion);
+    setCurrentPage('retencion');
+  }
+
+  function openPagoFrom(page: PageKey, idInfraccion: number): void {
+    setOperationReturnPage(page);
+    setPagoInitialId(idInfraccion);
+    setCurrentPage('pago');
+  }
+
+  function openLiberacionFrom(page: PageKey, idInfraccion: number): void {
+    setOperationReturnPage(page);
+    setLiberacionInitialId(idInfraccion);
+    setCurrentPage('liberacion');
+  }
+
+  function openSalidaFrom(page: PageKey, idRetencionVehiculo: number): void {
+    setOperationReturnPage(page);
+    setSalidaInitialId(idRetencionVehiculo);
+    setCurrentPage('salida');
+  }
+
   async function handleCreateInfraccion(payload: CreateInfraccionCompletaPayload) {
     if (!session?.token) {
       throw new Error('Sesion no valida');
@@ -151,7 +181,6 @@ function App() {
 
     const response = await runProtectedRequest((token) => createPago(token, payload));
     bumpRefresh();
-    setCurrentPage('encierros-vehiculos');
     return response;
   }
 
@@ -162,7 +191,6 @@ function App() {
 
     const response = await runProtectedRequest((token) => createLiberacion(token, payload));
     bumpRefresh();
-    setCurrentPage('encierros-vehiculos');
     return response;
   }
 
@@ -173,7 +201,6 @@ function App() {
 
     const response = await runProtectedRequest((token) => createRetencion(token, payload));
     bumpRefresh();
-    setCurrentPage('encierros-vehiculos');
     return response;
   }
 
@@ -184,7 +211,6 @@ function App() {
 
     const response = await runProtectedRequest((token) => createSalida(token, payload));
     bumpRefresh();
-    setCurrentPage('encierros-vehiculos');
     return response;
   }
 
@@ -269,6 +295,12 @@ function App() {
           refreshKey={refreshKey}
           token={session.token}
           onNavigateCreate={() => setCurrentPage('nueva-infraccion')}
+          onNavigateRetencion={(idInfraccion) => openRetencionFrom('infracciones', idInfraccion)}
+          onNavigatePago={(idInfraccion) => openPagoFrom('infracciones', idInfraccion)}
+          onNavigateLiberacion={(idInfraccion) => openLiberacionFrom('infracciones', idInfraccion)}
+          onNavigateSalida={(idRetencionVehiculo) =>
+            openSalidaFrom('infracciones', idRetencionVehiculo)
+          }
         />
       ) : null}
 
@@ -284,7 +316,7 @@ function App() {
       {currentPage === 'pago' ? (
         <PagoCreatePage
           initialIdInfraccion={pagoInitialId}
-          onCompleted={() => setCurrentPage('encierros-vehiculos')}
+          onCompleted={completeOperation}
           onSubmit={handleRegistrarPago}
         />
       ) : null}
@@ -292,7 +324,7 @@ function App() {
       {currentPage === 'liberacion' ? (
         <LiberacionCreatePage
           initialIdInfraccion={liberacionInitialId}
-          onCompleted={() => setCurrentPage('encierros-vehiculos')}
+          onCompleted={completeOperation}
           onSubmit={handleGenerarLiberacion}
         />
       ) : null}
@@ -300,7 +332,8 @@ function App() {
       {currentPage === 'retencion' ? (
         <RetencionCreatePage
           catalogs={catalogs}
-          onCompleted={() => setCurrentPage('encierros-vehiculos')}
+          initialIdInfraccion={retencionInitialId}
+          onCompleted={completeOperation}
           onSubmit={handleRegistrarRetencion}
         />
       ) : null}
@@ -308,7 +341,7 @@ function App() {
       {currentPage === 'salida' ? (
         <SalidaCreatePage
           initialIdRetencionVehiculo={salidaInitialId}
-          onCompleted={() => setCurrentPage('encierros-vehiculos')}
+          onCompleted={completeOperation}
           onSubmit={handleRegistrarSalida}
         />
       ) : null}
@@ -343,18 +376,13 @@ function App() {
           catalogs={catalogs}
           refreshKey={refreshKey}
           token={session.token}
-          onNavigatePago={(idInfraccion) => {
-            setPagoInitialId(idInfraccion);
-            setCurrentPage('pago');
-          }}
-          onNavigateLiberacion={(idInfraccion) => {
-            setLiberacionInitialId(idInfraccion);
-            setCurrentPage('liberacion');
-          }}
-          onNavigateSalida={(idRetencionVehiculo) => {
-            setSalidaInitialId(idRetencionVehiculo);
-            setCurrentPage('salida');
-          }}
+          onNavigatePago={(idInfraccion) => openPagoFrom('encierros-vehiculos', idInfraccion)}
+          onNavigateLiberacion={(idInfraccion) =>
+            openLiberacionFrom('encierros-vehiculos', idInfraccion)
+          }
+          onNavigateSalida={(idRetencionVehiculo) =>
+            openSalidaFrom('encierros-vehiculos', idRetencionVehiculo)
+          }
         />
       ) : null}
     </AppLayout>
