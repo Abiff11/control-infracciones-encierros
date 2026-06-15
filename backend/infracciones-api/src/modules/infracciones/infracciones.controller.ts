@@ -19,6 +19,7 @@ import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
 import { CreateInfraccionCompletaDto } from './dto/create-infraccion-completa.dto';
 import { FindInfraccionesQueryDto } from './dto/find-infracciones-query.dto';
 import { RegistrarMovimientoDto } from './dto/registrar-movimiento.dto';
+import { InfraccionesListService } from './infracciones-list.service';
 import { InfraccionesService } from './infracciones.service';
 
 @ApiTags('infracciones')
@@ -27,12 +28,15 @@ import { InfraccionesService } from './infracciones.service';
 @Roles(...READ_ROLES)
 @Controller('infracciones')
 export class InfraccionesController {
-  constructor(private readonly infraccionesService: InfraccionesService) {}
+  constructor(
+    private readonly infraccionesService: InfraccionesService,
+    private readonly infraccionesListService: InfraccionesListService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Listar infracciones con filtros y paginación' })
   findAll(@Query() query: FindInfraccionesQueryDto) {
-    return this.infraccionesService.findAll(query);
+    return this.infraccionesListService.findAll(query);
   }
 
   @Get('resumen/estatus')
