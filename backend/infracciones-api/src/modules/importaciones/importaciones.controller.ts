@@ -118,6 +118,20 @@ export class ImportacionesController {
     return this.reportesService.getResumenErrores(idImportacionInfracciones);
   }
 
+  @Get(':idImportacionInfracciones/lista-errores')
+  @ApiOperation({ summary: 'Obtener listado paginado de incidencias de importacion' })
+  getListaErrores(
+    @Param('idImportacionInfracciones', ParseIntPipe)
+    idImportacionInfracciones: number,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.reportesService.getErroresJson(idImportacionInfracciones, {
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
   @Get(':idImportacionInfracciones')
   @ApiOperation({ summary: 'Obtener detalle de una importacion' })
   findById(
