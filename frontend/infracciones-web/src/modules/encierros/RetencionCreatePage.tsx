@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 
 import { OperationResultCard } from '../../components/operation/OperationResultCard';
 import type { CatalogosBundle } from '../catalogos/catalogos.types';
@@ -23,40 +23,52 @@ function isFilled(value: string): boolean {
 
 interface RetencionCreatePageProps {
   catalogs: CatalogosBundle | null;
+  initialIdInfraccion?: number | null;
   onCompleted: () => void;
   onSubmit: (payload: RegistrarRetencionPayload) => Promise<unknown>;
 }
 
-const INITIAL_FORM = {
-  idInfraccion: '',
-  idEncierro: '',
-  fechaIngreso: getCurrentDateTimeLocal(),
-  recibidoPor: '',
-  folioResguardo: '',
-  observacionesIngreso: '',
-  estadoIngreso: '',
-};
+function createInitialForm(initialIdInfraccion?: number | null) {
+  return {
+    idInfraccion: initialIdInfraccion ? String(initialIdInfraccion) : '',
+    idEncierro: '',
+    fechaIngreso: getCurrentDateTimeLocal(),
+    recibidoPor: '',
+    folioResguardo: '',
+    observacionesIngreso: '',
+    estadoIngreso: '',
+  };
+}
+
+type RetencionFormState = ReturnType<typeof createInitialForm>;
 
 function RetencionCreatePage({
   catalogs,
+  initialIdInfraccion,
   onCompleted,
   onSubmit,
 }: RetencionCreatePageProps) {
-  const [form, setForm] = useState(INITIAL_FORM);
+  const [form, setForm] = useState<RetencionFormState>(() =>
+    createInitialForm(initialIdInfraccion),
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<unknown>(null);
 
-  function updateField(field: keyof typeof INITIAL_FORM, value: string) {
+  useEffect(() => {
+    setForm((current) => ({
+      ...current,
+      idInfraccion: initialIdInfraccion ? String(initialIdInfraccion) : current.idInfraccion,
+    }));
+  }, [initialIdInfraccion]);
+
+  function updateField(field: keyof RetencionFormState, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
     setError(null);
   }
 
   function resetForm() {
-    setForm({
-      ...INITIAL_FORM,
-      fechaIngreso: getCurrentDateTimeLocal(),
-    });
+    setForm(createInitialForm(initialIdInfraccion));
     setError(null);
     setResult(null);
   }
