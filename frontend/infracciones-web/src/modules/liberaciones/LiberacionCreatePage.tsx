@@ -23,37 +23,40 @@ function isFilled(value: string): boolean {
 interface LiberacionCreatePageProps {
   onCompleted: () => void;
   onSubmit: (payload: GenerarLiberacionPayload) => Promise<unknown>;
+  initialIdInfraccion?: number | null;
 }
 
-const INITIAL_FORM = {
-  idInfraccion: '',
-  idPagoInfraccion: '',
-  folioLiberacion: '',
-  liberadoPor: '',
-  nombreRecibeLiberacion: '',
-  fechaLiberacion: getCurrentDateTimeLocal(),
-  observacion: '',
-};
+function createInitialForm(initialIdInfraccion?: number | null) {
+  return {
+    idInfraccion: initialIdInfraccion ? String(initialIdInfraccion) : '',
+    idPagoInfraccion: '',
+    folioLiberacion: '',
+    liberadoPor: '',
+    nombreRecibeLiberacion: '',
+    fechaLiberacion: getCurrentDateTimeLocal(),
+    observacion: '',
+  };
+}
+
+type LiberacionFormState = ReturnType<typeof createInitialForm>;
 
 function LiberacionCreatePage({
+  initialIdInfraccion,
   onCompleted,
   onSubmit,
 }: LiberacionCreatePageProps) {
-  const [form, setForm] = useState(INITIAL_FORM);
+  const [form, setForm] = useState(() => createInitialForm(initialIdInfraccion));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<unknown>(null);
 
-  function updateField(field: keyof typeof INITIAL_FORM, value: string) {
+  function updateField(field: keyof LiberacionFormState, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
     setError(null);
   }
 
   function resetForm() {
-    setForm({
-      ...INITIAL_FORM,
-      fechaLiberacion: getCurrentDateTimeLocal(),
-    });
+    setForm(createInitialForm(initialIdInfraccion));
     setError(null);
     setResult(null);
   }

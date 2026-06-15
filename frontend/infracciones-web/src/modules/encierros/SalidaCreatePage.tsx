@@ -23,34 +23,42 @@ function isFilled(value: string): boolean {
 interface SalidaCreatePageProps {
   onCompleted: () => void;
   onSubmit: (payload: RegistrarSalidaPayload) => Promise<unknown>;
+  initialIdRetencionVehiculo?: number | null;
 }
 
-const INITIAL_FORM = {
-  idRetencionVehiculo: '',
-  idLiberacionVehiculo: '',
-  validadoPor: '',
-  personaRecibeVehiculo: '',
-  fechaSalida: getCurrentDateTimeLocal(),
-  observacionesSalida: '',
-  estadoSalida: '',
-};
+function createInitialForm(initialIdRetencionVehiculo?: number | null) {
+  return {
+    idRetencionVehiculo: initialIdRetencionVehiculo
+      ? String(initialIdRetencionVehiculo)
+      : '',
+    idLiberacionVehiculo: '',
+    validadoPor: '',
+    personaRecibeVehiculo: '',
+    fechaSalida: getCurrentDateTimeLocal(),
+    observacionesSalida: '',
+    estadoSalida: '',
+  };
+}
 
-function SalidaCreatePage({ onCompleted, onSubmit }: SalidaCreatePageProps) {
-  const [form, setForm] = useState(INITIAL_FORM);
+type SalidaFormState = ReturnType<typeof createInitialForm>;
+
+function SalidaCreatePage({
+  initialIdRetencionVehiculo,
+  onCompleted,
+  onSubmit,
+}: SalidaCreatePageProps) {
+  const [form, setForm] = useState(() => createInitialForm(initialIdRetencionVehiculo));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<unknown>(null);
 
-  function updateField(field: keyof typeof INITIAL_FORM, value: string) {
+  function updateField(field: keyof SalidaFormState, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
     setError(null);
   }
 
   function resetForm() {
-    setForm({
-      ...INITIAL_FORM,
-      fechaSalida: getCurrentDateTimeLocal(),
-    });
+    setForm(createInitialForm(initialIdRetencionVehiculo));
     setError(null);
     setResult(null);
   }

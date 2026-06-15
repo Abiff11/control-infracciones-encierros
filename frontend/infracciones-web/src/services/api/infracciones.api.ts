@@ -1,6 +1,7 @@
 import { buildQuery, request } from './apiClient';
 import type {
   CreateInfraccionCompletaPayload,
+  InfraccionDetalleResponse,
   InfraccionFlujoResponse,
   InfraccionesQuery,
   InfraccionesResponse,
@@ -23,6 +24,17 @@ export function getInfraccionFlujo(
 ): Promise<InfraccionFlujoResponse> {
   return request<InfraccionFlujoResponse>(
     `/infracciones/${idInfraccion}/flujo`,
+    {},
+    token,
+  );
+}
+
+export function getInfraccionDetalle(
+  token: string,
+  idInfraccion: number,
+): Promise<InfraccionDetalleResponse> {
+  return request<InfraccionDetalleResponse>(
+    `/infracciones/${idInfraccion}/detalle`,
     {},
     token,
   );

@@ -23,32 +23,38 @@ function isFilled(value: string): boolean {
 interface PagoCreatePageProps {
   onCompleted: () => void;
   onSubmit: (payload: RegistrarPagoPayload) => Promise<unknown>;
+  initialIdInfraccion?: number | null;
 }
 
-const INITIAL_FORM = {
-  idInfraccion: '',
-  folioPago: '',
-  monto: '',
-  fechaPago: getCurrentDateTimeLocal(),
-  observaciones: '',
-};
+function createInitialForm(initialIdInfraccion?: number | null) {
+  return {
+    idInfraccion: initialIdInfraccion ? String(initialIdInfraccion) : '',
+    folioPago: '',
+    monto: '',
+    fechaPago: getCurrentDateTimeLocal(),
+    observaciones: '',
+  };
+}
 
-function PagoCreatePage({ onCompleted, onSubmit }: PagoCreatePageProps) {
-  const [form, setForm] = useState(INITIAL_FORM);
+type PagoFormState = ReturnType<typeof createInitialForm>;
+
+function PagoCreatePage({
+  initialIdInfraccion,
+  onCompleted,
+  onSubmit,
+}: PagoCreatePageProps) {
+  const [form, setForm] = useState(() => createInitialForm(initialIdInfraccion));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<unknown>(null);
 
-  function updateField(field: keyof typeof INITIAL_FORM, value: string) {
+  function updateField(field: keyof PagoFormState, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
     setError(null);
   }
 
   function resetForm() {
-    setForm({
-      ...INITIAL_FORM,
-      fechaPago: getCurrentDateTimeLocal(),
-    });
+    setForm(createInitialForm(initialIdInfraccion));
     setError(null);
     setResult(null);
   }
