@@ -105,6 +105,13 @@ Puerto local:
 
 - Flujo anual 2025: [docs/importaciones/informe-anual-infracciones-2025.md](docs/importaciones/informe-anual-infracciones-2025.md)
 
+## B39
+
+- Detalle completo de infraccion desde listado y desde encierros.
+- Vista operativa de vehiculos en encierro con filtros, resumen y acciones.
+- Filtros ampliados por seccion para consulta y control operativo.
+- Importacion fiel de motivos multiples por infraccion.
+
 ## Despliegue
 
 - Revisa `docs/deployment/produccion-docker.md`.
