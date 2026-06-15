@@ -58,6 +58,15 @@ interface VehiculosEnEncierroResumenState {
   porEncierro: Map<string, VehiculosEnEncierroResumenBucket>;
 }
 
+interface VehiculosEnEncierroResumenRow {
+  encierro: string | null;
+  totalVehiculosRetenidos: string | number | null;
+  totalSinPago: string | number | null;
+  totalPagadosPendienteLiberacion: string | number | null;
+  totalLiberadosPendienteSalida: string | number | null;
+  totalEntregados: string | number | null;
+}
+
 interface VehiculoEnEncierroRow {
   idInfraccion: string | number;
   idRetencionVehiculo: string | number;
@@ -141,17 +150,17 @@ export class EncierrosService {
   ): Promise<VehiculosEncierroResponseDto> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
-    const baseQuery = this.buildVehiculosEnEncierroQuery(query);
+    const baseQuery = this.buildVehiculosEnEncierroBaseQuery(query);
     const sortOrder = this.resolveSortOrder(query.sortOrder);
     const sortBy = this.resolveSortColumn(query.sortBy);
+
     const [data, total] = await Promise.all([
-      baseQuery
-        .clone()
+      this.applyVehiculosEnEncierroSelects(baseQuery.clone())
         .orderBy(sortBy, sortOrder)
         .addOrderBy('retencion.fechaIngreso', 'DESC')
         .addOrderBy('retencion.idRetencionVehiculo', 'DESC')
-        .skip((page - 1) * limit)
-        .take(limit)
+        .offset((page - 1) * limit)
+        .limit(limit)
         .getRawMany<VehiculoEnEncierroRow>(),
       baseQuery.clone().getCount(),
     ]);
@@ -169,47 +178,56 @@ export class EncierrosService {
   async getVehiculosEnEncierroResumen(
     query: VehiculosEncierroQueryDto,
   ): Promise<VehiculosEncierroResumenDto> {
-    const rows =
-      await this.buildVehiculosEnEncierroQuery(
-        query,
-      ).getRawMany<VehiculoEnEncierroRow>();
+    const hasSalida = this.hasSalidaExpression();
+    const hasLiberacion = this.hasLiberacionExpression();
+    const hasPago = this.hasPagoExpression();
+
+    const rows = await this.buildVehiculosEnEncierroBaseQuery(query)
+      .select('encierro.nombreEncierro', 'encierro')
+      .addSelect(
+        `COUNT(*) FILTER (WHERE NOT ${hasSalida})`,
+        'totalVehiculosRetenidos',
+      )
+      .addSelect(
+        `COUNT(*) FILTER (WHERE NOT ${hasPago} AND NOT ${hasLiberacion} AND NOT ${hasSalida})`,
+        'totalSinPago',
+      )
+      .addSelect(
+        `COUNT(*) FILTER (WHERE ${hasPago} AND NOT ${hasLiberacion} AND NOT ${hasSalida})`,
+        'totalPagadosPendienteLiberacion',
+      )
+      .addSelect(
+        `COUNT(*) FILTER (WHERE ${hasLiberacion} AND NOT ${hasSalida})`,
+        'totalLiberadosPendienteSalida',
+      )
+      .addSelect(`COUNT(*) FILTER (WHERE ${hasSalida})`, 'totalEntregados')
+      .groupBy('encierro.nombreEncierro')
+      .getRawMany<VehiculosEnEncierroResumenRow>();
+
     const resumen = this.createEmptyResumenState();
 
     for (const row of rows) {
-      const estado = this.resolveEstadoOperativo({
-        hasRetencion: true,
-        hasPago: this.toBoolean(row.tienePago),
-        hasLiberacion: this.toBoolean(row.tieneLiberacion),
-        hasSalida: this.toBoolean(row.tieneSalida),
-      });
-      const encierro = row.encierro ?? null;
-      const isEntregado =
-        estado === ESTADO_OPERATIVO_VEHICULO.VEHICULO_ENTREGADO;
-      const bucket = this.ensureResumenBucket(resumen, encierro);
+      const encierro = row.encierro ?? 'Sin encierro';
+      const bucket = {
+        encierro,
+        total: this.toNumber(row.totalVehiculosRetenidos),
+        sinPago: this.toNumber(row.totalSinPago),
+        pagadosPendienteLiberacion: this.toNumber(
+          row.totalPagadosPendienteLiberacion,
+        ),
+        liberadosPendienteSalida: this.toNumber(
+          row.totalLiberadosPendienteSalida,
+        ),
+        entregados: this.toNumber(row.totalEntregados),
+      };
 
-      if (isEntregado) {
-        resumen.totalEntregados += 1;
-        bucket.entregados += 1;
-        continue;
-      }
-
-      resumen.totalVehiculosRetenidos += 1;
-      bucket.total += 1;
-
-      if (estado === ESTADO_OPERATIVO_VEHICULO.EN_ENCIERRO_SIN_PAGO) {
-        resumen.totalSinPago += 1;
-        bucket.sinPago += 1;
-      } else if (
-        estado === ESTADO_OPERATIVO_VEHICULO.PAGADO_PENDIENTE_LIBERACION
-      ) {
-        resumen.totalPagadosPendienteLiberacion += 1;
-        bucket.pagadosPendienteLiberacion += 1;
-      } else if (
-        estado === ESTADO_OPERATIVO_VEHICULO.LIBERADO_PENDIENTE_SALIDA
-      ) {
-        resumen.totalLiberadosPendienteSalida += 1;
-        bucket.liberadosPendienteSalida += 1;
-      }
+      resumen.totalVehiculosRetenidos += bucket.total;
+      resumen.totalSinPago += bucket.sinPago;
+      resumen.totalPagadosPendienteLiberacion +=
+        bucket.pagadosPendienteLiberacion;
+      resumen.totalLiberadosPendienteSalida += bucket.liberadosPendienteSalida;
+      resumen.totalEntregados += bucket.entregados;
+      resumen.porEncierro.set(encierro, bucket);
     }
 
     return {
@@ -276,23 +294,32 @@ export class EncierrosService {
     return savedSalida;
   }
 
-  private buildVehiculosEnEncierroQuery(
+  private buildVehiculosEnEncierroBaseQuery(
     query: VehiculosEncierroQueryDto,
   ): SelectQueryBuilder<RetencionVehiculo> {
     const builder = this.dataSource
       .getRepository(RetencionVehiculo)
       .createQueryBuilder('retencion')
-      .innerJoinAndSelect('retencion.infraccion', 'infraccion')
-      .leftJoinAndSelect('infraccion.infractor', 'infractor')
-      .leftJoinAndSelect('infractor.sexo', 'sexo')
-      .leftJoinAndSelect('infraccion.vehiculo', 'vehiculo')
-      .leftJoinAndSelect('vehiculo.lineaVehiculo', 'lineaVehiculo')
-      .leftJoinAndSelect('lineaVehiculo.marcaVehiculo', 'marcaVehiculo')
-      .leftJoinAndSelect('vehiculo.claseVehiculo', 'claseVehiculo')
-      .leftJoinAndSelect('infraccion.delegacion', 'delegacion')
-      .leftJoinAndSelect('delegacion.region', 'region')
-      .leftJoinAndSelect('retencion.encierro', 'encierro')
-      .addSelect('retencion.idRetencionVehiculo', 'idRetencionVehiculo')
+      .innerJoin('retencion.infraccion', 'infraccion')
+      .leftJoin('infraccion.infractor', 'infractor')
+      .leftJoin('infraccion.vehiculo', 'vehiculo')
+      .leftJoin('vehiculo.lineaVehiculo', 'lineaVehiculo')
+      .leftJoin('lineaVehiculo.marcaVehiculo', 'marcaVehiculo')
+      .leftJoin('vehiculo.claseVehiculo', 'claseVehiculo')
+      .leftJoin('infraccion.delegacion', 'delegacion')
+      .leftJoin('delegacion.region', 'region')
+      .leftJoin('retencion.encierro', 'encierro');
+
+    this.applyVehiculosEnEncierroFilters(builder, query);
+
+    return builder;
+  }
+
+  private applyVehiculosEnEncierroSelects(
+    builder: SelectQueryBuilder<RetencionVehiculo>,
+  ): SelectQueryBuilder<RetencionVehiculo> {
+    return builder
+      .select('retencion.idRetencionVehiculo', 'idRetencionVehiculo')
       .addSelect('retencion.fechaIngreso', 'fechaIngreso')
       .addSelect('retencion.recibidoPor', 'recibidoPor')
       .addSelect('retencion.folioResguardo', 'folioResguardo')
@@ -316,14 +343,7 @@ export class EncierrosService {
       .addSelect('region.nombreRegion', 'region')
       .addSelect('delegacion.nombreDelegacion', 'delegacion')
       .addSelect('encierro.nombreEncierro', 'encierro')
-      .addSelect(
-        `EXISTS (
-          SELECT 1
-          FROM pago_infraccion pago
-          WHERE pago.id_infraccion = infraccion.id_infraccion
-        )`,
-        'tienePago',
-      )
+      .addSelect(this.hasPagoExpression(), 'tienePago')
       .addSelect(
         (subQuery) =>
           subQuery
@@ -346,14 +366,7 @@ export class EncierrosService {
             .limit(1),
         'montoPagado',
       )
-      .addSelect(
-        `EXISTS (
-          SELECT 1
-          FROM liberacion_vehiculo liberacion
-          WHERE liberacion.id_infraccion = infraccion.id_infraccion
-        )`,
-        'tieneLiberacion',
-      )
+      .addSelect(this.hasLiberacionExpression(), 'tieneLiberacion')
       .addSelect(
         (subQuery) =>
           subQuery
@@ -365,14 +378,7 @@ export class EncierrosService {
             .limit(1),
         'fechaLiberacion',
       )
-      .addSelect(
-        `EXISTS (
-          SELECT 1
-          FROM salida_vehiculo salida
-          WHERE salida.id_retencion_vehiculo = retencion.id_retencion_vehiculo
-        )`,
-        'tieneSalida',
-      )
+      .addSelect(this.hasSalidaExpression(), 'tieneSalida')
       .addSelect(
         (subQuery) =>
           subQuery
@@ -386,10 +392,6 @@ export class EncierrosService {
             .limit(1),
         'fechaSalida',
       );
-
-    this.applyVehiculosEnEncierroFilters(builder, query);
-
-    return builder;
   }
 
   private applyVehiculosEnEncierroFilters(
@@ -507,48 +509,24 @@ export class EncierrosService {
     if (query.conPago !== undefined) {
       builder.andWhere(
         query.conPago
-          ? `EXISTS (
-              SELECT 1
-              FROM pago_infraccion pago
-              WHERE pago.id_infraccion = infraccion.id_infraccion
-            )`
-          : `NOT EXISTS (
-              SELECT 1
-              FROM pago_infraccion pago
-              WHERE pago.id_infraccion = infraccion.id_infraccion
-            )`,
+          ? this.hasPagoExpression()
+          : `NOT ${this.hasPagoExpression()}`,
       );
     }
 
     if (query.conLiberacion !== undefined) {
       builder.andWhere(
         query.conLiberacion
-          ? `EXISTS (
-              SELECT 1
-              FROM liberacion_vehiculo liberacion
-              WHERE liberacion.id_infraccion = infraccion.id_infraccion
-            )`
-          : `NOT EXISTS (
-              SELECT 1
-              FROM liberacion_vehiculo liberacion
-              WHERE liberacion.id_infraccion = infraccion.id_infraccion
-            )`,
+          ? this.hasLiberacionExpression()
+          : `NOT ${this.hasLiberacionExpression()}`,
       );
     }
 
     if (query.conSalida !== undefined) {
       builder.andWhere(
         query.conSalida
-          ? `EXISTS (
-              SELECT 1
-              FROM salida_vehiculo salida
-              WHERE salida.id_retencion_vehiculo = retencion.id_retencion_vehiculo
-            )`
-          : `NOT EXISTS (
-              SELECT 1
-              FROM salida_vehiculo salida
-              WHERE salida.id_retencion_vehiculo = retencion.id_retencion_vehiculo
-            )`,
+          ? this.hasSalidaExpression()
+          : `NOT ${this.hasSalidaExpression()}`,
       );
     }
 
@@ -561,21 +539,9 @@ export class EncierrosService {
     builder: SelectQueryBuilder<RetencionVehiculo>,
     estadoOperativo: string,
   ): void {
-    const hasSalida = `EXISTS (
-      SELECT 1
-      FROM salida_vehiculo salida
-      WHERE salida.id_retencion_vehiculo = retencion.id_retencion_vehiculo
-    )`;
-    const hasLiberacion = `EXISTS (
-      SELECT 1
-      FROM liberacion_vehiculo liberacion
-      WHERE liberacion.id_infraccion = infraccion.id_infraccion
-    )`;
-    const hasPago = `EXISTS (
-      SELECT 1
-      FROM pago_infraccion pago
-      WHERE pago.id_infraccion = infraccion.id_infraccion
-    )`;
+    const hasSalida = this.hasSalidaExpression();
+    const hasLiberacion = this.hasLiberacionExpression();
+    const hasPago = this.hasPagoExpression();
     const hasRetencion = `EXISTS (
       SELECT 1
       FROM retencion_vehiculo retencion_filtro
@@ -628,21 +594,9 @@ export class EncierrosService {
         return 'infractor.licencia';
       case 'estadoOperativo':
         return `CASE
-          WHEN EXISTS (
-            SELECT 1
-            FROM salida_vehiculo salida_sort
-            WHERE salida_sort.id_retencion_vehiculo = retencion.id_retencion_vehiculo
-          ) THEN 5
-          WHEN EXISTS (
-            SELECT 1
-            FROM liberacion_vehiculo liberacion_sort
-            WHERE liberacion_sort.id_infraccion = infraccion.id_infraccion
-          ) THEN 4
-          WHEN EXISTS (
-            SELECT 1
-            FROM pago_infraccion pago_sort
-            WHERE pago_sort.id_infraccion = infraccion.id_infraccion
-          ) THEN 3
+          WHEN ${this.hasSalidaExpression()} THEN 5
+          WHEN ${this.hasLiberacionExpression()} THEN 4
+          WHEN ${this.hasPagoExpression()} THEN 3
           WHEN EXISTS (
             SELECT 1
             FROM retencion_vehiculo retencion_sort
@@ -724,30 +678,6 @@ export class EncierrosService {
     };
   }
 
-  private ensureResumenBucket(
-    resumen: VehiculosEnEncierroResumenState,
-    encierro: string | null,
-  ): VehiculosEnEncierroResumenBucket {
-    const key = encierro ?? 'Sin encierro';
-    const current = resumen.porEncierro.get(key);
-
-    if (current) {
-      return current;
-    }
-
-    const bucket = {
-      encierro: key,
-      total: 0,
-      sinPago: 0,
-      pagadosPendienteLiberacion: 0,
-      liberadosPendienteSalida: 0,
-      entregados: 0,
-    };
-
-    resumen.porEncierro.set(key, bucket);
-    return bucket;
-  }
-
   private resolveEstadoOperativo(params: {
     hasRetencion: boolean;
     hasPago: boolean;
@@ -775,6 +705,30 @@ export class EncierrosService {
     }
 
     return ESTADO_OPERATIVO_VEHICULO.SIN_RETENCION;
+  }
+
+  private hasPagoExpression(): string {
+    return `EXISTS (
+      SELECT 1
+      FROM pago_infraccion pago
+      WHERE pago.id_infraccion = infraccion.id_infraccion
+    )`;
+  }
+
+  private hasLiberacionExpression(): string {
+    return `EXISTS (
+      SELECT 1
+      FROM liberacion_vehiculo liberacion
+      WHERE liberacion.id_infraccion = infraccion.id_infraccion
+    )`;
+  }
+
+  private hasSalidaExpression(): string {
+    return `EXISTS (
+      SELECT 1
+      FROM salida_vehiculo salida
+      WHERE salida.id_retencion_vehiculo = retencion.id_retencion_vehiculo
+    )`;
   }
 
   private toBoolean(value: unknown): boolean {
