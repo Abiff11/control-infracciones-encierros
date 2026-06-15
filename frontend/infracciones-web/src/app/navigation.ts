@@ -11,7 +11,7 @@ export const NAV_ITEMS: NavigationItem[] = [
   { group: 'Consulta', key: 'infracciones', label: 'Infracciones' },
   { group: 'Consulta', key: 'flujo-operativo', label: 'Flujo operativo' },
   { group: 'Operacion', key: 'nueva-infraccion', label: 'Nueva infraccion' },
-  { group: 'Encierros', key: 'encierros-vehiculos', label: 'Vehiculos en encierro' },
+  { group: 'Encierros', key: 'encierros-vehiculos', label: 'Inventario de encierros' },
   { group: 'Tecnico', key: 'importaciones', label: 'Importaciones' },
   { group: 'Tecnico', key: 'catalogos', label: 'Catalogos' },
 ];
