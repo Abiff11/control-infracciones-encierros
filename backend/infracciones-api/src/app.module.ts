@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import appConfig from './config/app.config';
+import { validateEnv } from './config/env.validation';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CatalogosModule } from './modules/catalogos/catalogos.module';
@@ -24,6 +25,7 @@ import { VehiculosModule } from './modules/vehiculos/vehiculos.module';
     ConfigModule.forRoot({
       isGlobal: true,
       load: [appConfig],
+      validate: validateEnv,
     }),
     DatabaseModule,
     AuthModule,
