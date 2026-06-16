@@ -17,7 +17,7 @@ import {
   formatEmptyValue,
   formatFullName,
   formatTimeOfDay,
-} from '../../lib/formatters';
+} from '../../utils/formatters';
 import type { CatalogosBundle } from '../../types/catalogos.types';
 import type {
   EstadoOperativoVehiculo,

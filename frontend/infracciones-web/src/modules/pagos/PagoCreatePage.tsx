@@ -1,15 +1,15 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from "react";
 
-import { OperationResultCard } from '../../components/operation/OperationResultCard';
-import { getResponseText } from '../../utils/response';
-import type { RegistrarPagoPayload } from '../infracciones/infracciones.types';
+import { OperationResultCard } from "../../components/operation/OperationResultCard";
+import type { RegistrarPagoPayload } from "../../types/operaciones.types";
+import { getResponseText } from "../../utils/response";
 
 function getCurrentDateTimeLocal(): string {
   return new Date().toISOString().slice(0, 16);
 }
 
 function toNullableString(value: string): string | null | undefined {
-  if (value.trim() === '') {
+  if (value.trim() === "") {
     return undefined;
   }
 
@@ -17,7 +17,7 @@ function toNullableString(value: string): string | null | undefined {
 }
 
 function isFilled(value: string): boolean {
-  return value.trim() !== '';
+  return value.trim() !== "";
 }
 
 interface PagoCreatePageProps {
@@ -28,11 +28,11 @@ interface PagoCreatePageProps {
 
 function createInitialForm(initialIdInfraccion?: number | null) {
   return {
-    idInfraccion: initialIdInfraccion ? String(initialIdInfraccion) : '',
-    folioPago: '',
-    monto: '',
+    idInfraccion: initialIdInfraccion ? String(initialIdInfraccion) : "",
+    folioPago: "",
+    monto: "",
     fechaPago: getCurrentDateTimeLocal(),
-    observaciones: '',
+    observaciones: "",
   };
 }
 
@@ -43,7 +43,9 @@ function PagoCreatePage({
   onCompleted,
   onSubmit,
 }: PagoCreatePageProps) {
-  const [form, setForm] = useState(() => createInitialForm(initialIdInfraccion));
+  const [form, setForm] = useState(() =>
+    createInitialForm(initialIdInfraccion),
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<unknown>(null);
@@ -61,15 +63,15 @@ function PagoCreatePage({
 
   function getValidationError(): string | null {
     if (!isFilled(form.idInfraccion)) {
-      return 'Ingresa el ID de infraccion.';
+      return "Ingresa el ID de infraccion.";
     }
 
     if (!isFilled(form.folioPago)) {
-      return 'Ingresa el folio del pago.';
+      return "Ingresa el folio del pago.";
     }
 
     if (!isFilled(form.monto)) {
-      return 'Ingresa el monto del pago.';
+      return "Ingresa el monto del pago.";
     }
 
     return null;
@@ -91,7 +93,9 @@ function PagoCreatePage({
         idInfraccion: Number(form.idInfraccion),
         folioPago: form.folioPago.trim(),
         monto: form.monto.trim(),
-        fechaPago: form.fechaPago ? new Date(form.fechaPago).toISOString() : undefined,
+        fechaPago: form.fechaPago
+          ? new Date(form.fechaPago).toISOString()
+          : undefined,
         observaciones: toNullableString(form.observaciones) ?? null,
       });
 
@@ -102,23 +106,31 @@ function PagoCreatePage({
       setError(
         submissionError instanceof Error
           ? submissionError.message
-          : 'Error desconocido al guardar el pago.',
+          : "Error desconocido al guardar el pago.",
       );
     } finally {
       setSaving(false);
     }
   }
 
-  const paymentId = getResponseText(result, 'idPagoInfraccion');
+  const paymentId = getResponseText(result, "idPagoInfraccion");
   const paymentSummary = paymentId
     ? [
-        { label: 'ID pago', value: paymentId },
-        { label: 'Folio', value: getResponseText(result, 'folioPago') ?? 'Sin folio' },
-        { label: 'Monto', value: getResponseText(result, 'monto') ?? 'Sin monto' },
+        { label: "ID pago", value: paymentId },
+        {
+          label: "Folio",
+          value: getResponseText(result, "folioPago") ?? "Sin folio",
+        },
+        {
+          label: "Monto",
+          value: getResponseText(result, "monto") ?? "Sin monto",
+        },
       ]
     : [];
   const canSubmit =
-    isFilled(form.idInfraccion) && isFilled(form.folioPago) && isFilled(form.monto);
+    isFilled(form.idInfraccion) &&
+    isFilled(form.folioPago) &&
+    isFilled(form.monto);
 
   return (
     <section className="page-stack">
@@ -142,7 +154,9 @@ function PagoCreatePage({
               type="number"
               min="1"
               value={form.idInfraccion}
-              onChange={(event) => updateField('idInfraccion', event.target.value)}
+              onChange={(event) =>
+                updateField("idInfraccion", event.target.value)
+              }
               required
             />
           </div>
@@ -152,7 +166,7 @@ function PagoCreatePage({
             <input
               id="pago-folio"
               value={form.folioPago}
-              onChange={(event) => updateField('folioPago', event.target.value)}
+              onChange={(event) => updateField("folioPago", event.target.value)}
               required
             />
           </div>
@@ -162,7 +176,7 @@ function PagoCreatePage({
             <input
               id="pago-monto"
               value={form.monto}
-              onChange={(event) => updateField('monto', event.target.value)}
+              onChange={(event) => updateField("monto", event.target.value)}
               placeholder="0.00"
               required
             />
@@ -174,7 +188,7 @@ function PagoCreatePage({
               id="pago-fecha"
               type="datetime-local"
               value={form.fechaPago}
-              onChange={(event) => updateField('fechaPago', event.target.value)}
+              onChange={(event) => updateField("fechaPago", event.target.value)}
             />
           </div>
 
@@ -183,7 +197,9 @@ function PagoCreatePage({
             <textarea
               id="pago-observaciones"
               value={form.observaciones}
-              onChange={(event) => updateField('observaciones', event.target.value)}
+              onChange={(event) =>
+                updateField("observaciones", event.target.value)
+              }
               rows={4}
             />
           </div>
@@ -197,9 +213,13 @@ function PagoCreatePage({
             type="submit"
             disabled={saving || !canSubmit}
           >
-            {saving ? 'Guardando...' : 'Registrar pago'}
+            {saving ? "Guardando..." : "Registrar pago"}
           </button>
-          <button className="button-secondary" type="button" onClick={resetForm}>
+          <button
+            className="button-secondary"
+            type="button"
+            onClick={resetForm}
+          >
             Limpiar
           </button>
         </div>

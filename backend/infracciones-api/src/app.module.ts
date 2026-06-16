@@ -4,7 +4,6 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import appConfig from './config/app.config';
-import databaseConfig from './config/database.config';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CatalogosModule } from './modules/catalogos/catalogos.module';
@@ -24,7 +23,7 @@ import { VehiculosModule } from './modules/vehiculos/vehiculos.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig],
+      load: [appConfig],
     }),
     DatabaseModule,
     AuthModule,

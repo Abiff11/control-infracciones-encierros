@@ -1,16 +1,16 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from "react";
 
-import { OperationResultCard } from '../../components/operation/OperationResultCard';
-import type { CatalogosBundle } from '../catalogos/catalogos.types';
-import { getResponseText } from '../../utils/response';
-import type { RegistrarRetencionPayload } from '../infracciones/infracciones.types';
+import { OperationResultCard } from "../../components/operation/OperationResultCard";
+import type { CatalogosBundle } from "../../types/catalogos.types";
+import type { RegistrarRetencionPayload } from "../../types/operaciones.types";
+import { getResponseText } from "../../utils/response";
 
 function getCurrentDateTimeLocal(): string {
   return new Date().toISOString().slice(0, 16);
 }
 
 function toNullableString(value: string): string | null | undefined {
-  if (value.trim() === '') {
+  if (value.trim() === "") {
     return undefined;
   }
 
@@ -18,7 +18,7 @@ function toNullableString(value: string): string | null | undefined {
 }
 
 function isFilled(value: string): boolean {
-  return value.trim() !== '';
+  return value.trim() !== "";
 }
 
 interface RetencionCreatePageProps {
@@ -30,13 +30,13 @@ interface RetencionCreatePageProps {
 
 function createInitialForm(initialIdInfraccion?: number | null) {
   return {
-    idInfraccion: initialIdInfraccion ? String(initialIdInfraccion) : '',
-    idEncierro: '',
+    idInfraccion: initialIdInfraccion ? String(initialIdInfraccion) : "",
+    idEncierro: "",
     fechaIngreso: getCurrentDateTimeLocal(),
-    recibidoPor: '',
-    folioResguardo: '',
-    observacionesIngreso: '',
-    estadoIngreso: '',
+    recibidoPor: "",
+    folioResguardo: "",
+    observacionesIngreso: "",
+    estadoIngreso: "",
   };
 }
 
@@ -55,13 +55,6 @@ function RetencionCreatePage({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<unknown>(null);
 
-  useEffect(() => {
-    setForm((current) => ({
-      ...current,
-      idInfraccion: initialIdInfraccion ? String(initialIdInfraccion) : current.idInfraccion,
-    }));
-  }, [initialIdInfraccion]);
-
   function updateField(field: keyof RetencionFormState, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
     setError(null);
@@ -75,19 +68,19 @@ function RetencionCreatePage({
 
   function getValidationError(): string | null {
     if (!catalogs) {
-      return 'Los catalogos todavia no estan disponibles.';
+      return "Los catalogos todavia no estan disponibles.";
     }
 
     if (!isFilled(form.idInfraccion)) {
-      return 'Ingresa el ID de infraccion.';
+      return "Ingresa el ID de infraccion.";
     }
 
     if (!isFilled(form.idEncierro)) {
-      return 'Selecciona el encierro.';
+      return "Selecciona el encierro.";
     }
 
     if (!isFilled(form.recibidoPor)) {
-      return 'Ingresa quien recibe la retencion.';
+      return "Ingresa quien recibe la retencion.";
     }
 
     return null;
@@ -125,24 +118,24 @@ function RetencionCreatePage({
       setError(
         submissionError instanceof Error
           ? submissionError.message
-          : 'Error desconocido al guardar la retencion.',
+          : "Error desconocido al guardar la retencion.",
       );
     } finally {
       setSaving(false);
     }
   }
 
-  const retencionId = getResponseText(result, 'idRetencionVehiculo');
+  const retencionId = getResponseText(result, "idRetencionVehiculo");
   const retencionSummary = retencionId
     ? [
-        { label: 'ID retencion', value: retencionId },
+        { label: "ID retencion", value: retencionId },
         {
-          label: 'Encierro',
-          value: getResponseText(result, 'idEncierro') ?? 'Sin encierro',
+          label: "Encierro",
+          value: getResponseText(result, "idEncierro") ?? "Sin encierro",
         },
         {
-          label: 'Recibio',
-          value: getResponseText(result, 'recibidoPor') ?? 'Sin dato',
+          label: "Recibio",
+          value: getResponseText(result, "recibidoPor") ?? "Sin dato",
         },
       ]
     : [];
@@ -175,7 +168,9 @@ function RetencionCreatePage({
               type="number"
               min="1"
               value={form.idInfraccion}
-              onChange={(event) => updateField('idInfraccion', event.target.value)}
+              onChange={(event) =>
+                updateField("idInfraccion", event.target.value)
+              }
               required
             />
           </div>
@@ -185,7 +180,9 @@ function RetencionCreatePage({
             <select
               id="retencion-id-encierro"
               value={form.idEncierro}
-              onChange={(event) => updateField('idEncierro', event.target.value)}
+              onChange={(event) =>
+                updateField("idEncierro", event.target.value)
+              }
               required
             >
               <option value="">Selecciona</option>
@@ -203,7 +200,9 @@ function RetencionCreatePage({
               id="retencion-fecha"
               type="datetime-local"
               value={form.fechaIngreso}
-              onChange={(event) => updateField('fechaIngreso', event.target.value)}
+              onChange={(event) =>
+                updateField("fechaIngreso", event.target.value)
+              }
             />
           </div>
 
@@ -212,7 +211,9 @@ function RetencionCreatePage({
             <input
               id="retencion-recibido-por"
               value={form.recibidoPor}
-              onChange={(event) => updateField('recibidoPor', event.target.value)}
+              onChange={(event) =>
+                updateField("recibidoPor", event.target.value)
+              }
               required
             />
           </div>
@@ -222,7 +223,9 @@ function RetencionCreatePage({
             <input
               id="retencion-folio"
               value={form.folioResguardo}
-              onChange={(event) => updateField('folioResguardo', event.target.value)}
+              onChange={(event) =>
+                updateField("folioResguardo", event.target.value)
+              }
             />
           </div>
 
@@ -231,7 +234,9 @@ function RetencionCreatePage({
             <input
               id="retencion-estado"
               value={form.estadoIngreso}
-              onChange={(event) => updateField('estadoIngreso', event.target.value)}
+              onChange={(event) =>
+                updateField("estadoIngreso", event.target.value)
+              }
             />
           </div>
 
@@ -241,7 +246,7 @@ function RetencionCreatePage({
               id="retencion-observaciones"
               value={form.observacionesIngreso}
               onChange={(event) =>
-                updateField('observacionesIngreso', event.target.value)
+                updateField("observacionesIngreso", event.target.value)
               }
               rows={4}
             />
@@ -256,9 +261,13 @@ function RetencionCreatePage({
             type="submit"
             disabled={saving || !canSubmit}
           >
-            {saving ? 'Guardando...' : 'Registrar retencion'}
+            {saving ? "Guardando..." : "Registrar retencion"}
           </button>
-          <button className="button-secondary" type="button" onClick={resetForm}>
+          <button
+            className="button-secondary"
+            type="button"
+            onClick={resetForm}
+          >
             Limpiar
           </button>
         </div>

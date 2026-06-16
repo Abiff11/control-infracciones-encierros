@@ -1,15 +1,15 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from "react";
 
-import { OperationResultCard } from '../../components/operation/OperationResultCard';
-import { getResponseText } from '../../utils/response';
-import type { RegistrarSalidaPayload } from '../infracciones/infracciones.types';
+import { OperationResultCard } from "../../components/operation/OperationResultCard";
+import type { RegistrarSalidaPayload } from "../../types/operaciones.types";
+import { getResponseText } from "../../utils/response";
 
 function getCurrentDateTimeLocal(): string {
   return new Date().toISOString().slice(0, 16);
 }
 
 function toNullableString(value: string): string | null | undefined {
-  if (value.trim() === '') {
+  if (value.trim() === "") {
     return undefined;
   }
 
@@ -17,7 +17,7 @@ function toNullableString(value: string): string | null | undefined {
 }
 
 function isFilled(value: string): boolean {
-  return value.trim() !== '';
+  return value.trim() !== "";
 }
 
 interface SalidaCreatePageProps {
@@ -30,13 +30,13 @@ function createInitialForm(initialIdRetencionVehiculo?: number | null) {
   return {
     idRetencionVehiculo: initialIdRetencionVehiculo
       ? String(initialIdRetencionVehiculo)
-      : '',
-    idLiberacionVehiculo: '',
-    validadoPor: '',
-    personaRecibeVehiculo: '',
+      : "",
+    idLiberacionVehiculo: "",
+    validadoPor: "",
+    personaRecibeVehiculo: "",
     fechaSalida: getCurrentDateTimeLocal(),
-    observacionesSalida: '',
-    estadoSalida: '',
+    observacionesSalida: "",
+    estadoSalida: "",
   };
 }
 
@@ -47,7 +47,9 @@ function SalidaCreatePage({
   onCompleted,
   onSubmit,
 }: SalidaCreatePageProps) {
-  const [form, setForm] = useState(() => createInitialForm(initialIdRetencionVehiculo));
+  const [form, setForm] = useState(() =>
+    createInitialForm(initialIdRetencionVehiculo),
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<unknown>(null);
@@ -65,19 +67,19 @@ function SalidaCreatePage({
 
   function getValidationError(): string | null {
     if (!isFilled(form.idRetencionVehiculo)) {
-      return 'Ingresa el ID de la retencion.';
+      return "Ingresa el ID de la retencion.";
     }
 
     if (!isFilled(form.idLiberacionVehiculo)) {
-      return 'Ingresa el ID de la liberacion.';
+      return "Ingresa el ID de la liberacion.";
     }
 
     if (!isFilled(form.validadoPor) || !isFilled(form.personaRecibeVehiculo)) {
-      return 'Completa los nombres requeridos para la salida.';
+      return "Completa los nombres requeridos para la salida.";
     }
 
     if (!isFilled(form.estadoSalida)) {
-      return 'Ingresa el estado de la salida.';
+      return "Ingresa el estado de la salida.";
     }
 
     return null;
@@ -100,9 +102,10 @@ function SalidaCreatePage({
         idLiberacionVehiculo: Number(form.idLiberacionVehiculo),
         validadoPor: form.validadoPor.trim(),
         personaRecibeVehiculo: form.personaRecibeVehiculo.trim(),
-        fechaSalida: form.fechaSalida ? new Date(form.fechaSalida).toISOString() : undefined,
-        observacionesSalida:
-          toNullableString(form.observacionesSalida) ?? null,
+        fechaSalida: form.fechaSalida
+          ? new Date(form.fechaSalida).toISOString()
+          : undefined,
+        observacionesSalida: toNullableString(form.observacionesSalida) ?? null,
         estadoSalida: form.estadoSalida.trim(),
       });
 
@@ -113,24 +116,24 @@ function SalidaCreatePage({
       setError(
         submissionError instanceof Error
           ? submissionError.message
-          : 'Error desconocido al guardar la salida.',
+          : "Error desconocido al guardar la salida.",
       );
     } finally {
       setSaving(false);
     }
   }
 
-  const exitId = getResponseText(result, 'idSalidaVehiculo');
+  const exitId = getResponseText(result, "idSalidaVehiculo");
   const exitSummary = exitId
     ? [
-        { label: 'ID salida', value: exitId },
+        { label: "ID salida", value: exitId },
         {
-          label: 'Retencion',
-          value: getResponseText(result, 'idRetencionVehiculo') ?? 'Sin dato',
+          label: "Retencion",
+          value: getResponseText(result, "idRetencionVehiculo") ?? "Sin dato",
         },
         {
-          label: 'Liberacion',
-          value: getResponseText(result, 'idLiberacionVehiculo') ?? 'Sin dato',
+          label: "Liberacion",
+          value: getResponseText(result, "idLiberacionVehiculo") ?? "Sin dato",
         },
       ]
     : [];
@@ -163,7 +166,7 @@ function SalidaCreatePage({
               min="1"
               value={form.idRetencionVehiculo}
               onChange={(event) =>
-                updateField('idRetencionVehiculo', event.target.value)
+                updateField("idRetencionVehiculo", event.target.value)
               }
               required
             />
@@ -177,7 +180,7 @@ function SalidaCreatePage({
               min="1"
               value={form.idLiberacionVehiculo}
               onChange={(event) =>
-                updateField('idLiberacionVehiculo', event.target.value)
+                updateField("idLiberacionVehiculo", event.target.value)
               }
               required
             />
@@ -188,7 +191,9 @@ function SalidaCreatePage({
             <input
               id="salida-validado-por"
               value={form.validadoPor}
-              onChange={(event) => updateField('validadoPor', event.target.value)}
+              onChange={(event) =>
+                updateField("validadoPor", event.target.value)
+              }
               required
             />
           </div>
@@ -199,7 +204,7 @@ function SalidaCreatePage({
               id="salida-recibe"
               value={form.personaRecibeVehiculo}
               onChange={(event) =>
-                updateField('personaRecibeVehiculo', event.target.value)
+                updateField("personaRecibeVehiculo", event.target.value)
               }
               required
             />
@@ -211,7 +216,9 @@ function SalidaCreatePage({
               id="salida-fecha"
               type="datetime-local"
               value={form.fechaSalida}
-              onChange={(event) => updateField('fechaSalida', event.target.value)}
+              onChange={(event) =>
+                updateField("fechaSalida", event.target.value)
+              }
             />
           </div>
 
@@ -220,7 +227,9 @@ function SalidaCreatePage({
             <input
               id="salida-estado"
               value={form.estadoSalida}
-              onChange={(event) => updateField('estadoSalida', event.target.value)}
+              onChange={(event) =>
+                updateField("estadoSalida", event.target.value)
+              }
               required
             />
           </div>
@@ -231,7 +240,7 @@ function SalidaCreatePage({
               id="salida-observaciones"
               value={form.observacionesSalida}
               onChange={(event) =>
-                updateField('observacionesSalida', event.target.value)
+                updateField("observacionesSalida", event.target.value)
               }
               rows={4}
             />
@@ -246,9 +255,13 @@ function SalidaCreatePage({
             type="submit"
             disabled={saving || !canSubmit}
           >
-            {saving ? 'Guardando...' : 'Registrar salida'}
+            {saving ? "Guardando..." : "Registrar salida"}
           </button>
-          <button className="button-secondary" type="button" onClick={resetForm}>
+          <button
+            className="button-secondary"
+            type="button"
+            onClick={resetForm}
+          >
             Limpiar
           </button>
         </div>

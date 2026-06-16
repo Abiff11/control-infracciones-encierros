@@ -1,26 +1,26 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from "react";
 
-import { Card } from '../../components/ui/Card';
-import { ErrorMessage } from '../../components/ui/ErrorMessage';
-import { Field, TextInput } from '../../components/ui/Field';
-import { LoadingMessage } from '../../components/ui/LoadingMessage';
-import { StatusBadge } from '../../components/ui/StatusBadge';
+import { Card } from "../../components/ui/Card";
+import { ErrorMessage } from "../../components/ui/ErrorMessage";
+import { Field, TextInput } from "../../components/ui/Field";
+import { LoadingMessage } from "../../components/ui/LoadingMessage";
+import { StatusBadge } from "../../components/ui/StatusBadge";
 import {
   formatDate,
   formatDateTime,
   formatEmptyValue,
   formatFullName,
   formatTimeOfDay,
-} from '../../lib/formatters';
-import type { InfraccionFlujoResponse } from './infracciones.types';
-import './FlujoOperativoPage.css';
+} from "../../utils/formatters";
+import type { InfraccionFlujoResponse } from "../../types/infracciones.types";
+import "./FlujoOperativoPage.css";
 
 interface FlujoOperativoPageProps {
   onSubmit: (folioInfraccion: string) => Promise<InfraccionFlujoResponse>;
 }
 
 type AnyRecord = Record<string, unknown>;
-type StepState = 'done' | 'pending' | 'current';
+type StepState = "done" | "pending" | "current";
 
 interface FlowStep {
   label: string;
@@ -35,7 +35,7 @@ interface NextAction {
 }
 
 function isRecord(value: unknown): value is AnyRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function asArray(value: unknown): unknown[] {
@@ -55,7 +55,7 @@ function readPath(value: unknown, path: string[]): unknown {
 function readString(value: unknown, path: string[]): string | null {
   const rawValue = readPath(value, path);
 
-  if (rawValue === null || rawValue === undefined || rawValue === '') {
+  if (rawValue === null || rawValue === undefined || rawValue === "") {
     return null;
   }
 
@@ -63,11 +63,11 @@ function readString(value: unknown, path: string[]): string | null {
     return rawValue.toISOString();
   }
 
-  if (typeof rawValue === 'string') {
+  if (typeof rawValue === "string") {
     return rawValue;
   }
 
-  if (typeof rawValue === 'number' || typeof rawValue === 'boolean') {
+  if (typeof rawValue === "number" || typeof rawValue === "boolean") {
     return String(rawValue);
   }
 
@@ -75,42 +75,57 @@ function readString(value: unknown, path: string[]): string | null {
 }
 
 function getFolio(result: InfraccionFlujoResponse): string {
-  return readString(result, ['infraccion', 'folioInfraccion']) ?? 'Sin folio registrado';
+  return (
+    readString(result, ["infraccion", "folioInfraccion"]) ??
+    "Sin folio registrado"
+  );
 }
 
 function getInfractorName(result: InfraccionFlujoResponse): string {
   return formatFullName([
-    readString(result, ['infraccion', 'infractor', 'nombre']),
-    readString(result, ['infraccion', 'infractor', 'apellidoPaterno']),
-    readString(result, ['infraccion', 'infractor', 'apellidoMaterno']),
+    readString(result, ["infraccion", "infractor", "nombre"]),
+    readString(result, ["infraccion", "infractor", "apellidoPaterno"]),
+    readString(result, ["infraccion", "infractor", "apellidoMaterno"]),
   ]);
 }
 
 function getVehiculoLabel(result: InfraccionFlujoResponse): string {
   const marca = readString(result, [
-    'infraccion',
-    'vehiculo',
-    'lineaVehiculo',
-    'marcaVehiculo',
-    'nombreMarcaVehiculo',
+    "infraccion",
+    "vehiculo",
+    "lineaVehiculo",
+    "marcaVehiculo",
+    "nombreMarcaVehiculo",
   ]);
-  const linea = readString(result, ['infraccion', 'vehiculo', 'lineaVehiculo', 'nombreLineaVehiculo']);
-  const clase = readString(result, ['infraccion', 'vehiculo', 'claseVehiculo', 'nombreClaseVehiculo']);
-  const parts = [marca, linea, clase].filter((value): value is string => Boolean(value));
+  const linea = readString(result, [
+    "infraccion",
+    "vehiculo",
+    "lineaVehiculo",
+    "nombreLineaVehiculo",
+  ]);
+  const clase = readString(result, [
+    "infraccion",
+    "vehiculo",
+    "claseVehiculo",
+    "nombreClaseVehiculo",
+  ]);
+  const parts = [marca, linea, clase].filter((value): value is string =>
+    Boolean(value),
+  );
 
-  return parts.length > 0 ? parts.join(' - ') : 'Sin informacion registrada';
+  return parts.length > 0 ? parts.join(" - ") : "Sin informacion registrada";
 }
 
 function getEstatus(result: InfraccionFlujoResponse): string {
   return (
-    readString(result, ['infraccion', 'estatusInfraccion', 'nombreEstatus']) ??
-    readString(result, ['estatusInfraccion', 'nombreEstatus']) ??
-    'Sin estatus registrado'
+    readString(result, ["infraccion", "estatusInfraccion", "nombreEstatus"]) ??
+    readString(result, ["estatusInfraccion", "nombreEstatus"]) ??
+    "Sin estatus registrado"
   );
 }
 
 function getEstadoOperativo(result: InfraccionFlujoResponse): string | null {
-  return readString(result, ['estadoOperativoCalculado']);
+  return readString(result, ["estadoOperativoCalculado"]);
 }
 
 function getFirst(items: unknown[]): unknown | null {
@@ -129,42 +144,51 @@ function buildFlowSteps(result: InfraccionFlujoResponse): FlowStep[] {
 
   return [
     {
-      label: 'Captura',
+      label: "Captura",
       title: getFolio(result),
-      description: `${formatDate(readString(result, ['infraccion', 'fechaInfraccion']))} · ${formatTimeOfDay(
-        readString(result, ['infraccion', 'horaInfraccion']),
+      description: `${formatDate(readString(result, ["infraccion", "fechaInfraccion"]))} · ${formatTimeOfDay(
+        readString(result, ["infraccion", "horaInfraccion"]),
       )}`,
-      state: 'done',
+      state: "done",
     },
     {
-      label: 'Retencion',
+      label: "Retencion",
       title: retencion
-        ? readString(retencion, ['encierro', 'nombreEncierro']) ?? 'Registrada'
-        : 'Pendiente',
+        ? (readString(retencion, ["encierro", "nombreEncierro"]) ??
+          "Registrada")
+        : "Pendiente",
       description: retencion
-        ? formatDateTime(readString(retencion, ['fechaIngreso']))
-        : 'Registrar ingreso a encierro',
-      state: retencion ? 'done' : 'current',
+        ? formatDateTime(readString(retencion, ["fechaIngreso"]))
+        : "Registrar ingreso a encierro",
+      state: retencion ? "done" : "current",
     },
     {
-      label: 'Pago',
-      title: pago ? readString(pago, ['folioPago']) ?? 'Registrado' : 'Pendiente',
-      description: pago ? formatDateTime(readString(pago, ['fechaPago'])) : 'Registrar pago',
-      state: pago ? 'done' : retencion ? 'current' : 'pending',
+      label: "Pago",
+      title: pago
+        ? (readString(pago, ["folioPago"]) ?? "Registrado")
+        : "Pendiente",
+      description: pago
+        ? formatDateTime(readString(pago, ["fechaPago"]))
+        : "Registrar pago",
+      state: pago ? "done" : retencion ? "current" : "pending",
     },
     {
-      label: 'Liberacion',
-      title: liberacion ? readString(liberacion, ['folioLiberacion']) ?? 'Registrada' : 'Pendiente',
+      label: "Liberacion",
+      title: liberacion
+        ? (readString(liberacion, ["folioLiberacion"]) ?? "Registrada")
+        : "Pendiente",
       description: liberacion
-        ? formatDateTime(readString(liberacion, ['fechaLiberacion']))
-        : 'Generar liberacion',
-      state: liberacion ? 'done' : pago ? 'current' : 'pending',
+        ? formatDateTime(readString(liberacion, ["fechaLiberacion"]))
+        : "Generar liberacion",
+      state: liberacion ? "done" : pago ? "current" : "pending",
     },
     {
-      label: 'Salida',
-      title: salida ? 'Entregado' : 'Pendiente',
-      description: salida ? formatDateTime(readString(salida, ['fechaSalida'])) : 'Registrar salida',
-      state: salida ? 'done' : liberacion ? 'current' : 'pending',
+      label: "Salida",
+      title: salida ? "Entregado" : "Pendiente",
+      description: salida
+        ? formatDateTime(readString(salida, ["fechaSalida"]))
+        : "Registrar salida",
+      state: salida ? "done" : liberacion ? "current" : "pending",
     },
   ];
 }
@@ -177,35 +201,35 @@ function getNextAction(result: InfraccionFlujoResponse): NextAction {
 
   if (retenciones.length === 0) {
     return {
-      title: 'Registrar retencion',
-      description: 'El vehiculo aun no tiene ingreso a encierro.',
+      title: "Registrar retencion",
+      description: "El vehiculo aun no tiene ingreso a encierro.",
     };
   }
 
   if (pagos.length === 0) {
     return {
-      title: 'Registrar pago',
-      description: 'El vehiculo esta retenido y no tiene pago registrado.',
+      title: "Registrar pago",
+      description: "El vehiculo esta retenido y no tiene pago registrado.",
     };
   }
 
   if (liberaciones.length === 0) {
     return {
-      title: 'Generar liberacion',
-      description: 'Ya existe pago; falta liberar el vehiculo.',
+      title: "Generar liberacion",
+      description: "Ya existe pago; falta liberar el vehiculo.",
     };
   }
 
   if (salidas.length === 0) {
     return {
-      title: 'Registrar salida',
-      description: 'El vehiculo esta liberado; falta registrar la entrega.',
+      title: "Registrar salida",
+      description: "El vehiculo esta liberado; falta registrar la entrega.",
     };
   }
 
   return {
-    title: 'Flujo completo',
-    description: 'El vehiculo ya fue entregado.',
+    title: "Flujo completo",
+    description: "El vehiculo ya fue entregado.",
   };
 }
 
@@ -225,7 +249,9 @@ function FlowDiagram({ steps }: { steps: FlowStep[] }) {
       {steps.map((step, index) => (
         <div key={step.label} className="flow-diagram-node">
           <FlowStepCard step={step} />
-          {index < steps.length - 1 ? <span className="flow-arrow">→</span> : null}
+          {index < steps.length - 1 ? (
+            <span className="flow-arrow">→</span>
+          ) : null}
         </div>
       ))}
     </div>
@@ -240,13 +266,18 @@ function MotivoChips({ motivos }: { motivos: unknown[] }) {
   return (
     <div className="motivo-chip-row">
       {motivos.map((motivo, index) => {
-        const nombre = readString(motivo, ['motivo', 'nombreMotivo']) ?? readString(motivo, ['nombreMotivo']);
+        const nombre =
+          readString(motivo, ["motivo", "nombreMotivo"]) ??
+          readString(motivo, ["nombreMotivo"]);
         const descripcion =
-          readString(motivo, ['motivo', 'descripcionMotivo']) ?? readString(motivo, ['descripcionMotivo']);
+          readString(motivo, ["motivo", "descripcionMotivo"]) ??
+          readString(motivo, ["descripcionMotivo"]);
 
         return (
-          <span key={`${nombre ?? 'motivo'}-${index}`} className="motivo-chip">
-            {nombre ? `${nombre} ${descripcion ? `· ${descripcion}` : ''}` : 'Motivo registrado'}
+          <span key={`${nombre ?? "motivo"}-${index}`} className="motivo-chip">
+            {nombre
+              ? `${nombre} ${descripcion ? `· ${descripcion}` : ""}`
+              : "Motivo registrado"}
           </span>
         );
       })}
@@ -255,7 +286,7 @@ function MotivoChips({ motivos }: { motivos: unknown[] }) {
 }
 
 function FlujoOperativoPage({ onSubmit }: FlujoOperativoPageProps) {
-  const [folioInfraccion, setFolioInfraccion] = useState('');
+  const [folioInfraccion, setFolioInfraccion] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<InfraccionFlujoResponse | null>(null);
@@ -266,7 +297,7 @@ function FlujoOperativoPage({ onSubmit }: FlujoOperativoPageProps) {
     const normalizedFolio = folioInfraccion.trim();
 
     if (!normalizedFolio) {
-      setError('Ingresa un folio de infraccion valido.');
+      setError("Ingresa un folio de infraccion valido.");
       return;
     }
 
@@ -281,7 +312,7 @@ function FlujoOperativoPage({ onSubmit }: FlujoOperativoPageProps) {
       setError(
         submissionError instanceof Error
           ? submissionError.message
-          : 'Error desconocido al consultar el flujo.',
+          : "Error desconocido al consultar el flujo.",
       );
     } finally {
       setLoading(false);
@@ -299,7 +330,8 @@ function FlujoOperativoPage({ onSubmit }: FlujoOperativoPageProps) {
           <p className="eyebrow">Consulta</p>
           <h1>Flujo operativo</h1>
           <p className="page-description">
-            Consulta el expediente por folio y revisa solo el estado operativo esencial.
+            Consulta el expediente por folio y revisa solo el estado operativo
+            esencial.
           </p>
         </div>
       </header>
@@ -321,14 +353,16 @@ function FlujoOperativoPage({ onSubmit }: FlujoOperativoPageProps) {
           </Field>
 
           <button className="button-primary" type="submit" disabled={loading}>
-            {loading ? 'Consultando...' : 'Consultar'}
+            {loading ? "Consultando..." : "Consultar"}
           </button>
         </form>
       </Card>
 
       <ErrorMessage message={error} />
 
-      {loading && !result ? <LoadingMessage message="Buscando flujo operativo..." /> : null}
+      {loading && !result ? (
+        <LoadingMessage message="Buscando flujo operativo..." />
+      ) : null}
 
       {result ? (
         <Card className="flow-visual-card">
@@ -339,16 +373,33 @@ function FlujoOperativoPage({ onSubmit }: FlujoOperativoPageProps) {
                 <h2>{getFolio(result)}</h2>
                 <p className="detail-hero-name">{getInfractorName(result)}</p>
                 <div className="detail-hero-subline">
-                  <span>{formatDate(readString(result, ['infraccion', 'fechaInfraccion']))}</span>
-                  <span>{formatTimeOfDay(readString(result, ['infraccion', 'horaInfraccion']))}</span>
-                  <span>Placas: {formatEmptyValue(readString(result, ['infraccion', 'vehiculo', 'placas']))}</span>
+                  <span>
+                    {formatDate(
+                      readString(result, ["infraccion", "fechaInfraccion"]),
+                    )}
+                  </span>
+                  <span>
+                    {formatTimeOfDay(
+                      readString(result, ["infraccion", "horaInfraccion"]),
+                    )}
+                  </span>
+                  <span>
+                    Placas:{" "}
+                    {formatEmptyValue(
+                      readString(result, ["infraccion", "vehiculo", "placas"]),
+                    )}
+                  </span>
                   <span>{getVehiculoLabel(result)}</span>
                 </div>
               </div>
 
               <div className="flow-hero-status">
                 <p className="section-label">Estado actual</p>
-                {estadoOperativo ? <StatusBadge value={estadoOperativo} /> : <strong>{getEstatus(result)}</strong>}
+                {estadoOperativo ? (
+                  <StatusBadge value={estadoOperativo} />
+                ) : (
+                  <strong>{getEstatus(result)}</strong>
+                )}
               </div>
             </div>
 

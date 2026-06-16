@@ -1,11 +1,9 @@
-import type {
-  CatalogosBundle,
-} from '../catalogos/catalogos.types';
-import type { PaginationMeta } from '../infracciones/infracciones.types';
-import type { LoginResponseUsuario } from '../../lib/api';
-import { swaggerUrl } from '../../lib/api';
+import { swaggerUrl } from "../../services/api/apiClient";
+import type { LoginResponseUsuario } from "../../types/auth.types";
+import type { CatalogosBundle } from "../../types/catalogos.types";
+import type { PaginationMeta } from "../../types/infracciones.types";
 
-import type { PageKey } from '../../app/app.types';
+import type { PageKey } from "../../app/app.types";
 
 interface DashboardPageProps {
   catalogs: CatalogosBundle | null;
@@ -17,10 +15,10 @@ interface DashboardPageProps {
 }
 
 const QUICK_ACTIONS: Array<{ key: PageKey; label: string }> = [
-  { key: 'infracciones', label: 'Infracciones' },
-  { key: 'nueva-infraccion', label: 'Nueva infracción' },
-  { key: 'encierros-vehiculos', label: 'Inventario de encierros' },
-  { key: 'flujo-operativo', label: 'Flujo operativo' },
+  { key: "infracciones", label: "Infracciones" },
+  { key: "nueva-infraccion", label: "Nueva infracción" },
+  { key: "encierros-vehiculos", label: "Inventario de encierros" },
+  { key: "flujo-operativo", label: "Flujo operativo" },
 ];
 
 function DashboardPage({
@@ -69,9 +67,9 @@ function DashboardPage({
 
         <article className="summary-card">
           <p className="card-label">Rol</p>
-          <h2>{user.rol?.nombreRol ?? 'Sin rol'}</h2>
+          <h2>{user.rol?.nombreRol ?? "Sin rol"}</h2>
           <p className="card-muted">
-            {user.activo ? 'Usuario activo' : 'Usuario inactivo'}
+            {user.activo ? "Usuario activo" : "Usuario inactivo"}
           </p>
         </article>
 
@@ -81,14 +79,21 @@ function DashboardPage({
           <p className="card-muted">
             {infraccionesMeta
               ? `${infraccionesMeta.total} infracciones en la última consulta`
-              : 'Sin consulta de infracciones aún'}
+              : "Sin consulta de infracciones aún"}
           </p>
         </article>
 
         <article className="summary-card">
           <p className="card-label">Catálogos</p>
-          <h2>{catalogs ? `${catalogCount} registros cargados` : 'Cargando'}</h2>
-          <a className="inline-link" href={swaggerUrl} target="_blank" rel="noreferrer">
+          <h2>
+            {catalogs ? `${catalogCount} registros cargados` : "Cargando"}
+          </h2>
+          <a
+            className="inline-link"
+            href={swaggerUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
             Swagger / docs
           </a>
         </article>

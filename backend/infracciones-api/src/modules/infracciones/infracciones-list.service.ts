@@ -320,9 +320,12 @@ export class InfraccionesListService {
     }
 
     if (query.idEstatusInfraccion) {
-      builder.andWhere('infraccion.idEstatusInfraccion = :idEstatusInfraccion', {
-        idEstatusInfraccion: query.idEstatusInfraccion,
-      });
+      builder.andWhere(
+        'infraccion.idEstatusInfraccion = :idEstatusInfraccion',
+        {
+          idEstatusInfraccion: query.idEstatusInfraccion,
+        },
+      );
     }
 
     if (query.idDelegacion) {
@@ -410,9 +413,12 @@ export class InfraccionesListService {
     }
 
     if (query.anio) {
-      builder.andWhere('EXTRACT(YEAR FROM infraccion.fechaInfraccion) = :anio', {
-        anio: query.anio,
-      });
+      builder.andWhere(
+        'EXTRACT(YEAR FROM infraccion.fechaInfraccion) = :anio',
+        {
+          anio: query.anio,
+        },
+      );
     }
 
     if (query.estadoOperativo) {
@@ -747,7 +753,16 @@ export class InfraccionesListService {
       return '';
     }
 
-    return String(value);
+    if (
+      typeof value === 'string' ||
+      typeof value === 'number' ||
+      typeof value === 'boolean' ||
+      typeof value === 'bigint'
+    ) {
+      return String(value);
+    }
+
+    return JSON.stringify(value) ?? '';
   }
 
   private toNullableString(value: unknown): string | null {
@@ -755,7 +770,8 @@ export class InfraccionesListService {
       return null;
     }
 
-    return String(value);
+    const stringValue = this.toStringValue(value);
+    return stringValue === '' ? null : stringValue;
   }
 
   private toIsoString(value: string | Date | null): string | null {

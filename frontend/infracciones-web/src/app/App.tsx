@@ -16,17 +16,17 @@ import {
   getInfracciones,
 } from '../services/api/infracciones.api';
 import CatalogosPage from '../pages/CatalogosPage';
-import DashboardPage from '../pages/DashboardPage';
+import DashboardPage from '../modules/dashboard/DashboardPage';
 import EncierrosVehiculosPage from '../modules/encierros/EncierrosVehiculosPage';
-import FlujoOperativoPage from '../pages/FlujoOperativoPage';
-import ImportacionesPage from '../pages/ImportacionesPage';
-import InfraccionCreatePage from '../pages/InfraccionCreatePage';
-import InfraccionesListPage from '../pages/InfraccionesListPage';
-import LiberacionCreatePage from '../pages/LiberacionCreatePage';
-import LoginPage from '../pages/LoginPage';
-import PagoCreatePage from '../pages/PagoCreatePage';
-import RetencionCreatePage from '../pages/RetencionCreatePage';
-import SalidaCreatePage from '../pages/SalidaCreatePage';
+import FlujoOperativoPage from '../modules/infracciones/FlujoOperativoPage';
+import ImportacionesPage from '../modules/importaciones/ImportacionesPage';
+import InfraccionCreatePage from '../modules/infracciones/InfraccionCreatePage';
+import InfraccionesListPage from '../modules/infracciones/InfraccionesListPage';
+import LiberacionCreatePage from '../modules/liberaciones/LiberacionCreatePage';
+import LoginPage from '../modules/auth/LoginPage';
+import PagoCreatePage from '../modules/pagos/PagoCreatePage';
+import RetencionCreatePage from '../modules/encierros/RetencionCreatePage';
+import SalidaCreatePage from '../modules/encierros/SalidaCreatePage';
 import type { PageKey } from './app.types';
 import { NAV_ITEMS } from './navigation';
 import type {

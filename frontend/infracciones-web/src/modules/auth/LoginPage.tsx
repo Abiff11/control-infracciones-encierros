@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 
-import type { LoginRequest } from '../../lib/api';
-import { swaggerUrl } from '../../lib/api';
+import { swaggerUrl } from '../../services/api/apiClient';
+import type { LoginRequest } from '../../types/auth.types';
 
 const DEFAULT_FORM: LoginRequest = {
   email: 'admin@example.com',

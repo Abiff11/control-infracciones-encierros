@@ -1,20 +1,20 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 
-import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
-import { ErrorMessage } from '../../components/ui/ErrorMessage';
-import { Field, TextInput } from '../../components/ui/Field';
-import { LoadingMessage } from '../../components/ui/LoadingMessage';
-import { SelectField } from '../../components/ui/SelectField';
-import { TextAreaField } from '../../components/ui/TextAreaField';
-import { getErrorMessage } from '../../services/api/apiClient';
+import { Button } from "../../components/ui/Button";
+import { Card } from "../../components/ui/Card";
+import { ErrorMessage } from "../../components/ui/ErrorMessage";
+import { Field, TextInput } from "../../components/ui/Field";
+import { LoadingMessage } from "../../components/ui/LoadingMessage";
+import { SelectField } from "../../components/ui/SelectField";
+import { TextAreaField } from "../../components/ui/TextAreaField";
+import { getErrorMessage } from "../../services/api/apiClient";
 import {
   confirmarImportacionInfracciones,
   getImportacionInfraccionesDetalle,
   getImportacionesInfracciones,
   previewImportacionInfracciones,
-} from '../../services/api/importaciones.api';
-import type { CatalogosBundle } from '../../types/catalogos.types';
+} from "../../services/api/importaciones.api";
+import type { CatalogosBundle } from "../../types/catalogos.types";
 import {
   ImportacionFilaIssueTipo,
   ImportacionInfraccionesEstado,
@@ -26,11 +26,11 @@ import {
   type ImportacionInfraccionesPreviewPayload,
   type ImportacionInfraccionesResumen,
   type ImportacionPreviewResponse,
-} from '../../types/importaciones.types';
-import './ImportacionesPage.css';
+} from "../../types/importaciones.types";
+import "./ImportacionesPage.css";
 
 interface LoadState<T> {
-  status: 'idle' | 'loading' | 'ready' | 'error';
+  status: "idle" | "loading" | "ready" | "error";
   data: T | null;
   error: string | null;
 }
@@ -55,12 +55,12 @@ type ImportIssueLike =
   | (ImportacionFilaIssue & { numeroFila: number })
   | ImportacionInfraccionError;
 
-const DEFAULT_YEAR = '2025';
+const DEFAULT_YEAR = "2025";
 const ISSUE_TABLE_LIMIT = 80;
 
 function createIdleState<T>(): LoadState<T> {
   return {
-    status: 'idle',
+    status: "idle",
     data: null,
     error: null,
   };
@@ -76,34 +76,34 @@ function toNumber(value: string): number | undefined {
 }
 
 function getRegionLabel(item: ImportacionInfraccionesResumen): string {
-  return item.region?.nombreRegion ?? 'Sin region';
+  return item.region?.nombreRegion ?? "Sin region";
 }
 
 function getDelegacionLabel(item: ImportacionInfraccionesResumen): string {
-  return item.delegacionDefault?.nombreDelegacion ?? 'Sin delegacion default';
+  return item.delegacionDefault?.nombreDelegacion ?? "Sin delegacion default";
 }
 
 function getStatusLabel(status: ImportacionInfraccionesEstado): string {
   switch (status) {
     case ImportacionInfraccionesEstado.PREVIEW:
-      return 'Preview';
+      return "Preview";
     case ImportacionInfraccionesEstado.IMPORTADA:
-      return 'Importada';
+      return "Importada";
     case ImportacionInfraccionesEstado.IMPORTADA_CON_ERRORES:
-      return 'Con errores';
+      return "Con errores";
     case ImportacionInfraccionesEstado.FALLIDA:
-      return 'Fallida';
+      return "Fallida";
     default:
       return status;
   }
 }
 
 function getIssueLabel(tipo: string): string {
-  return tipo === ImportacionFilaIssueTipo.ERROR ? 'Error' : 'Advertencia';
+  return tipo === ImportacionFilaIssueTipo.ERROR ? "Error" : "Advertencia";
 }
 
 function getIssueTone(tipo: string): string {
-  return tipo === ImportacionFilaIssueTipo.ERROR ? 'danger' : 'warning';
+  return tipo === ImportacionFilaIssueTipo.ERROR ? "danger" : "warning";
 }
 
 function buildIssueSummary(issues: ImportIssueLike[]) {
@@ -139,9 +139,19 @@ function buildIssueSummary(issues: ImportIssueLike[]) {
   return [...grouped.values()].sort((left, right) => right.total - left.total);
 }
 
-function MetricCard({ label, value, tone }: { label: string; value: string | number; tone?: string }) {
+function MetricCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  tone?: string;
+}) {
   return (
-    <Card className={`import-metric-card ${tone ? `import-metric-${tone}` : ''}`}>
+    <Card
+      className={`import-metric-card ${tone ? `import-metric-${tone}` : ""}`}
+    >
       <p className="card-label">{label}</p>
       <strong>{value}</strong>
     </Card>
@@ -192,12 +202,14 @@ function IssuesTable({ issues }: { issues: ImportIssueLike[] }) {
             <tr key={`${issue.numeroFila}-${issue.campo}-${index}`}>
               <td>{issue.numeroFila}</td>
               <td>
-                <span className={`import-issue-pill import-issue-${getIssueTone(issue.tipo)}`}>
+                <span
+                  className={`import-issue-pill import-issue-${getIssueTone(issue.tipo)}`}
+                >
                   {getIssueLabel(issue.tipo)}
                 </span>
               </td>
               <td>{issue.campo}</td>
-              <td>{issue.valor ?? '-'}</td>
+              <td>{issue.valor ?? "-"}</td>
               <td>{issue.mensaje}</td>
             </tr>
           ))}
@@ -212,29 +224,37 @@ function IssuesTable({ issues }: { issues: ImportIssueLike[] }) {
   );
 }
 
-function ImportacionesPage({ catalogs, token, onImportCompleted }: ImportacionesPageProps) {
+function ImportacionesPage({
+  catalogs,
+  token,
+  onImportCompleted,
+}: ImportacionesPageProps) {
   const [form, setForm] = useState<ImportacionesFormState>({
     anio: DEFAULT_YEAR,
-    idRegion: '',
-    idDelegacionDefault: '',
+    idRegion: "",
+    idDelegacionDefault: "",
     modoDuplicados: ImportacionInfraccionesModoDuplicados.OMITIR,
     crearCatalogosFaltantes: true,
     crearDelegacionesFaltantes: true,
-    observaciones: '',
+    observaciones: "",
   });
   const [file, setFile] = useState<File | null>(null);
-  const [previewState, setPreviewState] = useState<LoadState<ImportacionPreviewResponse>>(
-    createIdleState<ImportacionPreviewResponse>(),
-  );
-  const [confirmState, setConfirmState] = useState<LoadState<ImportacionDetalleResponse>>(
-    createIdleState<ImportacionDetalleResponse>(),
-  );
-  const [importsState, setImportsState] = useState<LoadState<ImportacionInfraccionesResumen[]>>(
-    createIdleState<ImportacionInfraccionesResumen[]>(),
-  );
-  const [detailState, setDetailState] = useState<LoadState<ImportacionDetalleResponse>>(
-    createIdleState<ImportacionDetalleResponse>(),
-  );
+  const [previewState, setPreviewState] =
+    useState<LoadState<ImportacionPreviewResponse>>(
+      createIdleState<ImportacionPreviewResponse>(),
+    );
+  const [confirmState, setConfirmState] =
+    useState<LoadState<ImportacionDetalleResponse>>(
+      createIdleState<ImportacionDetalleResponse>(),
+    );
+  const [importsState, setImportsState] =
+    useState<LoadState<ImportacionInfraccionesResumen[]>>(
+      createIdleState<ImportacionInfraccionesResumen[]>(),
+    );
+  const [detailState, setDetailState] =
+    useState<LoadState<ImportacionDetalleResponse>>(
+      createIdleState<ImportacionDetalleResponse>(),
+    );
 
   const regionId = toNumber(form.idRegion);
   const selectedYear = toNumber(form.anio);
@@ -245,7 +265,9 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
   const resultDetail = confirm ?? selectedDetail;
   const resultIssues = resultDetail?.errores ?? [];
   const canPreview = Boolean(file && selectedYear && regionId);
-  const canConfirm = Boolean(canPreview && previewState.status === 'ready' && preview);
+  const canConfirm = Boolean(
+    canPreview && previewState.status === "ready" && preview,
+  );
 
   const delegacionesDisponibles = useMemo(() => {
     if (!catalogs) {
@@ -264,7 +286,7 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
   async function loadImportaciones(): Promise<void> {
     setImportsState((current) => ({
       ...current,
-      status: 'loading',
+      status: "loading",
       error: null,
     }));
 
@@ -275,13 +297,13 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
       });
 
       setImportsState({
-        status: 'ready',
+        status: "ready",
         data: response,
         error: null,
       });
     } catch (error) {
       setImportsState({
-        status: 'error',
+        status: "error",
         data: null,
         error: getErrorMessage(error),
       });
@@ -289,6 +311,7 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadImportaciones();
     // Token is the trigger for initial and session-bound refreshes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -297,7 +320,7 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
   async function loadDetail(idImportacionInfracciones: number): Promise<void> {
     setDetailState((current) => ({
       ...current,
-      status: 'loading',
+      status: "loading",
       error: null,
     }));
 
@@ -308,13 +331,13 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
       );
 
       setDetailState({
-        status: 'ready',
+        status: "ready",
         data: response,
         error: null,
       });
     } catch (error) {
       setDetailState({
-        status: 'error',
+        status: "error",
         data: null,
         error: getErrorMessage(error),
       });
@@ -352,7 +375,7 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
         next.idDelegacionDefault &&
         !availableDelegacionIds.has(next.idDelegacionDefault)
       ) {
-        next.idDelegacionDefault = '';
+        next.idDelegacionDefault = "";
       }
 
       return next;
@@ -404,15 +427,15 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
 
     if (!payload) {
       setPreviewState({
-        status: 'error',
+        status: "error",
         data: null,
-        error: 'Selecciona archivo, año y región antes de previsualizar.',
+        error: "Selecciona archivo, año y región antes de previsualizar.",
       });
       return;
     }
 
     setPreviewState({
-      status: 'loading',
+      status: "loading",
       data: null,
       error: null,
     });
@@ -421,13 +444,13 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
     try {
       const response = await previewImportacionInfracciones(token, payload);
       setPreviewState({
-        status: 'ready',
+        status: "ready",
         data: response,
         error: null,
       });
     } catch (error) {
       setPreviewState({
-        status: 'error',
+        status: "error",
         data: null,
         error: getErrorMessage(error),
       });
@@ -439,15 +462,15 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
 
     if (!payload || !preview) {
       setConfirmState({
-        status: 'error',
+        status: "error",
         data: null,
-        error: 'Primero previsualiza correctamente el archivo.',
+        error: "Primero previsualiza correctamente el archivo.",
       });
       return;
     }
 
     setConfirmState({
-      status: 'loading',
+      status: "loading",
       data: null,
       error: null,
     });
@@ -455,12 +478,12 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
     try {
       const response = await confirmarImportacionInfracciones(token, payload);
       setConfirmState({
-        status: 'ready',
+        status: "ready",
         data: response,
         error: null,
       });
       setDetailState({
-        status: 'ready',
+        status: "ready",
         data: response,
         error: null,
       });
@@ -468,7 +491,7 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
       await onImportCompleted();
     } catch (error) {
       setConfirmState({
-        status: 'error',
+        status: "error",
         data: null,
         error: getErrorMessage(error),
       });
@@ -482,7 +505,8 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
           <p className="eyebrow">Importaciones</p>
           <h1>Excel anual de infracciones</h1>
           <p className="page-description">
-            Carga, revisa y confirma el lote anual. La previsualización te dice qué se importará y qué requiere revisión.
+            Carga, revisa y confirma el lote anual. La previsualización te dice
+            qué se importará y qué requiere revisión.
           </p>
         </div>
       </header>
@@ -493,10 +517,13 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
             <p className="section-label">Paso 1</p>
             <h2>Archivo y contexto</h2>
             <p className="page-description">
-              Selecciona año, región y Excel. La delegación default solo se usa cuando la fila no trae delegación.
+              Selecciona año, región y Excel. La delegación default solo se usa
+              cuando la fila no trae delegación.
             </p>
           </div>
-          <span className="import-state-pill">{file ? file.name : 'Sin archivo'}</span>
+          <span className="import-state-pill">
+            {file ? file.name : "Sin archivo"}
+          </span>
         </div>
 
         <div className="form-grid form-grid-3">
@@ -506,7 +533,7 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
               type="number"
               min={1900}
               value={form.anio}
-              onChange={(event) => updateField('anio', event.target.value)}
+              onChange={(event) => updateField("anio", event.target.value)}
             />
           </Field>
 
@@ -529,11 +556,16 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
             <SelectField
               id="importacion-delegacion"
               value={form.idDelegacionDefault}
-              onChange={(event) => updateField('idDelegacionDefault', event.target.value)}
+              onChange={(event) =>
+                updateField("idDelegacionDefault", event.target.value)
+              }
             >
               <option value="">Sin delegacion default</option>
               {delegacionesDisponibles.map((delegacion) => (
-                <option key={delegacion.idDelegacion} value={delegacion.idDelegacion}>
+                <option
+                  key={delegacion.idDelegacion}
+                  value={delegacion.idDelegacion}
+                >
                   {delegacion.nombreDelegacion}
                 </option>
               ))}
@@ -544,7 +576,9 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
         <div className="import-config-grid">
           <label className="import-file-box" htmlFor="importacion-file">
             <span>Archivo Excel</span>
-            <strong>{file ? file.name : 'Seleccionar archivo .xlsx / .xls'}</strong>
+            <strong>
+              {file ? file.name : "Seleccionar archivo .xlsx / .xls"}
+            </strong>
             <input
               id="importacion-file"
               type="file"
@@ -559,13 +593,17 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
               value={form.modoDuplicados}
               onChange={(event) =>
                 updateField(
-                  'modoDuplicados',
+                  "modoDuplicados",
                   event.target.value as ImportacionInfraccionesModoDuplicados,
                 )
               }
             >
-              <option value={ImportacionInfraccionesModoDuplicados.OMITIR}>Omitir duplicados</option>
-              <option value={ImportacionInfraccionesModoDuplicados.ERROR}>Marcar como error</option>
+              <option value={ImportacionInfraccionesModoDuplicados.OMITIR}>
+                Omitir duplicados
+              </option>
+              <option value={ImportacionInfraccionesModoDuplicados.ERROR}>
+                Marcar como error
+              </option>
             </SelectField>
           </Field>
 
@@ -574,7 +612,9 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
               id="importacion-observaciones"
               rows={3}
               value={form.observaciones}
-              onChange={(event) => updateField('observaciones', event.target.value)}
+              onChange={(event) =>
+                updateField("observaciones", event.target.value)
+              }
               placeholder="Notas del lote"
             />
           </Field>
@@ -585,7 +625,9 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
             <input
               type="checkbox"
               checked={form.crearCatalogosFaltantes}
-              onChange={(event) => updateField('crearCatalogosFaltantes', event.target.checked)}
+              onChange={(event) =>
+                updateField("crearCatalogosFaltantes", event.target.checked)
+              }
             />
             <span>
               <strong>Crear catálogos faltantes</strong>
@@ -597,7 +639,9 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
             <input
               type="checkbox"
               checked={form.crearDelegacionesFaltantes}
-              onChange={(event) => updateField('crearDelegacionesFaltantes', event.target.checked)}
+              onChange={(event) =>
+                updateField("crearDelegacionesFaltantes", event.target.checked)
+              }
             />
             <span>
               <strong>Crear delegaciones faltantes</strong>
@@ -609,14 +653,31 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
         <div className="import-actions-bar">
           <div>
             <p className="section-label">Flujo recomendado</p>
-            <span>Previsualiza antes de confirmar para revisar errores y advertencias.</span>
+            <span>
+              Previsualiza antes de confirmar para revisar errores y
+              advertencias.
+            </span>
           </div>
           <div className="button-row button-row-end">
-            <Button type="button" variant="secondary" disabled={!canPreview || previewState.status === 'loading'} onClick={() => void handlePreview()}>
-              {previewState.status === 'loading' ? 'Analizando...' : 'Previsualizar'}
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!canPreview || previewState.status === "loading"}
+              onClick={() => void handlePreview()}
+            >
+              {previewState.status === "loading"
+                ? "Analizando..."
+                : "Previsualizar"}
             </Button>
-            <Button type="button" variant="primary" disabled={!canConfirm || confirmState.status === 'loading'} onClick={() => void handleConfirm()}>
-              {confirmState.status === 'loading' ? 'Importando...' : 'Confirmar importación'}
+            <Button
+              type="button"
+              variant="primary"
+              disabled={!canConfirm || confirmState.status === "loading"}
+              onClick={() => void handleConfirm()}
+            >
+              {confirmState.status === "loading"
+                ? "Importando..."
+                : "Confirmar importación"}
             </Button>
           </div>
         </div>
@@ -631,23 +692,32 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
             <p className="section-label">Paso 2</p>
             <h2>Previsualización</h2>
             <p className="page-description">
-              Resumen del archivo antes de crear datos. Las advertencias indican valores completados automáticamente.
+              Resumen del archivo antes de crear datos. Las advertencias indican
+              valores completados automáticamente.
             </p>
           </div>
         </div>
 
-        {previewState.status === 'loading' ? (
+        {previewState.status === "loading" ? (
           <LoadingMessage message="Analizando Excel..." />
         ) : preview ? (
           <div className="page-stack">
             <div className="import-metrics-grid">
               <MetricCard label="Filas detectadas" value={preview.totalFilas} />
-              <MetricCard label="Delegaciones" value={preview.conteos.delegacionesDetectadas} />
-              <MetricCard label="Motivos" value={preview.conteos.motivosDetectados} />
+              <MetricCard
+                label="Delegaciones"
+                value={preview.conteos.delegacionesDetectadas}
+              />
+              <MetricCard
+                label="Motivos"
+                value={preview.conteos.motivosDetectados}
+              />
               <MetricCard
                 label="Incidencias preview"
                 value={preview.erroresPreliminares.length}
-                tone={preview.erroresPreliminares.length > 0 ? 'warning' : 'success'}
+                tone={
+                  preview.erroresPreliminares.length > 0 ? "warning" : "success"
+                }
               />
             </div>
 
@@ -671,13 +741,13 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
                   {preview.primeras10Filas.map((row) => (
                     <tr key={row.numeroFila}>
                       <td>{row.numeroFila}</td>
-                      <td>{row.delegacion ?? '-'}</td>
-                      <td>{row.folioInfraccion ?? '-'}</td>
-                      <td>{row.fechaInfraccion ?? '-'}</td>
+                      <td>{row.delegacion ?? "-"}</td>
+                      <td>{row.folioInfraccion ?? "-"}</td>
+                      <td>{row.fechaInfraccion ?? "-"}</td>
                       <td>{row.horaInfraccion}</td>
-                      <td>{row.servicio ?? '-'}</td>
-                      <td>{row.clase ?? '-'}</td>
-                      <td>{row.motivos.join(', ') || '-'}</td>
+                      <td>{row.servicio ?? "-"}</td>
+                      <td>{row.clase ?? "-"}</td>
+                      <td>{row.motivos.join(", ") || "-"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -687,7 +757,9 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
             <IssuesTable issues={preview.erroresPreliminares} />
           </div>
         ) : (
-          <div className="notice">Selecciona archivo, año y región; después pulsa Previsualizar.</div>
+          <div className="notice">
+            Selecciona archivo, año y región; después pulsa Previsualizar.
+          </div>
         )}
       </Card>
 
@@ -697,20 +769,39 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
             <p className="section-label">Paso 3</p>
             <h2>Resultado del lote</h2>
             <p className="page-description">
-              Resultado de la última confirmación o del detalle seleccionado en historial.
+              Resultado de la última confirmación o del detalle seleccionado en
+              historial.
             </p>
           </div>
         </div>
 
-        {confirmState.status === 'loading' ? (
+        {confirmState.status === "loading" ? (
           <LoadingMessage message="Procesando importación..." />
         ) : resultDetail ? (
           <div className="page-stack">
             <div className="import-metrics-grid">
-              <MetricCard label="Importadas" value={resultDetail.importacion.filasImportadas} tone="success" />
-              <MetricCard label="Omitidas" value={resultDetail.importacion.filasOmitidas} />
-              <MetricCard label="Con error" value={resultDetail.importacion.filasConError} tone={resultDetail.importacion.filasConError > 0 ? 'danger' : 'success'} />
-              <MetricCard label="Estado" value={getStatusLabel(resultDetail.importacion.estado)} />
+              <MetricCard
+                label="Importadas"
+                value={resultDetail.importacion.filasImportadas}
+                tone="success"
+              />
+              <MetricCard
+                label="Omitidas"
+                value={resultDetail.importacion.filasOmitidas}
+              />
+              <MetricCard
+                label="Con error"
+                value={resultDetail.importacion.filasConError}
+                tone={
+                  resultDetail.importacion.filasConError > 0
+                    ? "danger"
+                    : "success"
+                }
+              />
+              <MetricCard
+                label="Estado"
+                value={getStatusLabel(resultDetail.importacion.estado)}
+              />
             </div>
 
             <IssueSummary issues={resultIssues} />
@@ -728,12 +819,16 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
             <h2>Importaciones registradas</h2>
           </div>
 
-          <Button type="button" variant="secondary" onClick={() => void loadImportaciones()}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => void loadImportaciones()}
+          >
             Actualizar
           </Button>
         </div>
 
-        {importsState.status === 'loading' ? (
+        {importsState.status === "loading" ? (
           <LoadingMessage message="Cargando importaciones..." />
         ) : null}
         <ErrorMessage message={importsState.error} />
@@ -779,7 +874,9 @@ function ImportacionesPage({ catalogs, token, onImportCompleted }: Importaciones
                       <Button
                         type="button"
                         variant="link"
-                        onClick={() => void loadDetail(item.idImportacionInfracciones)}
+                        onClick={() =>
+                          void loadDetail(item.idImportacionInfracciones)
+                        }
                       >
                         Ver detalle
                       </Button>

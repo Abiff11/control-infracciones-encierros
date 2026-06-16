@@ -12,7 +12,7 @@ import {
   formatEmptyValue,
   formatFullName,
   formatTimeOfDay,
-} from '../../lib/formatters';
+} from '../../utils/formatters';
 import type { InfraccionDetalleResponse } from '../../types/infracciones.types';
 import './InfraccionDetalleModal.css';
 

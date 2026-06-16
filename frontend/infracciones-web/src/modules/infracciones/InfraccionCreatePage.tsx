@@ -1,20 +1,20 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 
-import { OperationResultCard } from '../../components/operation/OperationResultCard';
-import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
-import { Field, TextInput } from '../../components/ui/Field';
-import { SelectField } from '../../components/ui/SelectField';
-import type { CatalogosBundle, Motivo } from '../catalogos/catalogos.types';
+import { OperationResultCard } from "../../components/operation/OperationResultCard";
+import { Button } from "../../components/ui/Button";
+import { Card } from "../../components/ui/Card";
+import { Field, TextInput } from "../../components/ui/Field";
+import { SelectField } from "../../components/ui/SelectField";
+import type { CatalogosBundle, Motivo } from "../../types/catalogos.types";
 import type {
   CreateInfraccionCompletaPayload,
   InfraccionFlujoResponse,
-} from './infracciones.types';
-import './InfraccionCreatePage.css';
+} from "../../types/infracciones.types";
+import "./InfraccionCreatePage.css";
 
 const MAX_MOTIVOS = 5;
-const DEFAULT_TIPO_PROCEDIMIENTO = 'INFRACCION';
-const DEFAULT_ESTATUS_INFRACCION = 'CAPTURADA';
+const DEFAULT_TIPO_PROCEDIMIENTO = "INFRACCION";
+const DEFAULT_ESTATUS_INFRACCION = "CAPTURADA";
 
 function getTodayDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -26,14 +26,14 @@ function getCurrentTime(): string {
 
 function normalizeCatalogText(value: string): string {
   return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toUpperCase();
 }
 
 function toOptionalNumber(value: string): number | null | undefined {
-  if (value.trim() === '') {
+  if (value.trim() === "") {
     return undefined;
   }
 
@@ -41,7 +41,7 @@ function toOptionalNumber(value: string): number | null | undefined {
 }
 
 function toNullableString(value: string): string | null | undefined {
-  if (value.trim() === '') {
+  if (value.trim() === "") {
     return undefined;
   }
 
@@ -49,7 +49,7 @@ function toNullableString(value: string): string | null | undefined {
 }
 
 function isFilled(value: string): boolean {
-  return value.trim() !== '';
+  return value.trim() !== "";
 }
 
 interface InfraccionCreatePageProps {
@@ -62,40 +62,40 @@ interface InfraccionCreatePageProps {
 }
 
 const INITIAL_FORM = {
-  idSexo: '',
-  nombre: '',
-  apellidoPaterno: '',
-  apellidoMaterno: '',
-  licencia: '',
-  curp: '',
-  idClaseVehiculo: '',
-  idLineaVehiculo: '',
-  idServicio: '',
-  anioModelo: '',
-  sitioServicioPublico: '',
-  color: '',
-  placas: '',
-  estadoPlacas: '',
-  serie: '',
-  motor: '',
-  municipio: '',
-  colonia: '',
-  calle: '',
-  numero: '',
-  idDelegacion: '',
-  idOperativo: '',
-  folioInfraccion: '',
+  idSexo: "",
+  nombre: "",
+  apellidoPaterno: "",
+  apellidoMaterno: "",
+  licencia: "",
+  curp: "",
+  idClaseVehiculo: "",
+  idLineaVehiculo: "",
+  idServicio: "",
+  anioModelo: "",
+  sitioServicioPublico: "",
+  color: "",
+  placas: "",
+  estadoPlacas: "",
+  serie: "",
+  motor: "",
+  municipio: "",
+  colonia: "",
+  calle: "",
+  numero: "",
+  idDelegacion: "",
+  idOperativo: "",
+  folioInfraccion: "",
   fechaInfraccion: getTodayDate(),
   horaInfraccion: getCurrentTime(),
-  observaciones: '',
-  clavePolicia: '',
-  numParteInformativo: '',
+  observaciones: "",
+  clavePolicia: "",
+  numParteInformativo: "",
 };
 
 type FormState = typeof INITIAL_FORM;
 
 function getEmptyMotivoSlots(): string[] {
-  return Array.from({ length: MAX_MOTIVOS }, () => '');
+  return Array.from({ length: MAX_MOTIVOS }, () => "");
 }
 
 function getMotivoLabel(motivo: Motivo): string {
@@ -137,16 +137,32 @@ function SectionCard({
           <p className="section-label">{eyebrow}</p>
           <h2>{title}</h2>
         </div>
-        <span className="create-section-counter">{getSectionStatus(total, completed)}</span>
+        <span className="create-section-counter">
+          {getSectionStatus(total, completed)}
+        </span>
       </div>
       {children}
     </Card>
   );
 }
 
-function SystemChip({ label, value, valid }: { label: string; value: string; valid: boolean }) {
+function SystemChip({
+  label,
+  value,
+  valid,
+}: {
+  label: string;
+  value: string;
+  valid: boolean;
+}) {
   return (
-    <span className={valid ? 'create-system-chip' : 'create-system-chip create-system-chip-error'}>
+    <span
+      className={
+        valid
+          ? "create-system-chip"
+          : "create-system-chip create-system-chip-error"
+      }
+    >
       <strong>{label}</strong>
       {value}
     </span>
@@ -183,7 +199,9 @@ function InfraccionCreatePage({
   const defaultTipoProcedimiento = useMemo(
     () =>
       catalogs?.tiposProcedimiento.find(
-        (tipo) => normalizeCatalogText(tipo.nombreTipoProcedimiento) === DEFAULT_TIPO_PROCEDIMIENTO,
+        (tipo) =>
+          normalizeCatalogText(tipo.nombreTipoProcedimiento) ===
+          DEFAULT_TIPO_PROCEDIMIENTO,
       ) ?? null,
     [catalogs?.tiposProcedimiento],
   );
@@ -191,7 +209,9 @@ function InfraccionCreatePage({
   const defaultEstatusInfraccion = useMemo(
     () =>
       catalogs?.estatusInfraccion.find(
-        (estatus) => normalizeCatalogText(estatus.nombreEstatus) === DEFAULT_ESTATUS_INFRACCION,
+        (estatus) =>
+          normalizeCatalogText(estatus.nombreEstatus) ===
+          DEFAULT_ESTATUS_INFRACCION,
       ) ?? null,
     [catalogs?.estatusInfraccion],
   );
@@ -203,12 +223,20 @@ function InfraccionCreatePage({
       ),
     [catalogs?.motivos],
   );
-  const selectedMotivos = useMemo(() => getUniqueSelectedMotivos(motivoSlots), [motivoSlots]);
-  const selectedMotivoSet = useMemo(() => new Set(selectedMotivos), [selectedMotivos]);
+  const selectedMotivos = useMemo(
+    () => getUniqueSelectedMotivos(motivoSlots),
+    [motivoSlots],
+  );
+  const selectedMotivoSet = useMemo(
+    () => new Set(selectedMotivos),
+    [selectedMotivos],
+  );
   const selectedMotivoLabels = useMemo(
     () =>
       selectedMotivos
-        .map((idMotivo) => sortedMotivos.find((motivo) => motivo.idMotivo === idMotivo))
+        .map((idMotivo) =>
+          sortedMotivos.find((motivo) => motivo.idMotivo === idMotivo),
+        )
         .filter((motivo): motivo is Motivo => Boolean(motivo))
         .map(getMotivoLabel),
     [selectedMotivos, sortedMotivos],
@@ -232,7 +260,7 @@ function InfraccionCreatePage({
   }
 
   function clearMotivoSlot(index: number): void {
-    updateMotivoSlot(index, '');
+    updateMotivoSlot(index, "");
   }
 
   function resetForm() {
@@ -248,23 +276,23 @@ function InfraccionCreatePage({
 
   function getValidationError(): string | null {
     if (!catalogs) {
-      return 'Los catalogos todavia no estan disponibles.';
+      return "Los catalogos todavia no estan disponibles.";
     }
 
     if (!defaultTipoProcedimiento) {
-      return 'No se encontro el tipo de procedimiento INFRACCION en catalogos.';
+      return "No se encontro el tipo de procedimiento INFRACCION en catalogos.";
     }
 
     if (!defaultEstatusInfraccion) {
-      return 'No se encontro el estatus inicial CAPTURADA en catalogos.';
+      return "No se encontro el estatus inicial CAPTURADA en catalogos.";
     }
 
     if (!isFilled(form.idSexo)) {
-      return 'Selecciona el sexo.';
+      return "Selecciona el sexo.";
     }
 
     if (!isFilled(form.nombre) || !isFilled(form.apellidoPaterno)) {
-      return 'Completa los datos personales obligatorios.';
+      return "Completa los datos personales obligatorios.";
     }
 
     if (
@@ -272,11 +300,11 @@ function InfraccionCreatePage({
       !isFilled(form.idLineaVehiculo) ||
       !isFilled(form.idServicio)
     ) {
-      return 'Completa los datos obligatorios del vehiculo.';
+      return "Completa los datos obligatorios del vehiculo.";
     }
 
     if (!isFilled(form.municipio)) {
-      return 'Ingresa el municipio.';
+      return "Ingresa el municipio.";
     }
 
     if (
@@ -285,15 +313,15 @@ function InfraccionCreatePage({
       !isFilled(form.fechaInfraccion) ||
       !isFilled(form.horaInfraccion)
     ) {
-      return 'Completa los datos operativos obligatorios.';
+      return "Completa los datos operativos obligatorios.";
     }
 
     if (selectedMotivos.length === 0) {
-      return 'Selecciona al menos un motivo.';
+      return "Selecciona al menos un motivo.";
     }
 
     if (selectedMotivos.length !== countFilled(motivoSlots)) {
-      return 'No repitas motivos en la captura.';
+      return "No repitas motivos en la captura.";
     }
 
     return null;
@@ -316,7 +344,9 @@ function InfraccionCreatePage({
     form.fechaInfraccion,
     form.horaInfraccion,
   ]);
-  const systemDefaultsReady = Boolean(defaultTipoProcedimiento && defaultEstatusInfraccion);
+  const systemDefaultsReady = Boolean(
+    defaultTipoProcedimiento && defaultEstatusInfraccion,
+  );
   const canSubmit =
     Boolean(catalogs) &&
     systemDefaultsReady &&
@@ -332,8 +362,15 @@ function InfraccionCreatePage({
 
     const validationError = getValidationError();
 
-    if (validationError || !defaultTipoProcedimiento || !defaultEstatusInfraccion) {
-      setError(validationError ?? 'No se pudieron resolver los valores iniciales del sistema.');
+    if (
+      validationError ||
+      !defaultTipoProcedimiento ||
+      !defaultEstatusInfraccion
+    ) {
+      setError(
+        validationError ??
+          "No se pudieron resolver los valores iniciales del sistema.",
+      );
       return;
     }
 
@@ -351,7 +388,8 @@ function InfraccionCreatePage({
         idLineaVehiculo: Number(form.idLineaVehiculo),
         idServicio: Number(form.idServicio),
         anioModelo: toOptionalNumber(form.anioModelo),
-        sitioServicioPublico: toNullableString(form.sitioServicioPublico) ?? null,
+        sitioServicioPublico:
+          toNullableString(form.sitioServicioPublico) ?? null,
         color: toNullableString(form.color) ?? null,
         placas: toNullableString(form.placas) ?? null,
         estadoPlacas: toNullableString(form.estadoPlacas) ?? null,
@@ -390,7 +428,7 @@ function InfraccionCreatePage({
       setError(
         submissionError instanceof Error
           ? submissionError.message
-          : 'Error desconocido al guardar la infraccion.',
+          : "Error desconocido al guardar la infraccion.",
       );
     } finally {
       setSaving(false);
@@ -401,15 +439,15 @@ function InfraccionCreatePage({
   const infraccionSummary = result
     ? [
         {
-          label: 'Folio',
+          label: "Folio",
           value: result.infraccion.folioInfraccion,
         },
         {
-          label: 'Estatus',
+          label: "Estatus",
           value: result.infraccion.estatusInfraccion.nombreEstatus,
         },
         {
-          label: 'Motivos',
+          label: "Motivos",
           value: String(selectedMotivos.length),
         },
       ]
@@ -417,7 +455,6 @@ function InfraccionCreatePage({
   const resultPreview = result
     ? {
         folioInfraccion: result.infraccion.folioInfraccion,
-        tipoProcedimiento: result.infraccion.tipoProcedimiento.nombreTipoProcedimiento,
         estatus: result.infraccion.estatusInfraccion.nombreEstatus,
         motivosSeleccionados: selectedMotivoLabels,
       }
@@ -430,12 +467,15 @@ function InfraccionCreatePage({
           <p className="eyebrow">Operacion</p>
           <h1>Nueva infraccion</h1>
           <p className="page-description">
-            Captura completa en una sola transaccion. Tipo y estatus inicial se asignan automaticamente.
+            Captura completa en una sola transaccion. Tipo y estatus inicial se
+            asignan automaticamente.
           </p>
         </div>
         <div className="create-required-summary">
-          <span>{selectedMotivos.length}/{MAX_MOTIVOS} motivos</span>
-          <span>{canSubmit ? 'Lista para guardar' : 'Captura pendiente'}</span>
+          <span>
+            {selectedMotivos.length}/{MAX_MOTIVOS} motivos
+          </span>
+          <span>{canSubmit ? "Lista para guardar" : "Captura pendiente"}</span>
         </div>
       </header>
 
@@ -453,7 +493,7 @@ function InfraccionCreatePage({
               <SelectField
                 id="infractor-sexo"
                 value={form.idSexo}
-                onChange={(event) => updateField('idSexo', event.target.value)}
+                onChange={(event) => updateField("idSexo", event.target.value)}
                 required
               >
                 <option value="">Selecciona</option>
@@ -469,25 +509,35 @@ function InfraccionCreatePage({
               <TextInput
                 id="infractor-nombre"
                 value={form.nombre}
-                onChange={(event) => updateField('nombre', event.target.value)}
+                onChange={(event) => updateField("nombre", event.target.value)}
                 required
               />
             </Field>
 
-            <Field htmlFor="infractor-apellido-paterno" label="Apellido paterno">
+            <Field
+              htmlFor="infractor-apellido-paterno"
+              label="Apellido paterno"
+            >
               <TextInput
                 id="infractor-apellido-paterno"
                 value={form.apellidoPaterno}
-                onChange={(event) => updateField('apellidoPaterno', event.target.value)}
+                onChange={(event) =>
+                  updateField("apellidoPaterno", event.target.value)
+                }
                 required
               />
             </Field>
 
-            <Field htmlFor="infractor-apellido-materno" label="Apellido materno">
+            <Field
+              htmlFor="infractor-apellido-materno"
+              label="Apellido materno"
+            >
               <TextInput
                 id="infractor-apellido-materno"
                 value={form.apellidoMaterno}
-                onChange={(event) => updateField('apellidoMaterno', event.target.value)}
+                onChange={(event) =>
+                  updateField("apellidoMaterno", event.target.value)
+                }
               />
             </Field>
 
@@ -495,7 +545,9 @@ function InfraccionCreatePage({
               <TextInput
                 id="infractor-licencia"
                 value={form.licencia}
-                onChange={(event) => updateField('licencia', event.target.value)}
+                onChange={(event) =>
+                  updateField("licencia", event.target.value)
+                }
               />
             </Field>
 
@@ -503,7 +555,7 @@ function InfraccionCreatePage({
               <TextInput
                 id="infractor-curp"
                 value={form.curp}
-                onChange={(event) => updateField('curp', event.target.value)}
+                onChange={(event) => updateField("curp", event.target.value)}
               />
             </Field>
           </div>
@@ -520,12 +572,17 @@ function InfraccionCreatePage({
               <SelectField
                 id="vehiculo-clase"
                 value={form.idClaseVehiculo}
-                onChange={(event) => updateField('idClaseVehiculo', event.target.value)}
+                onChange={(event) =>
+                  updateField("idClaseVehiculo", event.target.value)
+                }
                 required
               >
                 <option value="">Selecciona</option>
                 {catalogs?.clasesVehiculo.map((clase) => (
-                  <option key={clase.idClaseVehiculo} value={clase.idClaseVehiculo}>
+                  <option
+                    key={clase.idClaseVehiculo}
+                    value={clase.idClaseVehiculo}
+                  >
                     {clase.nombreClaseVehiculo}
                   </option>
                 ))}
@@ -536,12 +593,17 @@ function InfraccionCreatePage({
               <SelectField
                 id="vehiculo-linea"
                 value={form.idLineaVehiculo}
-                onChange={(event) => updateField('idLineaVehiculo', event.target.value)}
+                onChange={(event) =>
+                  updateField("idLineaVehiculo", event.target.value)
+                }
                 required
               >
                 <option value="">Selecciona</option>
                 {catalogs?.lineasVehiculo.map((linea) => (
-                  <option key={linea.idLineaVehiculo} value={linea.idLineaVehiculo}>
+                  <option
+                    key={linea.idLineaVehiculo}
+                    value={linea.idLineaVehiculo}
+                  >
                     {linea.marcaVehiculo
                       ? `${linea.marcaVehiculo.nombreMarcaVehiculo} - ${linea.nombreLineaVehiculo}`
                       : linea.nombreLineaVehiculo}
@@ -554,7 +616,9 @@ function InfraccionCreatePage({
               <SelectField
                 id="vehiculo-servicio"
                 value={form.idServicio}
-                onChange={(event) => updateField('idServicio', event.target.value)}
+                onChange={(event) =>
+                  updateField("idServicio", event.target.value)
+                }
                 required
               >
                 <option value="">Selecciona</option>
@@ -572,7 +636,9 @@ function InfraccionCreatePage({
                 type="number"
                 min="1"
                 value={form.anioModelo}
-                onChange={(event) => updateField('anioModelo', event.target.value)}
+                onChange={(event) =>
+                  updateField("anioModelo", event.target.value)
+                }
               />
             </Field>
 
@@ -580,7 +646,7 @@ function InfraccionCreatePage({
               <TextInput
                 id="vehiculo-color"
                 value={form.color}
-                onChange={(event) => updateField('color', event.target.value)}
+                onChange={(event) => updateField("color", event.target.value)}
               />
             </Field>
 
@@ -588,7 +654,7 @@ function InfraccionCreatePage({
               <TextInput
                 id="vehiculo-placas"
                 value={form.placas}
-                onChange={(event) => updateField('placas', event.target.value)}
+                onChange={(event) => updateField("placas", event.target.value)}
               />
             </Field>
 
@@ -596,7 +662,9 @@ function InfraccionCreatePage({
               <TextInput
                 id="vehiculo-estado-placas"
                 value={form.estadoPlacas}
-                onChange={(event) => updateField('estadoPlacas', event.target.value)}
+                onChange={(event) =>
+                  updateField("estadoPlacas", event.target.value)
+                }
               />
             </Field>
 
@@ -604,7 +672,7 @@ function InfraccionCreatePage({
               <TextInput
                 id="vehiculo-serie"
                 value={form.serie}
-                onChange={(event) => updateField('serie', event.target.value)}
+                onChange={(event) => updateField("serie", event.target.value)}
               />
             </Field>
 
@@ -612,27 +680,40 @@ function InfraccionCreatePage({
               <TextInput
                 id="vehiculo-motor"
                 value={form.motor}
-                onChange={(event) => updateField('motor', event.target.value)}
+                onChange={(event) => updateField("motor", event.target.value)}
               />
             </Field>
 
-            <Field htmlFor="vehiculo-sitio" label="Sitio servicio publico" className="field-span-3">
+            <Field
+              htmlFor="vehiculo-sitio"
+              label="Sitio servicio publico"
+              className="field-span-3"
+            >
               <TextInput
                 id="vehiculo-sitio"
                 value={form.sitioServicioPublico}
-                onChange={(event) => updateField('sitioServicioPublico', event.target.value)}
+                onChange={(event) =>
+                  updateField("sitioServicioPublico", event.target.value)
+                }
               />
             </Field>
           </div>
         </SectionCard>
 
-        <SectionCard eyebrow="Lugar" title="Ubicacion" completed={lugarRequiredCompleted} total={1}>
+        <SectionCard
+          eyebrow="Lugar"
+          title="Ubicacion"
+          completed={lugarRequiredCompleted}
+          total={1}
+        >
           <div className="form-grid form-grid-4">
             <Field htmlFor="lugar-municipio" label="Municipio">
               <TextInput
                 id="lugar-municipio"
                 value={form.municipio}
-                onChange={(event) => updateField('municipio', event.target.value)}
+                onChange={(event) =>
+                  updateField("municipio", event.target.value)
+                }
                 required
               />
             </Field>
@@ -641,7 +722,7 @@ function InfraccionCreatePage({
               <TextInput
                 id="lugar-colonia"
                 value={form.colonia}
-                onChange={(event) => updateField('colonia', event.target.value)}
+                onChange={(event) => updateField("colonia", event.target.value)}
               />
             </Field>
 
@@ -649,7 +730,7 @@ function InfraccionCreatePage({
               <TextInput
                 id="lugar-calle"
                 value={form.calle}
-                onChange={(event) => updateField('calle', event.target.value)}
+                onChange={(event) => updateField("calle", event.target.value)}
               />
             </Field>
 
@@ -657,7 +738,7 @@ function InfraccionCreatePage({
               <TextInput
                 id="lugar-numero"
                 value={form.numero}
-                onChange={(event) => updateField('numero', event.target.value)}
+                onChange={(event) => updateField("numero", event.target.value)}
               />
             </Field>
           </div>
@@ -672,12 +753,18 @@ function InfraccionCreatePage({
           <div className="create-system-defaults">
             <SystemChip
               label="Tipo"
-              value={defaultTipoProcedimiento?.nombreTipoProcedimiento ?? 'INFRACCION no encontrado'}
+              value={
+                defaultTipoProcedimiento?.nombreTipoProcedimiento ??
+                "INFRACCION no encontrado"
+              }
               valid={Boolean(defaultTipoProcedimiento)}
             />
             <SystemChip
               label="Estatus inicial"
-              value={defaultEstatusInfraccion?.nombreEstatus ?? 'CAPTURADA no encontrado'}
+              value={
+                defaultEstatusInfraccion?.nombreEstatus ??
+                "CAPTURADA no encontrado"
+              }
               valid={Boolean(defaultEstatusInfraccion)}
             />
           </div>
@@ -687,12 +774,17 @@ function InfraccionCreatePage({
               <SelectField
                 id="infraccion-delegacion"
                 value={form.idDelegacion}
-                onChange={(event) => updateField('idDelegacion', event.target.value)}
+                onChange={(event) =>
+                  updateField("idDelegacion", event.target.value)
+                }
                 required
               >
                 <option value="">Selecciona</option>
                 {catalogs?.delegaciones.map((delegacion) => (
-                  <option key={delegacion.idDelegacion} value={delegacion.idDelegacion}>
+                  <option
+                    key={delegacion.idDelegacion}
+                    value={delegacion.idDelegacion}
+                  >
                     {delegacion.nombreDelegacion}
                   </option>
                 ))}
@@ -703,11 +795,16 @@ function InfraccionCreatePage({
               <SelectField
                 id="infraccion-operativo"
                 value={form.idOperativo}
-                onChange={(event) => updateField('idOperativo', event.target.value)}
+                onChange={(event) =>
+                  updateField("idOperativo", event.target.value)
+                }
               >
                 <option value="">Sin operativo</option>
                 {catalogs?.operativos.map((operativo) => (
-                  <option key={operativo.idOperativo} value={operativo.idOperativo}>
+                  <option
+                    key={operativo.idOperativo}
+                    value={operativo.idOperativo}
+                  >
                     {operativo.nombreOperativo}
                   </option>
                 ))}
@@ -718,7 +815,9 @@ function InfraccionCreatePage({
               <TextInput
                 id="infraccion-folio"
                 value={form.folioInfraccion}
-                onChange={(event) => updateField('folioInfraccion', event.target.value)}
+                onChange={(event) =>
+                  updateField("folioInfraccion", event.target.value)
+                }
                 required
               />
             </Field>
@@ -728,7 +827,9 @@ function InfraccionCreatePage({
                 id="infraccion-fecha"
                 type="date"
                 value={form.fechaInfraccion}
-                onChange={(event) => updateField('fechaInfraccion', event.target.value)}
+                onChange={(event) =>
+                  updateField("fechaInfraccion", event.target.value)
+                }
                 required
               />
             </Field>
@@ -738,7 +839,9 @@ function InfraccionCreatePage({
                 id="infraccion-hora"
                 type="time"
                 value={form.horaInfraccion}
-                onChange={(event) => updateField('horaInfraccion', event.target.value)}
+                onChange={(event) =>
+                  updateField("horaInfraccion", event.target.value)
+                }
                 required
               />
             </Field>
@@ -747,15 +850,22 @@ function InfraccionCreatePage({
               <TextInput
                 id="infraccion-clave-policia"
                 value={form.clavePolicia}
-                onChange={(event) => updateField('clavePolicia', event.target.value)}
+                onChange={(event) =>
+                  updateField("clavePolicia", event.target.value)
+                }
               />
             </Field>
 
-            <Field htmlFor="infraccion-num-parte" label="Numero parte informativo">
+            <Field
+              htmlFor="infraccion-num-parte"
+              label="Numero parte informativo"
+            >
               <TextInput
                 id="infraccion-num-parte"
                 value={form.numParteInformativo}
-                onChange={(event) => updateField('numParteInformativo', event.target.value)}
+                onChange={(event) =>
+                  updateField("numParteInformativo", event.target.value)
+                }
               />
             </Field>
 
@@ -764,7 +874,9 @@ function InfraccionCreatePage({
               <textarea
                 id="infraccion-observaciones"
                 value={form.observaciones}
-                onChange={(event) => updateField('observaciones', event.target.value)}
+                onChange={(event) =>
+                  updateField("observaciones", event.target.value)
+                }
                 rows={4}
               />
             </div>
@@ -788,19 +900,30 @@ function InfraccionCreatePage({
           <div className="create-motivo-select-grid">
             {motivoSlots.map((motivoValue, index) => (
               <div key={`motivo-slot-${index}`} className="create-motivo-slot">
-                <Field htmlFor={`motivo-${index}`} label={`Motivo ${index + 1}`}>
+                <Field
+                  htmlFor={`motivo-${index}`}
+                  label={`Motivo ${index + 1}`}
+                >
                   <SelectField
                     id={`motivo-${index}`}
                     value={motivoValue}
-                    onChange={(event) => updateMotivoSlot(index, event.target.value)}
+                    onChange={(event) =>
+                      updateMotivoSlot(index, event.target.value)
+                    }
                   >
                     <option value="">Sin motivo</option>
                     {sortedMotivos.map((motivo) => {
                       const value = String(motivo.idMotivo);
-                      const alreadySelected = selectedMotivoSet.has(motivo.idMotivo) && value !== motivoValue;
+                      const alreadySelected =
+                        selectedMotivoSet.has(motivo.idMotivo) &&
+                        value !== motivoValue;
 
                       return (
-                        <option key={motivo.idMotivo} value={value} disabled={alreadySelected}>
+                        <option
+                          key={motivo.idMotivo}
+                          value={value}
+                          disabled={alreadySelected}
+                        >
                           {getMotivoLabel(motivo)}
                         </option>
                       );
@@ -808,7 +931,11 @@ function InfraccionCreatePage({
                   </SelectField>
                 </Field>
                 {motivoValue ? (
-                  <Button type="button" variant="secondary" onClick={() => clearMotivoSlot(index)}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => clearMotivoSlot(index)}
+                  >
                     Quitar
                   </Button>
                 ) : null}
@@ -836,16 +963,20 @@ function InfraccionCreatePage({
             <p className="section-label">Guardar captura</p>
             <FieldValue>
               {canSubmit
-                ? 'La infraccion tiene los datos obligatorios completos.'
-                : 'Completa los campos obligatorios y al menos un motivo.'}
+                ? "La infraccion tiene los datos obligatorios completos."
+                : "Completa los campos obligatorios y al menos un motivo."}
             </FieldValue>
           </div>
           <div className="button-row button-row-end">
             <Button type="button" variant="secondary" onClick={resetForm}>
               Limpiar
             </Button>
-            <Button type="submit" variant="primary" disabled={saving || loading || !canSubmit}>
-              {saving ? 'Guardando...' : 'Guardar infraccion'}
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={saving || loading || !canSubmit}
+            >
+              {saving ? "Guardando..." : "Guardar infraccion"}
             </Button>
           </div>
         </div>

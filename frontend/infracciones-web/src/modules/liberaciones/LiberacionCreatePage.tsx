@@ -1,15 +1,15 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from "react";
 
-import { OperationResultCard } from '../../components/operation/OperationResultCard';
-import { getResponseText } from '../../utils/response';
-import type { GenerarLiberacionPayload } from '../infracciones/infracciones.types';
+import { OperationResultCard } from "../../components/operation/OperationResultCard";
+import type { GenerarLiberacionPayload } from "../../types/operaciones.types";
+import { getResponseText } from "../../utils/response";
 
 function getCurrentDateTimeLocal(): string {
   return new Date().toISOString().slice(0, 16);
 }
 
 function toNullableString(value: string): string | null | undefined {
-  if (value.trim() === '') {
+  if (value.trim() === "") {
     return undefined;
   }
 
@@ -17,7 +17,7 @@ function toNullableString(value: string): string | null | undefined {
 }
 
 function isFilled(value: string): boolean {
-  return value.trim() !== '';
+  return value.trim() !== "";
 }
 
 interface LiberacionCreatePageProps {
@@ -28,13 +28,13 @@ interface LiberacionCreatePageProps {
 
 function createInitialForm(initialIdInfraccion?: number | null) {
   return {
-    idInfraccion: initialIdInfraccion ? String(initialIdInfraccion) : '',
-    idPagoInfraccion: '',
-    folioLiberacion: '',
-    liberadoPor: '',
-    nombreRecibeLiberacion: '',
+    idInfraccion: initialIdInfraccion ? String(initialIdInfraccion) : "",
+    idPagoInfraccion: "",
+    folioLiberacion: "",
+    liberadoPor: "",
+    nombreRecibeLiberacion: "",
     fechaLiberacion: getCurrentDateTimeLocal(),
-    observacion: '',
+    observacion: "",
   };
 }
 
@@ -45,7 +45,9 @@ function LiberacionCreatePage({
   onCompleted,
   onSubmit,
 }: LiberacionCreatePageProps) {
-  const [form, setForm] = useState(() => createInitialForm(initialIdInfraccion));
+  const [form, setForm] = useState(() =>
+    createInitialForm(initialIdInfraccion),
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<unknown>(null);
@@ -63,19 +65,19 @@ function LiberacionCreatePage({
 
   function getValidationError(): string | null {
     if (!isFilled(form.idInfraccion)) {
-      return 'Ingresa el ID de infraccion.';
+      return "Ingresa el ID de infraccion.";
     }
 
     if (!isFilled(form.idPagoInfraccion)) {
-      return 'Ingresa el ID del pago.';
+      return "Ingresa el ID del pago.";
     }
 
     if (!isFilled(form.folioLiberacion)) {
-      return 'Ingresa el folio de liberacion.';
+      return "Ingresa el folio de liberacion.";
     }
 
     if (!isFilled(form.liberadoPor) || !isFilled(form.nombreRecibeLiberacion)) {
-      return 'Completa los nombres requeridos para la liberacion.';
+      return "Completa los nombres requeridos para la liberacion.";
     }
 
     return null;
@@ -112,24 +114,25 @@ function LiberacionCreatePage({
       setError(
         submissionError instanceof Error
           ? submissionError.message
-          : 'Error desconocido al guardar la liberacion.',
+          : "Error desconocido al guardar la liberacion.",
       );
     } finally {
       setSaving(false);
     }
   }
 
-  const releaseId = getResponseText(result, 'idLiberacionVehiculo');
+  const releaseId = getResponseText(result, "idLiberacionVehiculo");
   const releaseSummary = releaseId
     ? [
-        { label: 'ID liberacion', value: releaseId },
+        { label: "ID liberacion", value: releaseId },
         {
-          label: 'Folio',
-          value: getResponseText(result, 'folioLiberacion') ?? 'Sin folio',
+          label: "Folio",
+          value: getResponseText(result, "folioLiberacion") ?? "Sin folio",
         },
         {
-          label: 'Recibe',
-          value: getResponseText(result, 'nombreRecibeLiberacion') ?? 'Sin dato',
+          label: "Recibe",
+          value:
+            getResponseText(result, "nombreRecibeLiberacion") ?? "Sin dato",
         },
       ]
     : [];
@@ -147,7 +150,8 @@ function LiberacionCreatePage({
           <p className="eyebrow">Operacion</p>
           <h1>Liberacion</h1>
           <p className="page-description">
-            Genera una liberacion vehicular usando el usuario autenticado del JWT.
+            Genera una liberacion vehicular usando el usuario autenticado del
+            JWT.
           </p>
         </div>
       </header>
@@ -161,7 +165,9 @@ function LiberacionCreatePage({
               type="number"
               min="1"
               value={form.idInfraccion}
-              onChange={(event) => updateField('idInfraccion', event.target.value)}
+              onChange={(event) =>
+                updateField("idInfraccion", event.target.value)
+              }
               required
             />
           </div>
@@ -174,7 +180,7 @@ function LiberacionCreatePage({
               min="1"
               value={form.idPagoInfraccion}
               onChange={(event) =>
-                updateField('idPagoInfraccion', event.target.value)
+                updateField("idPagoInfraccion", event.target.value)
               }
               required
             />
@@ -185,7 +191,9 @@ function LiberacionCreatePage({
             <input
               id="liberacion-folio"
               value={form.folioLiberacion}
-              onChange={(event) => updateField('folioLiberacion', event.target.value)}
+              onChange={(event) =>
+                updateField("folioLiberacion", event.target.value)
+              }
               required
             />
           </div>
@@ -195,7 +203,9 @@ function LiberacionCreatePage({
             <input
               id="liberacion-liberado-por"
               value={form.liberadoPor}
-              onChange={(event) => updateField('liberadoPor', event.target.value)}
+              onChange={(event) =>
+                updateField("liberadoPor", event.target.value)
+              }
               required
             />
           </div>
@@ -206,7 +216,7 @@ function LiberacionCreatePage({
               id="liberacion-recibe"
               value={form.nombreRecibeLiberacion}
               onChange={(event) =>
-                updateField('nombreRecibeLiberacion', event.target.value)
+                updateField("nombreRecibeLiberacion", event.target.value)
               }
               required
             />
@@ -218,7 +228,9 @@ function LiberacionCreatePage({
               id="liberacion-fecha"
               type="datetime-local"
               value={form.fechaLiberacion}
-              onChange={(event) => updateField('fechaLiberacion', event.target.value)}
+              onChange={(event) =>
+                updateField("fechaLiberacion", event.target.value)
+              }
             />
           </div>
 
@@ -227,7 +239,9 @@ function LiberacionCreatePage({
             <textarea
               id="liberacion-observacion"
               value={form.observacion}
-              onChange={(event) => updateField('observacion', event.target.value)}
+              onChange={(event) =>
+                updateField("observacion", event.target.value)
+              }
               rows={4}
             />
           </div>
@@ -241,9 +255,13 @@ function LiberacionCreatePage({
             type="submit"
             disabled={saving || !canSubmit}
           >
-            {saving ? 'Guardando...' : 'Generar liberacion'}
+            {saving ? "Guardando..." : "Generar liberacion"}
           </button>
-          <button className="button-secondary" type="button" onClick={resetForm}>
+          <button
+            className="button-secondary"
+            type="button"
+            onClick={resetForm}
+          >
             Limpiar
           </button>
         </div>
