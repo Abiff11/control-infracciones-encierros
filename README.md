@@ -10,15 +10,16 @@ control-infracciones-encierros/
 │   └── infracciones-api/
 ├── frontend/
 │   └── infracciones-web/
-├── database/
-│   ├── migrations/
-│   ├── seeds/
-│   └── sql/
 ├── docs/
 │   ├── DER/
 │   ├── diccionario-datos/
-│   └── especificaciones/
-└── docker-compose.yml
+│   ├── deployment/
+│   └── importaciones/
+├── nginx/
+├── scripts/
+├── Dockerfile
+├── docker-compose.yml
+└── docker-compose.prod.yml
 ```
 
 ## Stack previsto
@@ -86,7 +87,6 @@ Puerto local:
 ## Base de datos
 
 - Las migraciones del backend viven en `backend/infracciones-api/src/database/migrations`.
-- Los scripts SQL generales viven en `database/sql`.
 - `DB_SYNCHRONIZE` debe permanecer en `false` para trabajo formal.
 - Las migraciones ya existentes se conservarán por ahora y podrán consolidarse al cierre del modelo.
 - Los catalogos vehiculares y operativos ya están modelados.
@@ -115,4 +115,6 @@ Puerto local:
 ## Despliegue
 
 - Revisa `docs/deployment/produccion-docker.md`.
+- Desarrollo usa `docker-compose.yml` solo para PostgreSQL local.
+- Produccion usa `Dockerfile` raiz y `docker-compose.prod.yml`.
 - Usa `GET /health` para la verificacion basica del backend.

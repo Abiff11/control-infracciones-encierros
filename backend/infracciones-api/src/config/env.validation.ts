@@ -31,7 +31,11 @@ function parseNumber(
 
   const parsedValue = Number(rawValue);
 
-  if (!Number.isInteger(parsedValue) || parsedValue < min || parsedValue > max) {
+  if (
+    !Number.isInteger(parsedValue) ||
+    parsedValue < min ||
+    parsedValue > max
+  ) {
     errors.push(`${key} debe ser un entero entre ${min} y ${max}.`);
     return String(fallback);
   }
@@ -88,7 +92,9 @@ export function validateEnv(config: EnvRecord): EnvRecord {
     }
 
     if (getString(config, 'DB_SYNCHRONIZE')?.toLowerCase() === 'true') {
-      errors.push('DB_SYNCHRONIZE no puede ser true en produccion. Usa migraciones.');
+      errors.push(
+        'DB_SYNCHRONIZE no puede ser true en produccion. Usa migraciones.',
+      );
     }
   }
 
@@ -107,19 +113,12 @@ export function validateEnv(config: EnvRecord): EnvRecord {
       60000,
       errors,
     ),
-    RATE_LIMIT_WINDOW_MS: parseNumber(
-      config,
-      'RATE_LIMIT_WINDOW_MS',
-      60000,
-      1000,
-      3600000,
-      errors,
-    ),
-    RATE_LIMIT_MAX: parseNumber(config, 'RATE_LIMIT_MAX', 120, 1, 10000, errors),
   };
 
   if (errors.length > 0) {
-    throw new Error(`Variables de entorno invalidas:\n- ${errors.join('\n- ')}`);
+    throw new Error(
+      `Variables de entorno invalidas:\n- ${errors.join('\n- ')}`,
+    );
   }
 
   return validatedConfig;

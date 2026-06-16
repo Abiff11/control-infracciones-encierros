@@ -25,9 +25,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production build
 Antes del primer despliegue:
 
 ```bash
-cd backend/infracciones-api
-DB_SYNCHRONIZE=false npm run migration:run
-npm run seed:initial
+./scripts/migrate.sh
 ```
 
 El seed inicial carga:
@@ -57,8 +55,9 @@ docker compose -f docker-compose.prod.yml logs -f infracciones_api
 
 ## Health check basico
 
-- Backend: abrir `http://localhost:3000/health` y confirmar respuesta JSON con `status: ok`.
-- Frontend: abrir `http://localhost:8080/` y confirmar carga de la SPA.
+- Backend: desde la red de Docker, `GET /health` responde JSON con `status: ok`.
+- Frontend/Nginx: abrir `http://127.0.0.1:${WEB_PORT:-8088}/healthz` y confirmar `ok`.
+- SPA: abrir `http://127.0.0.1:${WEB_PORT:-8088}/`.
 
 ## Rollback basico
 
@@ -70,6 +69,7 @@ docker compose -f docker-compose.prod.yml logs -f infracciones_api
 ## Notas
 
 - PostgreSQL no se expone publicamente.
-- El frontend se sirve por Nginx en el puerto `8080`.
+- El frontend se sirve por Nginx no privilegiado en el puerto interno `8080`; el host usa `WEB_BIND_ADDRESS` y `WEB_PORT`.
+- Produccion usa el `Dockerfile` raiz multi-stage. Los Dockerfiles internos de backend/frontend no forman parte de la estrategia productiva.
 - Los secretos no deben quedar versionados.
 - `descripcion_motivo` esta persistido para guardar la descripcion real del catalogo oficial.

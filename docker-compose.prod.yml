@@ -3,8 +3,6 @@ services:
     image: postgres:16-alpine
     container_name: cie_postgres
     restart: unless-stopped
-    env_file:
-      - .env.production
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -27,14 +25,20 @@ services:
     image: control-infracciones-api:${APP_VERSION:-latest}
     container_name: cie_api
     restart: unless-stopped
-    env_file:
-      - .env.production
     environment:
       NODE_ENV: production
       PORT: 3000
       DB_HOST: postgres_infracciones
       DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: ${DB_DATABASE}
       DB_SYNCHRONIZE: "false"
+      DB_LOGGING: ${DB_LOGGING:-false}
+      DB_MAX_QUERY_EXECUTION_TIME: ${DB_MAX_QUERY_EXECUTION_TIME:-500}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      CORS_ORIGIN: ${CORS_ORIGIN}
     depends_on:
       postgres_infracciones:
         condition: service_healthy

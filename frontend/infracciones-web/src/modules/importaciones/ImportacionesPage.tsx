@@ -234,8 +234,8 @@ function ImportacionesPage({
     idRegion: "",
     idDelegacionDefault: "",
     modoDuplicados: ImportacionInfraccionesModoDuplicados.OMITIR,
-    crearCatalogosFaltantes: true,
-    crearDelegacionesFaltantes: true,
+    crearCatalogosFaltantes: false,
+    crearDelegacionesFaltantes: false,
     observaciones: "",
   });
   const [file, setFile] = useState<File | null>(null);
@@ -631,7 +631,8 @@ function ImportacionesPage({
             />
             <span>
               <strong>Crear catálogos faltantes</strong>
-              Servicio, clase, marca, línea, sexo, operativo y encierro.
+              Servicio, clase, marca, línea, sexo, operativo, encierro y
+              motivos.
             </span>
           </label>
 

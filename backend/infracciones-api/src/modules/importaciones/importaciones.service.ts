@@ -604,6 +604,7 @@ export class ImportacionesService {
       params.row.motivos,
       params.row.numeroFila,
       params.officialMotivos,
+      params.dto.crearCatalogosFaltantes,
     );
     issues.push(...motivosResolvidos.issues);
 
@@ -748,6 +749,7 @@ export class ImportacionesService {
     motivosClaves: string[],
     numeroFila: number,
     officialMotivos: Map<string, Motivo>,
+    crearCatalogosFaltantes: boolean,
   ): Promise<{
     motivos: Motivo[];
     issues: Array<RowIssue & { numeroFila: number }>;
@@ -770,6 +772,18 @@ export class ImportacionesService {
       }
 
       if (!motivo) {
+        if (!crearCatalogosFaltantes) {
+          issues.push({
+            numeroFila,
+            tipo: RowIssueType.ERROR,
+            campo: 'motivos',
+            valor: motivoKey,
+            mensaje:
+              'El motivo no existe y la creacion automatica esta deshabilitada.',
+          });
+          continue;
+        }
+
         motivo = await this.motivosRepository.save(
           this.motivosRepository.create({
             nombreMotivo: motivoKey,
@@ -873,7 +887,7 @@ export class ImportacionesService {
       return { value: existing, created: false };
     }
 
-    if (!crearCatalogosFaltantes && normalizedName !== 'OPERATIVO GENERAL') {
+    if (!crearCatalogosFaltantes) {
       return {
         value: null,
         created: false,
