@@ -1,7 +1,7 @@
 services:
   postgres_infracciones:
     image: postgres:16-alpine
-    container_name: postgres_infracciones
+    container_name: cie_postgres
     restart: unless-stopped
     env_file:
       - .env.production
@@ -11,36 +11,61 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_infracciones_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - infracciones_net
 
   infracciones_api:
     build:
-      context: ./backend/infracciones-api
+      context: .
       dockerfile: Dockerfile
-    container_name: infracciones_api
+      target: api-production
+    image: control-infracciones-api:${APP_VERSION:-latest}
+    container_name: cie_api
     restart: unless-stopped
     env_file:
       - .env.production
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: postgres_infracciones
+      DB_PORT: 5432
+      DB_SYNCHRONIZE: "false"
     depends_on:
-      - postgres_infracciones
+      postgres_infracciones:
+        condition: service_healthy
     expose:
       - "3000"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/tmp
     networks:
       - infracciones_net
 
   infracciones_web:
     build:
-      context: ./frontend/infracciones-web
+      context: .
       dockerfile: Dockerfile
+      target: web-production
       args:
-        VITE_API_URL: ${VITE_API_URL}
-    container_name: infracciones_web
+        VITE_API_URL: ${VITE_API_URL:-/api}
+    image: control-infracciones-web:${APP_VERSION:-latest}
+    container_name: cie_web
     restart: unless-stopped
     depends_on:
       - infracciones_api
     ports:
-      - "8080:80"
+      - "${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-8088}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
     networks:
       - infracciones_net
 
