@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { READ_ROLES, WRITE_ROLES } from '../auth/constants/roles.constants';
+import { READ_ROLES, RELEASE_ROLES } from '../auth/constants/roles.constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { LoginResponseUsuarioDto } from '../auth/dto/login-response.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -40,7 +40,7 @@ export class LiberacionesController {
     return this.liberacionesService.findByIdOrFail(idLiberacionVehiculo);
   }
 
-  @Roles(...WRITE_ROLES)
+  @Roles(...RELEASE_ROLES)
   @Post()
   @ApiOperation({ summary: 'Generar liberación vehicular' })
   generarLiberacion(
