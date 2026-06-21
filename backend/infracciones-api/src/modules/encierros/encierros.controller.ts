@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { READ_ROLES, WRITE_ROLES } from '../auth/constants/roles.constants';
+import { READ_ROLES, YARD_ROLES } from '../auth/constants/roles.constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { LoginResponseUsuarioDto } from '../auth/dto/login-response.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -59,14 +59,14 @@ export class EncierrosController {
     return this.encierrosService.findEncierroByIdOrFail(idEncierro);
   }
 
-  @Roles(...WRITE_ROLES)
+  @Roles(...YARD_ROLES)
   @Post('retenciones')
   @ApiOperation({ summary: 'Registrar retención vehicular' })
   registrarRetencion(@Body() registrarRetencionDto: RegistrarRetencionDto) {
     return this.encierrosService.registrarRetencion(registrarRetencionDto);
   }
 
-  @Roles(...WRITE_ROLES)
+  @Roles(...YARD_ROLES)
   @Post('salidas')
   @ApiOperation({ summary: 'Registrar salida vehicular' })
   registrarSalida(
