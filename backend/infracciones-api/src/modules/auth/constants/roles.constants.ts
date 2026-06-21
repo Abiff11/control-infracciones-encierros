@@ -50,13 +50,4 @@ export const IMPORT_ROLES: RoleName[] = [
   ROLES.OPERADOR,
 ];
 
-export const CATALOG_ADMIN_ROLES: RoleName[] = [ROLES.ADMIN];
-
-export const WRITE_ROLES: RoleName[] = [
-  ROLES.ADMIN,
-  ROLES.SECCION_PRIMERA,
-  ROLES.INFRACCIONES,
-  ROLES.LIBERACIONES,
-  ROLES.ENCIERRO,
-  ROLES.OPERADOR,
-];
+export const WRITE_ROLES: RoleName[] = [ROLES.ADMIN];
