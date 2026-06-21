@@ -71,7 +71,7 @@ function downloadBlob(blob: Blob, fileName: string): void {
   URL.revokeObjectURL(url);
 }
 
-function buildReportHtml(payload: InfraccionesReportPayload, forExcel: boolean): string {
+function buildReportHtml(payload: InfraccionesReportPayload): string {
   const columnCount = Math.max(payload.columns.length, 1);
   const contextRows = payload.contextLines
     .map((line) => `<tr class="report-meta"><td colspan="${columnCount}">${escapeHtml(line)}</td></tr>`)
@@ -82,7 +82,6 @@ function buildReportHtml(payload: InfraccionesReportPayload, forExcel: boolean):
   const bodyRows = payload.rows
     .map((row) => `<tr>${row.cells.map((cell) => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`)
     .join('');
-  const printScript = forExcel ? '' : '<script>window.addEventListener("load", () => window.print());<\/script>';
 
   return `<!doctype html>
 <html>
@@ -108,14 +107,13 @@ ${contextRows}
 <tr>${headerRows}</tr>
 ${bodyRows}
 </table>
-${printScript}
 </body>
 </html>`;
 }
 
 export function downloadInfraccionesExcelReport(payload: InfraccionesReportPayload): void {
   downloadBlob(
-    new Blob([`\ufeff${buildReportHtml(payload, true)}`], {
+    new Blob([`\ufeff${buildReportHtml(payload)}`], {
       type: 'application/vnd.ms-excel;charset=utf-8',
     }),
     `${normalizeFileName(payload.title)}-${new Date().toISOString().slice(0, 10)}.xls`,
@@ -127,13 +125,15 @@ export function downloadInfraccionesPdfReport(payload: InfraccionesReportPayload
 
   if (!reportWindow) {
     downloadBlob(
-      new Blob([buildReportHtml(payload, false)], { type: 'text/html;charset=utf-8' }),
+      new Blob([buildReportHtml(payload)], { type: 'text/html;charset=utf-8' }),
       `${normalizeFileName(payload.title)}-${new Date().toISOString().slice(0, 10)}.html`,
     );
     return;
   }
 
   reportWindow.document.open();
-  reportWindow.document.write(buildReportHtml(payload, false));
+  reportWindow.document.write(buildReportHtml(payload));
   reportWindow.document.close();
+  reportWindow.focus();
+  setTimeout(() => reportWindow.print(), 250);
 }
