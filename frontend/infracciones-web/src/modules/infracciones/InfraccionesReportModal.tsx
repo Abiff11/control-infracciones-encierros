@@ -89,8 +89,8 @@ export function InfraccionesReportModal({
   return (
     <Modal
       open={open}
-      title="Campos y reportes"
-      description="Selecciona las columnas visibles de la tabla y genera reportes Excel o PDF con esos mismos campos."
+      title="Reportes de infracciones"
+      description="Selecciona únicamente los campos que deben salir en el Excel o PDF. La tabla principal permanece fija."
       onClose={onClose}
     >
       <div className="infracciones-report-modal page-stack">
@@ -103,7 +103,7 @@ export function InfraccionesReportModal({
             <div className="report-export-summary">
               <span>{items.length} visibles</span>
               <span>{selectedRowIds.size} seleccionadas</span>
-              <span>{selectedFieldIds.length} campos</span>
+              <span>{selectedFieldIds.length} campos de reporte</span>
             </div>
           </div>
 
@@ -139,8 +139,8 @@ export function InfraccionesReportModal({
         <section className="report-export-section">
           <div className="report-export-section-head">
             <div>
-              <h3>Campos disponibles</h3>
-              <p className="page-description">La selección afecta la tabla y los reportes.</p>
+              <h3>Campos del reporte</h3>
+              <p className="page-description">Estos campos solo afectan el Excel/PDF y el preview del documento.</p>
             </div>
             <div className="button-row">
               <Button
@@ -199,7 +199,7 @@ export function InfraccionesReportModal({
         <section className="report-export-section">
           <div className="report-export-section-head">
             <div>
-              <h3>Preview</h3>
+              <h3>Preview del reporte</h3>
               <p className="page-description">Primeros {previewRows.length} registros del documento.</p>
             </div>
           </div>
