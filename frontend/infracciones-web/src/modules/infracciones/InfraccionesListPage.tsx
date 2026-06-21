@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -35,7 +35,6 @@ import {
 import { InfraccionesReportModal } from './InfraccionesReportModal';
 import {
   DEFAULT_INFRACCIONES_FIELD_IDS,
-  getInfraccionesFieldsByIds,
   INFRACCIONES_REPORT_FIELDS,
   type InfraccionesReportFieldId,
 } from './infracciones-report-fields';
@@ -77,7 +76,7 @@ interface InfraccionesListPageProps {
   onNavigateCreate: () => void;
 }
 
-const FIELD_STORAGE_KEY = 'cie.infracciones.selectedFields';
+const REPORT_FIELD_STORAGE_KEY = 'cie.infracciones.reportFields';
 
 const DEFAULT_FILTERS: FiltersForm = {
   search: '',
@@ -190,13 +189,13 @@ function OperationButton({ children, onClick }: { children: string; onClick: () 
   );
 }
 
-function readStoredFieldIds(): InfraccionesReportFieldId[] {
+function readStoredReportFieldIds(): InfraccionesReportFieldId[] {
   if (typeof window === 'undefined') {
     return DEFAULT_INFRACCIONES_FIELD_IDS;
   }
 
   try {
-    const rawValue = window.localStorage.getItem(FIELD_STORAGE_KEY);
+    const rawValue = window.localStorage.getItem(REPORT_FIELD_STORAGE_KEY);
     if (!rawValue) {
       return DEFAULT_INFRACCIONES_FIELD_IDS;
     }
@@ -217,12 +216,12 @@ function readStoredFieldIds(): InfraccionesReportFieldId[] {
   }
 }
 
-function persistFieldIds(fieldIds: InfraccionesReportFieldId[]): void {
+function persistReportFieldIds(fieldIds: InfraccionesReportFieldId[]): void {
   if (typeof window === 'undefined') {
     return;
   }
 
-  window.localStorage.setItem(FIELD_STORAGE_KEY, JSON.stringify(fieldIds));
+  window.localStorage.setItem(REPORT_FIELD_STORAGE_KEY, JSON.stringify(fieldIds));
 }
 
 function InfraccionesListPage({
@@ -241,18 +240,14 @@ function InfraccionesListPage({
   const [operationState, setOperationState] = useState<OperationState | null>(null);
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
   const [reportModalOpen, setReportModalOpen] = useState(false);
-  const [selectedFieldIds, setSelectedFieldIds] = useState<InfraccionesReportFieldId[]>(
-    readStoredFieldIds,
+  const [selectedReportFieldIds, setSelectedReportFieldIds] = useState<InfraccionesReportFieldId[]>(
+    readStoredReportFieldIds,
   );
   const [selectedRowIds, setSelectedRowIds] = useState<Set<number>>(() => new Set());
 
   const query = useMemo(() => buildQuery(activeFilters), [activeFilters]);
   const meta: PaginationMeta | null = state.data?.meta ?? null;
   const items = state.data?.data ?? [];
-  const visibleFields = useMemo(
-    () => getInfraccionesFieldsByIds(selectedFieldIds),
-    [selectedFieldIds],
-  );
   const allVisibleSelected = items.length > 0 && items.every((item) => selectedRowIds.has(item.idInfraccion));
 
   useEffect(() => {
@@ -347,9 +342,9 @@ function InfraccionesListPage({
     };
   }, [selectedId, token]);
 
-  function updateSelectedFieldIds(fieldIds: InfraccionesReportFieldId[]): void {
-    setSelectedFieldIds(fieldIds);
-    persistFieldIds(fieldIds);
+  function updateSelectedReportFieldIds(fieldIds: InfraccionesReportFieldId[]): void {
+    setSelectedReportFieldIds(fieldIds);
+    persistReportFieldIds(fieldIds);
   }
 
   function updateDraftField(field: keyof FiltersForm, value: string): void {
@@ -532,57 +527,6 @@ function InfraccionesListPage({
     );
   }
 
-  function renderFieldCell(item: InfraccionListItem, fieldId: string): ReactNode {
-    switch (fieldId) {
-      case 'folioInfraccion':
-        return <strong>{item.folioInfraccion}</strong>;
-      case 'fechaHora':
-        return (
-          <div className="table-cell-stack">
-            <strong>{formatDate(item.fechaInfraccion)}</strong>
-            <span>{formatTimeOfDay(item.horaInfraccion)}</span>
-          </div>
-        );
-      case 'infractorNombreCompleto':
-        return (
-          <div className="table-cell-stack">
-            <strong>{getInfractorLabel(item)}</strong>
-            <span>{formatEmptyValue(item.infractor.licencia)}</span>
-          </div>
-        );
-      case 'vehiculoResumen':
-        return (
-          <div className="table-cell-stack">
-            <strong>{getVehicleLabel(item)}</strong>
-            <span>{formatEmptyValue(item.vehiculo.color)}</span>
-          </div>
-        );
-      case 'placas':
-        return (
-          <div className="table-cell-stack">
-            <strong>{formatEmptyValue(item.vehiculo.placas)}</strong>
-            <span>{formatEmptyValue(item.vehiculo.estadoPlacas)}</span>
-          </div>
-        );
-      case 'encierroAccion':
-        return renderEncierroCell(item);
-      case 'ingresoAccion':
-        return renderIngresoCell(item);
-      case 'pagoAccion':
-        return renderPagoCell(item);
-      case 'liberacionAccion':
-        return renderLiberacionCell(item);
-      case 'salidaAccion':
-        return renderSalidaCell(item);
-      case 'estadoOperativo':
-        return <StatusBadge value={item.estadoOperativoCalculado} />;
-      default: {
-        const field = INFRACCIONES_REPORT_FIELDS.find((candidate) => candidate.id === fieldId);
-        return field ? field.getValue(item) : formatEmptyValue(null);
-      }
-    }
-  }
-
   function buildContextLines(): string[] {
     const lines: string[] = [];
 
@@ -618,13 +562,13 @@ function InfraccionesListPage({
           <p className="eyebrow">Consulta</p>
           <h1>Infracciones</h1>
           <p className="page-description">
-            Consulta operativa con campos configurables, selección múltiple y reportes.
+            Consulta operativa con indicadores fijos, selección de filas y reportes configurables.
           </p>
         </div>
 
         <div className="button-row">
           <Button variant="secondary" type="button" onClick={() => setReportModalOpen(true)}>
-            Campos y reportes
+            Generar reporte
           </Button>
           <Button variant="primary" type="button" onClick={onNavigateCreate}>
             Nueva infraccion
@@ -799,15 +743,15 @@ function InfraccionesListPage({
               <p className="section-label">Resultados</p>
               <h2>Listado operativo</h2>
               <div className="table-field-meta">
-                <span>{visibleFields.length} campo(s) visibles</span>
                 <span>{selectedRowIds.size} fila(s) seleccionada(s)</span>
+                <span>{selectedReportFieldIds.length} campo(s) de reporte</span>
                 {meta ? <span>Total {meta.total}</span> : null}
               </div>
             </div>
 
             <div className="button-row button-row-end">
               <Button type="button" variant="secondary" onClick={() => setReportModalOpen(true)}>
-                Configurar campos / exportar
+                Exportar reporte
               </Button>
             </div>
           </div>
@@ -824,16 +768,24 @@ function InfraccionesListPage({
                       onChange={(event) => toggleAllVisibleRows(event.target.checked)}
                     />
                   </th>
-                  {visibleFields.map((field) => (
-                    <th key={field.id}>{field.label}</th>
-                  ))}
+                  <th>Folio</th>
+                  <th>Fecha</th>
+                  <th>Infractor</th>
+                  <th>Placas</th>
+                  <th>Vehiculo</th>
+                  <th>Encierro</th>
+                  <th>Ingreso</th>
+                  <th>Pago</th>
+                  <th>Liberacion</th>
+                  <th>Salida</th>
+                  <th>Estado operativo</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={visibleFields.length + 2} className="empty-state">
+                    <td colSpan={13} className="empty-state">
                       {state.status === 'loading'
                         ? 'Cargando infracciones...'
                         : 'No hay infracciones para mostrar.'}
@@ -852,9 +804,41 @@ function InfraccionesListPage({
                           }
                         />
                       </td>
-                      {visibleFields.map((field) => (
-                        <td key={`${item.idInfraccion}-${field.id}`}>{renderFieldCell(item, field.id)}</td>
-                      ))}
+                      <td>
+                        <strong>{item.folioInfraccion}</strong>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{formatDate(item.fechaInfraccion)}</strong>
+                          <span>{formatTimeOfDay(item.horaInfraccion)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{getInfractorLabel(item)}</strong>
+                          <span>{formatEmptyValue(item.infractor.licencia)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{formatEmptyValue(item.vehiculo.placas)}</strong>
+                          <span>{formatEmptyValue(item.vehiculo.estadoPlacas)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{getVehicleLabel(item)}</strong>
+                          <span>{formatEmptyValue(item.vehiculo.color)}</span>
+                        </div>
+                      </td>
+                      <td>{renderEncierroCell(item)}</td>
+                      <td>{renderIngresoCell(item)}</td>
+                      <td>{renderPagoCell(item)}</td>
+                      <td>{renderLiberacionCell(item)}</td>
+                      <td>{renderSalidaCell(item)}</td>
+                      <td>
+                        <StatusBadge value={item.estadoOperativoCalculado} />
+                      </td>
                       <td>
                         <Button type="button" variant="link" onClick={() => openDetail(item.idInfraccion)}>
                           Ver detalle
@@ -901,9 +885,9 @@ function InfraccionesListPage({
         open={reportModalOpen}
         items={items}
         selectedRowIds={selectedRowIds}
-        selectedFieldIds={selectedFieldIds}
+        selectedFieldIds={selectedReportFieldIds}
         contextLines={buildContextLines()}
-        onSelectedFieldIdsChange={updateSelectedFieldIds}
+        onSelectedFieldIdsChange={updateSelectedReportFieldIds}
         onClose={() => setReportModalOpen(false)}
       />
     </section>
