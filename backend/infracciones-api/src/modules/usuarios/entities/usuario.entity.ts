@@ -23,7 +23,7 @@ export class Usuario {
   @Column({ name: 'email', type: 'varchar', length: 100, unique: true })
   email!: string;
 
-  @Column({ name: 'password_hash', type: 'varchar', length: 255 })
+  @Column({ name: 'password_hash', type: 'varchar', length: 255, select: false })
   passwordHash!: string;
 
   @Column({ name: 'activo', type: 'boolean', default: true })
