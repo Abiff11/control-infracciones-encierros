@@ -20,7 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 
-import { WRITE_ROLES } from '../auth/constants/roles.constants';
+import { IMPORT_ROLES } from '../auth/constants/roles.constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { LoginResponseUsuarioDto } from '../auth/dto/login-response.dto';
@@ -100,7 +100,7 @@ function validateExcelUpload(file: Express.Multer.File): void {
 @ApiTags('importaciones')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RoleAuthGuard)
-@Roles(...WRITE_ROLES)
+@Roles(...IMPORT_ROLES)
 @Controller('importaciones/infracciones')
 export class ImportacionesController {
   constructor(
