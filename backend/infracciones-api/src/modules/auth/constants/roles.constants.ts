@@ -20,6 +20,38 @@ export const READ_ROLES: RoleName[] = [
   ROLES.OPERADOR,
 ];
 
+export const CAPTURE_ROLES: RoleName[] = [
+  ROLES.ADMIN,
+  ROLES.SECCION_PRIMERA,
+  ROLES.OPERADOR,
+];
+
+export const PAYMENT_ROLES: RoleName[] = [
+  ROLES.ADMIN,
+  ROLES.INFRACCIONES,
+  ROLES.OPERADOR,
+];
+
+export const RELEASE_ROLES: RoleName[] = [
+  ROLES.ADMIN,
+  ROLES.LIBERACIONES,
+  ROLES.OPERADOR,
+];
+
+export const YARD_ROLES: RoleName[] = [
+  ROLES.ADMIN,
+  ROLES.ENCIERRO,
+  ROLES.OPERADOR,
+];
+
+export const IMPORT_ROLES: RoleName[] = [
+  ROLES.ADMIN,
+  ROLES.SECCION_PRIMERA,
+  ROLES.OPERADOR,
+];
+
+export const CATALOG_ADMIN_ROLES: RoleName[] = [ROLES.ADMIN];
+
 export const WRITE_ROLES: RoleName[] = [
   ROLES.ADMIN,
   ROLES.SECCION_PRIMERA,
