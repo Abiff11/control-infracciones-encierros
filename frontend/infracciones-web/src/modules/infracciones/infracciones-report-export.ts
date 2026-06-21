@@ -121,7 +121,7 @@ export function downloadInfraccionesExcelReport(payload: InfraccionesReportPaylo
 }
 
 export function downloadInfraccionesPdfReport(payload: InfraccionesReportPayload): void {
-  const reportWindow = window.open('', '_blank', 'noopener,noreferrer');
+  const reportWindow = window.open('', '_blank');
 
   if (!reportWindow) {
     downloadBlob(
