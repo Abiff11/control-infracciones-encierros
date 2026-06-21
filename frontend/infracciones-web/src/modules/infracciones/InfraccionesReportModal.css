@@ -1,0 +1,125 @@
+.infracciones-report-modal {
+  max-height: 72vh;
+  overflow: auto;
+}
+
+.report-export-section {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 18px;
+  padding: 1rem;
+  background: #f8fafc;
+}
+
+.report-export-section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.report-export-section-head h3 {
+  margin: 0;
+}
+
+.report-export-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.report-export-summary span {
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.report-scope-grid,
+.report-field-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.report-scope-card,
+.report-field-group {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 14px;
+  padding: 0.85rem;
+  background: #ffffff;
+}
+
+.report-scope-card {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.report-scope-card span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.report-scope-card small,
+.table-field-meta {
+  color: #64748b;
+}
+
+.report-field-group > strong {
+  display: block;
+  margin-bottom: 0.55rem;
+  color: #0f172a;
+}
+
+.report-field-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.report-field-option {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.86rem;
+  color: #334155;
+}
+
+.report-preview-table-wrap {
+  max-height: 280px;
+  overflow: auto;
+}
+
+.report-preview-table th,
+.report-preview-table td {
+  white-space: nowrap;
+}
+
+.report-export-footer {
+  padding-top: 0.75rem;
+}
+
+.table-selection-cell {
+  width: 42px;
+  text-align: center;
+}
+
+.table-field-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.table-field-meta {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}
