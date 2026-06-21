@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -35,6 +36,67 @@ import {
 } from './importaciones.service';
 import { ImportacionesReportesService } from './importaciones-reportes.service';
 
+const MAX_EXCEL_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const EXCEL_EXTENSIONS = new Set(['.xls', '.xlsx']);
+const EXCEL_MIME_TYPES = new Set([
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]);
+
+function getSafeFileExtension(filename: string): string {
+  const normalized = filename.trim().toLowerCase();
+  const dotIndex = normalized.lastIndexOf('.');
+
+  if (dotIndex < 0) {
+    return '';
+  }
+
+  return normalized.slice(dotIndex);
+}
+
+function hasExcelSignature(buffer: Buffer): boolean {
+  if (buffer.length < 4) {
+    return false;
+  }
+
+  const isZipBasedXlsx = buffer[0] === 0x50 && buffer[1] === 0x4b;
+  const isLegacyXls =
+    buffer[0] === 0xd0 &&
+    buffer[1] === 0xcf &&
+    buffer[2] === 0x11 &&
+    buffer[3] === 0xe0;
+
+  return isZipBasedXlsx || isLegacyXls;
+}
+
+function validateExcelUpload(file: Express.Multer.File): void {
+  if (!file) {
+    throw new BadRequestException('Debes adjuntar el archivo Excel.');
+  }
+
+  if (file.size > MAX_EXCEL_FILE_SIZE_BYTES) {
+    throw new BadRequestException('El archivo Excel no debe exceder 10 MB.');
+  }
+
+  if (file.originalname.includes('/') || file.originalname.includes('\\')) {
+    throw new BadRequestException('El nombre del archivo no es valido.');
+  }
+
+  const extension = getSafeFileExtension(file.originalname);
+
+  if (!EXCEL_EXTENSIONS.has(extension)) {
+    throw new BadRequestException('Solo se permiten archivos .xls o .xlsx.');
+  }
+
+  if (file.mimetype && !EXCEL_MIME_TYPES.has(file.mimetype)) {
+    throw new BadRequestException('El tipo MIME del archivo no corresponde a Excel.');
+  }
+
+  if (!hasExcelSignature(file.buffer)) {
+    throw new BadRequestException('La firma real del archivo no corresponde a Excel.');
+  }
+}
+
 @ApiTags('importaciones')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RoleAuthGuard)
@@ -47,7 +109,7 @@ export class ImportacionesController {
   ) {}
 
   @Post('preview')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_EXCEL_FILE_SIZE_BYTES } }))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -68,11 +130,12 @@ export class ImportacionesController {
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: PreviewInfraccionesExcelDto,
   ): Promise<ImportacionPreviewResponse> {
+    validateExcelUpload(file);
     return this.importacionesService.preview(file, dto);
   }
 
   @Post('confirmar')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_EXCEL_FILE_SIZE_BYTES } }))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -96,6 +159,7 @@ export class ImportacionesController {
     @Body() dto: ConfirmarInfraccionesExcelDto,
     @CurrentUser() currentUser: LoginResponseUsuarioDto,
   ): Promise<ImportacionDetalleResponse> {
+    validateExcelUpload(file);
     return this.importacionesService.confirmar(
       file,
       dto,
