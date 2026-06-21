@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { NextFunction, Request, Response } from 'express';
 
 import { AppModule } from './app.module';
+import { SafeExceptionFilter } from './common/filters/safe-exception.filter';
 
 const DEV_CORS_ORIGINS = [
   'http://localhost:5173',
@@ -70,6 +71,8 @@ async function bootstrap() {
     credentials: false,
     maxAge: 600,
   });
+
+  app.useGlobalFilters(new SafeExceptionFilter());
 
   app.useGlobalPipes(
     new ValidationPipe({
