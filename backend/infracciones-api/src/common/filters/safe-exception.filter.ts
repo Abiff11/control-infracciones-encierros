@@ -62,7 +62,7 @@ export class SafeExceptionFilter implements ExceptionFilter {
     const response = context.getResponse<Response>();
     const payload = getExceptionPayload(exception);
 
-    if (payload.statusCode >= HttpStatus.INTERNAL_SERVER_ERROR) {
+    if (payload.statusCode >= 500) {
       this.logger.error({
         statusCode: payload.statusCode,
         method: request.method,

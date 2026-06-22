@@ -22,7 +22,9 @@ function parseCsv(value: string | undefined): string[] {
 }
 
 function resolveAllowedOrigins(configService: ConfigService): string[] {
-  const frontendOrigins = parseCsv(configService.get<string>('FRONTEND_ORIGINS'));
+  const frontendOrigins = parseCsv(
+    configService.get<string>('FRONTEND_ORIGINS'),
+  );
   const corsOrigin = parseCsv(configService.get<string>('CORS_ORIGIN'));
   const nodeEnv = configService.get<string>('NODE_ENV') ?? 'development';
   const configuredOrigins = [...frontendOrigins, ...corsOrigin];
@@ -32,7 +34,9 @@ function resolveAllowedOrigins(configService: ConfigService): string[] {
   }
 
   if (nodeEnv === 'production') {
-    throw new Error('FRONTEND_ORIGINS o CORS_ORIGIN es obligatorio en produccion.');
+    throw new Error(
+      'FRONTEND_ORIGINS o CORS_ORIGIN es obligatorio en produccion.',
+    );
   }
 
   return DEV_CORS_ORIGINS;
@@ -60,7 +64,10 @@ async function bootstrap() {
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('X-Frame-Options', 'DENY');
     response.setHeader('Referrer-Policy', 'no-referrer');
-    response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    response.setHeader(
+      'Permissions-Policy',
+      'camera=(), microphone=(), geolocation=()',
+    );
     next();
   });
 

@@ -1,8 +1,9 @@
 import {
   CanActivate,
   ExecutionContext,
+  HttpException,
+  HttpStatus,
   Injectable,
-  TooManyRequestsException,
 } from '@nestjs/common';
 import type { Request } from 'express';
 
@@ -48,8 +49,9 @@ export class LoginRateLimitGuard implements CanActivate {
     current.count += 1;
 
     if (current.count > MAX_ATTEMPTS) {
-      throw new TooManyRequestsException(
+      throw new HttpException(
         'Demasiados intentos. Espera un minuto antes de volver a intentar.',
+        HttpStatus.TOO_MANY_REQUESTS,
       );
     }
 

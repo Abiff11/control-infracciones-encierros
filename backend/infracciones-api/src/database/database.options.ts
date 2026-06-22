@@ -9,7 +9,6 @@ import { parseBooleanQuery } from '../common/utils/parse-boolean';
 const DEFAULT_DB_HOST = 'localhost';
 const DEFAULT_DB_PORT = 5432;
 const DEFAULT_DB_USERNAME = 'infracciones_user';
-const DEFAULT_DB_PASSWORD = '';
 const DEFAULT_DB_NAME = 'control_infracciones_db';
 const DEFAULT_DB_SYNCHRONIZE = false;
 const DEFAULT_DB_LOGGING = false;

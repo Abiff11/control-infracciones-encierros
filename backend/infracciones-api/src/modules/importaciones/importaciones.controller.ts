@@ -70,7 +70,7 @@ function hasExcelSignature(buffer: Buffer): boolean {
   return isZipBasedXlsx || isLegacyXls;
 }
 
-function validateExcelUpload(file: Express.Multer.File): void {
+function validateExcelUpload(file: UploadedImportFile): void {
   if (!file) {
     throw new BadRequestException('Debes adjuntar el archivo Excel.');
   }
@@ -90,11 +90,15 @@ function validateExcelUpload(file: Express.Multer.File): void {
   }
 
   if (file.mimetype && !EXCEL_MIME_TYPES.has(file.mimetype)) {
-    throw new BadRequestException('El tipo MIME del archivo no corresponde a Excel.');
+    throw new BadRequestException(
+      'El tipo MIME del archivo no corresponde a Excel.',
+    );
   }
 
   if (!hasExcelSignature(file.buffer)) {
-    throw new BadRequestException('La firma real del archivo no corresponde a Excel.');
+    throw new BadRequestException(
+      'La firma real del archivo no corresponde a Excel.',
+    );
   }
 }
 
@@ -110,7 +114,11 @@ export class ImportacionesController {
   ) {}
 
   @Post('preview')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_EXCEL_FILE_SIZE_BYTES } }))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_EXCEL_FILE_SIZE_BYTES },
+    }),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -136,7 +144,11 @@ export class ImportacionesController {
   }
 
   @Post('confirmar')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_EXCEL_FILE_SIZE_BYTES } }))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_EXCEL_FILE_SIZE_BYTES },
+    }),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {

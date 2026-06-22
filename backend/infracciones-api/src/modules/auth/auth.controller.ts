@@ -29,7 +29,9 @@ export class AuthController {
   @ApiOperation({ summary: 'Iniciar sesión y obtener token JWT' })
   @ApiBody({ type: LoginDto })
   @ApiOkResponse({ type: LoginResponseDto })
-  @ApiTooManyRequestsResponse({ description: 'Demasiados intentos de inicio de sesion' })
+  @ApiTooManyRequestsResponse({
+    description: 'Demasiados intentos de inicio de sesion',
+  })
   @ApiUnauthorizedResponse({
     description: 'Credenciales inválidas o usuario inactivo',
   })

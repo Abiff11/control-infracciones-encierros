@@ -112,6 +112,8 @@ const CHUNK_SIZE = 250;
 export interface UploadedImportFile {
   buffer: Buffer;
   originalname: string;
+  size: number;
+  mimetype?: string;
 }
 
 @Injectable()
