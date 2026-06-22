@@ -16,24 +16,15 @@ import {
   formatFullName,
   formatTimeOfDay,
 } from '../../utils/formatters';
-import type { InfraccionesResponse, InfraccionListItem, PaginationMeta } from '../../types/infracciones.types';
-import {
-  DEFAULT_INFRACCIONES_FIELD_IDS,
-  INFRACCIONES_FIELD_GROUPS,
-  INFRACCIONES_REPORT_FIELDS,
-  OPERATIONAL_INFRACCIONES_FIELD_IDS,
-  type InfraccionesReportFieldId,
-} from './infracciones-report-fields';
-import {
-  buildInfraccionesReportTable,
-  downloadInfraccionesExcelReport,
-  downloadInfraccionesPdfReport,
-} from './infracciones-report-export';
-import './InfraccionesReportModal.css';
+import type {
+  InfraccionesResponse,
+  InfraccionListItem,
+  PaginationMeta,
+} from '../../types/infracciones.types';
+import { InfraccionesReportModal } from './InfraccionesReportModal';
 import './InfraccionesReportPage.css';
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
-type ReportScope = 'page' | 'selected';
 
 interface LoadState<T> {
   status: LoadStatus;
@@ -46,7 +37,6 @@ interface InfraccionesReportPageProps {
   token: string;
 }
 
-const REPORT_FIELD_STORAGE_KEY = 'cie.infracciones.reportFields';
 const DEFAULT_PAGE_SIZE = 30;
 
 function createIdleState<T>(): LoadState<T> {
@@ -70,7 +60,7 @@ function getVehicleLabel(item: InfraccionListItem): string {
     (value): value is string => Boolean(value && value.trim()),
   );
 
-  return parts.length > 0 ? parts.join(' - ') : 'Sin informacion registrada';
+  return parts.length > 0 ? parts.join(' - ') : 'Sin información registrada';
 }
 
 function getPagoLabel(item: InfraccionListItem): string {
@@ -79,13 +69,13 @@ function getPagoLabel(item: InfraccionListItem): string {
   }
 
   return [formatDateTime(item.pago.fechaUltimoPago), formatCurrencyMxn(item.pago.montoPagado)]
-    .filter((value) => value !== 'Sin informacion registrada')
+    .filter((value) => value !== 'Sin información registrada')
     .join(' | ');
 }
 
 function getLiberacionLabel(item: InfraccionListItem): string {
   if (!item.liberacion?.tieneLiberacion) {
-    return 'Sin liberacion';
+    return 'Sin liberación';
   }
 
   return formatDateTime(item.liberacion.fechaLiberacion);
@@ -99,89 +89,17 @@ function getSalidaLabel(item: InfraccionListItem): string {
   return formatDateTime(item.salida.fechaSalida);
 }
 
-function readStoredReportFieldIds(): InfraccionesReportFieldId[] {
-  if (typeof window === 'undefined') {
-    return DEFAULT_INFRACCIONES_FIELD_IDS;
-  }
-
-  try {
-    const rawValue = window.localStorage.getItem(REPORT_FIELD_STORAGE_KEY);
-    if (!rawValue) {
-      return DEFAULT_INFRACCIONES_FIELD_IDS;
-    }
-
-    const parsed = JSON.parse(rawValue) as unknown;
-    if (!Array.isArray(parsed)) {
-      return DEFAULT_INFRACCIONES_FIELD_IDS;
-    }
-
-    const availableIds = new Set(INFRACCIONES_REPORT_FIELDS.map((field) => field.id));
-    const validIds = parsed.filter((fieldId): fieldId is InfraccionesReportFieldId =>
-      typeof fieldId === 'string' && availableIds.has(fieldId),
-    );
-
-    return validIds.length > 0 ? validIds : DEFAULT_INFRACCIONES_FIELD_IDS;
-  } catch {
-    return DEFAULT_INFRACCIONES_FIELD_IDS;
-  }
-}
-
-function persistReportFieldIds(fieldIds: InfraccionesReportFieldId[]): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  window.localStorage.setItem(REPORT_FIELD_STORAGE_KEY, JSON.stringify(fieldIds));
-}
-
-function toggleField(
-  current: InfraccionesReportFieldId[],
-  fieldId: InfraccionesReportFieldId,
-  checked: boolean,
-): InfraccionesReportFieldId[] {
-  if (checked) {
-    return current.includes(fieldId) ? current : [...current, fieldId];
-  }
-
-  return current.filter((currentFieldId) => currentFieldId !== fieldId);
-}
-
-function getExportItems(
-  items: InfraccionListItem[],
-  selectedRowIds: Set<number>,
-  scope: ReportScope,
-): InfraccionListItem[] {
-  if (scope === 'selected') {
-    return items.filter((item) => selectedRowIds.has(item.idInfraccion));
-  }
-
-  return items;
-}
-
 export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReportPageProps) {
   const [state, setState] = useState<LoadState<InfraccionesResponse>>(createIdleState());
   const [page, setPage] = useState(1);
-  const [scope, setScope] = useState<ReportScope>('page');
   const [selectedRowIds, setSelectedRowIds] = useState<Set<number>>(() => new Set());
-  const [selectedFieldIds, setSelectedFieldIds] = useState<InfraccionesReportFieldId[]>(
-    readStoredReportFieldIds,
-  );
+  const [reportOpen, setReportOpen] = useState(false);
 
-  const query = useMemo(
-    () => ({ page, limit: DEFAULT_PAGE_SIZE }),
-    [page],
-  );
+  const query = useMemo(() => ({ page, limit: DEFAULT_PAGE_SIZE }), [page]);
   const meta: PaginationMeta | null = state.data?.meta ?? null;
   const items = state.data?.data ?? [];
-  const allVisibleSelected = items.length > 0 && items.every((item) => selectedRowIds.has(item.idInfraccion));
-  const effectiveScope = selectedRowIds.size === 0 && scope === 'selected' ? 'page' : scope;
-  const exportItems = getExportItems(items, selectedRowIds, effectiveScope);
-  const reportTable = useMemo(
-    () => buildInfraccionesReportTable(exportItems, selectedFieldIds),
-    [exportItems, selectedFieldIds],
-  );
-  const previewRows = reportTable.rows.slice(0, 8);
-  const canExport = exportItems.length > 0 && selectedFieldIds.length > 0;
+  const allVisibleSelected =
+    items.length > 0 && items.every((item) => selectedRowIds.has(item.idInfraccion));
 
   useEffect(() => {
     let mounted = true;
@@ -225,11 +143,6 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
     };
   }, [query, refreshKey, token]);
 
-  function updateSelectedReportFieldIds(fieldIds: InfraccionesReportFieldId[]): void {
-    setSelectedFieldIds(fieldIds);
-    persistReportFieldIds(fieldIds);
-  }
-
   function changePage(nextPage: number): void {
     setSelectedRowIds(new Set());
     setPage(nextPage);
@@ -261,160 +174,50 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
     });
   }
 
-  const payload = {
-    title: 'Reporte de infracciones',
-    contextLines: [`Alcance: ${exportItems.length} registro(s) de la pagina actual`],
-    columns: reportTable.columns,
-    rows: reportTable.rows,
-  };
-
-  const pageLabel = meta ? `Página ${meta.page} de ${meta.totalPages}` : 'Página 1';
-
   return (
     <section className="page-stack infracciones-report-page">
-      <header className="page-header page-header-row">
+      <header className="page-header report-page-header">
         <div>
-          <p className="eyebrow">Consulta</p>
-          <h1>Reporte de infracciones</h1>
+          <p className="eyebrow">Reportes</p>
+          <h1>Generar reporte</h1>
           <p className="page-description">
-            Selecciona campos, usa la pagina actual o filas marcadas y exporta a Excel o PDF.
+            Elige el alcance y los campos del archivo. La tabla principal no cambia.
           </p>
         </div>
 
-        <div className="report-page-header-meta">
-          <span>{pageLabel}</span>
-          <span>{selectedRowIds.size} seleccionadas</span>
-          <span>{selectedFieldIds.length} campos de reporte</span>
-        </div>
-      </header>
-
-      <Card>
-        <div className="report-export-section-head">
-          <div>
-            <h3>Alcance del reporte</h3>
-            <p className="page-description">Puedes exportar la pagina actual o solo las filas marcadas.</p>
-          </div>
-          <div className="report-export-summary">
+        <div className="report-page-actions">
+          <div className="report-page-chips" aria-label="Resumen de selección">
             <span>{items.length} visibles</span>
             <span>{selectedRowIds.size} seleccionadas</span>
-            <span>{selectedFieldIds.length} campos de reporte</span>
           </div>
+
+          <Button type="button" variant="primary" onClick={() => setReportOpen(true)}>
+            Generar reporte
+          </Button>
         </div>
-
-        <div className="report-scope-grid">
-          <label className="report-scope-card">
-            <input
-              type="radio"
-              name="reportScope"
-              checked={effectiveScope === 'page'}
-              onChange={() => setScope('page')}
-            />
-            <span>
-              <strong>Pagina actual</strong>
-              <small>Exporta los registros visibles con los filtros actuales.</small>
-            </span>
-          </label>
-          <label className="report-scope-card">
-            <input
-              type="radio"
-              name="reportScope"
-              checked={effectiveScope === 'selected'}
-              disabled={selectedRowIds.size === 0}
-              onChange={() => setScope('selected')}
-            />
-            <span>
-              <strong>Filas seleccionadas</strong>
-              <small>Disponible cuando marcas una o más filas.</small>
-            </span>
-          </label>
-        </div>
-      </Card>
-
-      <Card>
-        <div className="report-export-section-head">
-          <div>
-            <h3>Campos del reporte</h3>
-            <p className="page-description">Estos campos solo afectan el Excel/PDF y el preview.</p>
-          </div>
-          <div className="button-row">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => updateSelectedReportFieldIds(DEFAULT_INFRACCIONES_FIELD_IDS)}
-            >
-              Basicos
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => updateSelectedReportFieldIds(OPERATIONAL_INFRACCIONES_FIELD_IDS)}
-            >
-              Operativo
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => updateSelectedReportFieldIds(INFRACCIONES_REPORT_FIELDS.map((field) => field.id))}
-            >
-              Todos
-            </Button>
-          </div>
-        </div>
-
-        <div className="report-field-groups">
-          {INFRACCIONES_FIELD_GROUPS.map((group) => {
-            const fields = INFRACCIONES_REPORT_FIELDS.filter((field) => field.group === group);
-
-            return (
-              <div className="report-field-group" key={group}>
-                <strong>{group}</strong>
-                <div className="report-field-list">
-                  {fields.map((field) => (
-                    <label className="report-field-option" key={field.id}>
-                      <input
-                        type="checkbox"
-                        checked={selectedFieldIds.includes(field.id)}
-                        onChange={(event) =>
-                          updateSelectedReportFieldIds(
-                            toggleField(selectedFieldIds, field.id, event.target.checked),
-                          )
-                        }
-                      />
-                      <span>{field.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-
-      {state.status === 'loading' ? <LoadingMessage message="Cargando infracciones..." /> : null}
-      <ErrorMessage message={state.error} />
+      </header>
 
       <Card>
         <div className="page-stack">
           <div className="table-field-toolbar">
             <div>
-              <p className="section-label">Resultados</p>
-              <h2>Registros visibles</h2>
+              <p className="section-label">Consulta</p>
+              <h2>Infracciones disponibles</h2>
               <div className="table-field-meta">
                 <span>{selectedRowIds.size} fila(s) seleccionada(s)</span>
                 <span>{meta ? `Total ${meta.total}` : 'Total 0'}</span>
               </div>
             </div>
 
-            <div className="button-row button-row-end">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setSelectedRowIds(new Set())}
-              >
-                Limpiar seleccion
+            <div className="button-row">
+              <Button type="button" variant="secondary" onClick={() => setReportOpen(true)}>
+                Abrir reporte
               </Button>
             </div>
           </div>
+
+          {state.status === 'loading' ? <LoadingMessage message="Cargando infracciones..." /> : null}
+          <ErrorMessage message={state.error} />
 
           <div className="table-wrap table-wrap-expanded">
             <table className="data-table">
@@ -432,11 +235,11 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
                   <th>Fecha</th>
                   <th>Infractor</th>
                   <th>Placas</th>
-                  <th>Vehiculo</th>
+                  <th>Vehículo</th>
                   <th>Encierro</th>
                   <th>Ingreso</th>
                   <th>Pago</th>
-                  <th>Liberacion</th>
+                  <th>Liberación</th>
                   <th>Salida</th>
                   <th>Estado operativo</th>
                 </tr>
@@ -458,9 +261,7 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
                           type="checkbox"
                           aria-label={`Seleccionar ${item.folioInfraccion}`}
                           checked={selectedRowIds.has(item.idInfraccion)}
-                          onChange={(event) =>
-                            toggleRowSelection(item.idInfraccion, event.target.checked)
-                          }
+                          onChange={(event) => toggleRowSelection(item.idInfraccion, event.target.checked)}
                         />
                       </td>
                       <td>
@@ -511,7 +312,7 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
                       <td>
                         <div className="table-cell-stack">
                           <strong>{getLiberacionLabel(item)}</strong>
-                          <span>{item.liberacion?.tieneLiberacion ? 'Liberacion registrada' : 'Pendiente de liberacion'}</span>
+                          <span>{item.liberacion?.tieneLiberacion ? 'Liberación registrada' : 'Pendiente de liberación'}</span>
                         </div>
                       </td>
                       <td>
@@ -542,60 +343,12 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
         </div>
       </Card>
 
-      <Card>
-        <div className="report-export-section-head">
-          <div>
-            <h3>Preview del reporte</h3>
-            <p className="page-description">Primeros {previewRows.length} registros del documento.</p>
-          </div>
-        </div>
-
-        {reportTable.columns.length === 0 ? (
-          <div className="notice">Selecciona al menos un campo.</div>
-        ) : previewRows.length === 0 ? (
-          <div className="notice">No hay registros para exportar.</div>
-        ) : (
-          <div className="table-wrap report-preview-table-wrap">
-            <table className="data-table report-preview-table">
-              <thead>
-                <tr>
-                  {reportTable.columns.map((column) => (
-                    <th key={column.id}>{column.label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {previewRows.map((row) => (
-                  <tr key={row.id}>
-                    {row.cells.map((cell, index) => (
-                      <td key={`${row.id}-${reportTable.columns[index]?.id ?? index}`}>{cell}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-
-      <div className="report-export-footer button-row button-row-end">
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={!canExport}
-          onClick={() => downloadInfraccionesExcelReport(payload)}
-        >
-          Descargar Excel
-        </Button>
-        <Button
-          type="button"
-          variant="primary"
-          disabled={!canExport}
-          onClick={() => downloadInfraccionesPdfReport(payload)}
-        >
-          Generar PDF
-        </Button>
-      </div>
+      <InfraccionesReportModal
+        open={reportOpen}
+        items={items}
+        selectedRowIds={selectedRowIds}
+        onClose={() => setReportOpen(false)}
+      />
     </section>
   );
 }

@@ -6,10 +6,22 @@ interface ModalProps extends PropsWithChildren {
   open: boolean;
   title: string;
   description?: string;
+  size?: 'default' | 'wide';
+  eyebrowLabel?: string;
+  className?: string;
   onClose: () => void;
 }
 
-export function Modal({ children, description, onClose, open, title }: ModalProps) {
+export function Modal({
+  children,
+  className,
+  description,
+  eyebrowLabel = 'Detalle',
+  onClose,
+  open,
+  size = 'default',
+  title,
+}: ModalProps) {
   useEffect(() => {
     if (!open) {
       return;
@@ -39,7 +51,9 @@ export function Modal({ children, description, onClose, open, title }: ModalProp
   return (
     <div className="modal-overlay" role="presentation" onClick={onClose}>
       <section
-        className="modal-card"
+        className={`modal-card ${size === 'wide' ? 'modal-card-wide' : ''} ${
+          className ?? ''
+        }`.trim()}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -47,7 +61,7 @@ export function Modal({ children, description, onClose, open, title }: ModalProp
       >
         <header className="modal-header">
           <div>
-            <p className="eyebrow">Detalle</p>
+            <p className="eyebrow">{eyebrowLabel}</p>
             <h2>{title}</h2>
             {description ? <p className="page-description">{description}</p> : null}
           </div>

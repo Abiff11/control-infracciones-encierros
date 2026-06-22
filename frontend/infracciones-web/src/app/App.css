@@ -686,6 +686,11 @@ pre {
   overflow-y: visible;
 }
 
+.table-wrap-expanded {
+  max-height: none;
+  overflow-y: visible;
+}
+
 .result-box {
   display: grid;
   gap: 12px;
@@ -1128,6 +1133,11 @@ tbody tr:hover {
   box-shadow: 0 24px 68px rgba(15, 23, 42, 0.28);
 }
 
+.modal-card-wide {
+  width: min(1320px, 100%);
+  max-height: calc(100vh - 28px);
+}
+
 .modal-header {
   display: flex;
   align-items: flex-start;
@@ -1146,6 +1156,10 @@ tbody tr:hover {
 .modal-body {
   padding: 18px 20px 20px;
   overflow: auto;
+}
+
+.modal-card-wide .modal-body {
+  padding: 0;
 }
 
 .catalogos-modal-form {
@@ -1209,6 +1223,7 @@ tbody tr:hover {
   .table-field-toolbar,
   .report-export-section-head,
   .pagination-bar {
+    display: flex;
     flex-direction: column;
     align-items: stretch;
   }
@@ -1233,13 +1248,10 @@ tbody tr:hover {
 
   .card-grid,
   .actions-grid,
+  .form-grid-2,
   .form-grid-4,
   .form-grid-3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .form-grid-2 {
-    grid-template-columns: 1fr;
   }
 
   .content,
@@ -1383,6 +1395,7 @@ tbody tr:hover {
   .form-grid-3,
   .form-grid-4,
   .search-row {
+    display: grid;
     grid-template-columns: 1fr;
   }
 
