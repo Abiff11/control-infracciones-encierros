@@ -575,11 +575,12 @@ export function UsuariosPage({
             ? 'Actualiza los datos, el rol o el estado sin salir de la pantalla.'
             : 'Crea un usuario nuevo para el panel administrativo.'
         }
-        size="wide"
+        eyebrowLabel={isEditing ? 'Edición de usuario' : 'Alta de usuario'}
+        className="usuarios-modal"
         onClose={closeModal}
       >
         <form className="usuarios-modal-form" onSubmit={handleSubmit}>
-          <div className="form-grid form-grid-2">
+          <div className="usuarios-modal-grid">
             <Field htmlFor="usuarios-nombre" label="Nombre">
               <TextInput
                 id="usuarios-nombre"
@@ -610,9 +611,7 @@ export function UsuariosPage({
                 required
               />
             </Field>
-          </div>
 
-          <div className="form-grid form-grid-2">
             <Field htmlFor="usuarios-password" label={isEditing ? 'Contraseña nueva' : 'Contraseña'}>
               <TextInput
                 id="usuarios-password"
@@ -649,9 +648,7 @@ export function UsuariosPage({
                 ))}
               </SelectField>
             </Field>
-          </div>
 
-          <div className="form-grid form-grid-2">
             <Field htmlFor="usuarios-activo" label="Estado">
               <SelectField
                 id="usuarios-activo"
