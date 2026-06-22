@@ -24,6 +24,7 @@ function normalizeGroupLabel(group: NavigationItem['group']): string {
     Consulta: 'Consulta operativa',
     Operacion: 'Operación',
     Encierros: 'Encierros',
+    Administracion: 'Administración',
     Tecnico: 'Administración',
   };
 
@@ -31,7 +32,9 @@ function normalizeGroupLabel(group: NavigationItem['group']): string {
 }
 
 export function Sidebar({ currentPage, items, onLogout, onNavigate, swaggerUrl, user }: SidebarProps) {
-  const groups = Array.from(new Set(items.map((item) => item.group)));
+  const isAdmin = user.rol?.nombreRol === 'ADMIN';
+  const visibleItems = items.filter((item) => isAdmin || item.key !== 'usuarios');
+  const groups = Array.from(new Set(visibleItems.map((item) => item.group)));
 
   return (
     <aside className="sidebar institutional-sidebar">
@@ -71,7 +74,7 @@ export function Sidebar({ currentPage, items, onLogout, onNavigate, swaggerUrl, 
           {groups.map((group) => (
             <div key={group} className="sidebar-nav-group">
               <p className="sidebar-nav-title">{normalizeGroupLabel(group)}</p>
-              {items
+              {visibleItems
                 .filter((item) => item.group === group)
                 .map((item) => (
                   <button

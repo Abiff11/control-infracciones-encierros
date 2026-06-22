@@ -9,5 +9,6 @@ export type PageKey =
   | 'encierros-vehiculos'
   | 'flujo-operativo'
   | 'reportes-infracciones'
+  | 'usuarios'
   | 'importaciones'
   | 'catalogos';

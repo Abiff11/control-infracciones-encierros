@@ -23,6 +23,7 @@ import ImportacionesPage from '../modules/importaciones/ImportacionesPage';
 import InfraccionCreatePage from '../modules/infracciones/InfraccionCreatePage';
 import InfraccionesListPage from '../modules/infracciones/InfraccionesListPage';
 import InfraccionesReportPage from '../modules/infracciones/InfraccionesReportPage';
+import UsuariosPage from '../modules/usuarios/UsuariosPage';
 import LiberacionCreatePage from '../modules/liberaciones/LiberacionCreatePage';
 import LoginPage from '../modules/auth/LoginPage';
 import PagoCreatePage from '../modules/pagos/PagoCreatePage';
@@ -78,6 +79,7 @@ function App() {
   const [liberacionInitialId, setLiberacionInitialId] = useState<number | null>(null);
   const [salidaInitialId, setSalidaInitialId] = useState<number | null>(null);
   const [operationReturnPage, setOperationReturnPage] = useState<PageKey>('infracciones');
+  const isAdmin = session?.user.rol?.nombreRol === 'ADMIN';
 
   useEffect(() => {
     if (!session?.token) {
@@ -296,6 +298,18 @@ function App() {
 
       {currentPage === 'reportes-infracciones' ? (
         <InfraccionesReportPage refreshKey={refreshKey} token={session.token} />
+      ) : null}
+
+      {currentPage === 'usuarios' && isAdmin ? (
+        <UsuariosPage
+          currentUser={session.user}
+          runProtectedRequest={runProtectedRequest}
+          token={session.token}
+        />
+      ) : null}
+
+      {currentPage === 'usuarios' && !isAdmin ? (
+        <p className="notice notice-error">No tienes permisos para ver la sección de usuarios.</p>
       ) : null}
 
       {currentPage === 'nueva-infraccion' ? (
