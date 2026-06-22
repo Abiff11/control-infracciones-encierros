@@ -1,6 +1,42 @@
 import type { ReactNode } from 'react';
 
 const EMPTY_LABEL = 'Sin informacion registrada';
+const DATE_TIME_FORMAT = new Intl.DateTimeFormat('es-MX', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  hour12: true,
+});
+const TIME_OF_DAY_FORMAT = new Intl.DateTimeFormat('es-MX', {
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+});
+
+function buildTimeDate(value: string): Date | null {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  if (/^\d{1,2}$/.test(trimmed)) {
+    const hours = Number(trimmed);
+    return new Date(2000, 0, 1, hours, 0, 0);
+  }
+
+  if (/^\d{1,2}:\d{2}$/.test(trimmed)) {
+    const [hours, minutes] = trimmed.split(':').map(Number);
+    return new Date(2000, 0, 1, hours, minutes, 0);
+  }
+
+  if (/^\d{1,2}:\d{2}:\d{2}$/.test(trimmed)) {
+    const [hours, minutes, seconds] = trimmed.split(':').map(Number);
+    return new Date(2000, 0, 1, hours, minutes, seconds);
+  }
+
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 
 export function formatEmptyValue(value: string | null | undefined): string {
   return value?.trim() || EMPTY_LABEL;
@@ -16,10 +52,7 @@ export function formatDateTime(value: string | null | undefined): string {
     return value;
   }
 
-  return new Intl.DateTimeFormat('es-MX', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(parsed);
+  return DATE_TIME_FORMAT.format(parsed);
 }
 
 export function formatDate(value: string | null | undefined): string {
@@ -42,26 +75,12 @@ export function formatTimeOfDay(value: string | null | undefined): string {
     return EMPTY_LABEL;
   }
 
-  const trimmed = value.trim();
-  if (!trimmed) {
+  const parsed = buildTimeDate(value);
+  if (!parsed) {
     return EMPTY_LABEL;
   }
 
-  if (/^\d{1,2}$/.test(trimmed)) {
-    return `${trimmed.padStart(2, '0')}:00:00`;
-  }
-
-  if (/^\d{1,2}:\d{2}$/.test(trimmed)) {
-    const [hours, minutes] = trimmed.split(':');
-    return `${hours.padStart(2, '0')}:${minutes}:00`;
-  }
-
-  if (/^\d{1,2}:\d{2}:\d{2}$/.test(trimmed)) {
-    const [hours, minutes, seconds] = trimmed.split(':');
-    return `${hours.padStart(2, '0')}:${minutes}:${seconds}`;
-  }
-
-  return trimmed;
+  return TIME_OF_DAY_FORMAT.format(parsed);
 }
 
 export function formatCurrencyMxn(value: string | number | null | undefined): string {

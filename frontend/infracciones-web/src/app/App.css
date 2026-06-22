@@ -1135,7 +1135,7 @@ tbody tr:hover {
 
 .modal-card-wide {
   width: min(1320px, 100%);
-  max-height: calc(100vh - 28px);
+  max-height: calc(100vh - 48px);
 }
 
 .modal-header {
@@ -1160,6 +1160,9 @@ tbody tr:hover {
 
 .modal-card-wide .modal-body {
   padding: 0;
+  overflow: hidden;
+  display: flex;
+  min-height: 0;
 }
 
 .catalogos-modal-form {
