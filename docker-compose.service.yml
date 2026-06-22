@@ -1,0 +1,76 @@
+name: control-infracciones-encierros
+
+services:
+  backend:
+    container_name: control_infracciones_backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api-production
+    image: control-infracciones-backend:local
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3104
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: control_infracciones_db
+      DB_USERNAME: infracciones_user
+      DB_SYNCHRONIZE: "false"
+      ENABLE_SWAGGER: "false"
+    expose:
+      - "3104"
+    networks:
+      - intranet_proxy
+      - intranet_db
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3104/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  frontend:
+    container_name: control_infracciones_frontend
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web-production
+      args:
+        VITE_API_URL: /api
+    image: control-infracciones-frontend:local
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    expose:
+      - "8080"
+    networks:
+      - intranet_proxy
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+networks:
+  intranet_proxy:
+    external: true
+  intranet_db:
+    external: true

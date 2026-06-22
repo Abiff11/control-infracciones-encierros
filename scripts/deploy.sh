@@ -1,13 +1,23 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
-ENV_FILE="${ENV_FILE:-.env.production}"
+APP_DIR="/opt/intranet/apps/control-infracciones-encierros"
+COMPOSE_FILE="docker-compose.service.yml"
+ENV_FILE=".env"
+TARGET_REF="${1:-origin/main}"
 
-cd "$ROOT_DIR"
+cd "$APP_DIR"
 
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config >/dev/null
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build
-"$ROOT_DIR/scripts/migrate.sh"
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d
+test -f "$COMPOSE_FILE"
+test -f "$ENV_FILE"
+
+git status -sb
+git fetch origin
+git checkout "$TARGET_REF"
+git log --oneline -1
+
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build backend frontend
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d backend frontend
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps
+
+echo "Deploy terminado"

@@ -1,5 +1,9 @@
 import type { PageKey } from '../../app/app.types';
 import type { NavigationItem } from '../../app/navigation';
+import type { LoginResponseUsuario } from '../../types/auth.types';
+import '../../app/App.institutional.css';
+
+const INSTITUTIONAL_LOGO_SRC = `${import.meta.env.BASE_URL}policia-vial-estatal-oaxaca-seeklogo.png`;
 
 export interface SidebarItem {
   key: PageKey;
@@ -10,35 +14,63 @@ interface SidebarProps {
   items: NavigationItem[];
   currentPage: PageKey;
   swaggerUrl: string;
+  user: LoginResponseUsuario;
+  onLogout: () => void;
   onNavigate: (page: PageKey) => void;
 }
 
-export function Sidebar({ currentPage, items, onNavigate, swaggerUrl }: SidebarProps) {
+function normalizeGroupLabel(group: NavigationItem['group']): string {
+  const labels: Record<NavigationItem['group'], string> = {
+    Consulta: 'Consulta operativa',
+    Operacion: 'Operación',
+    Encierros: 'Encierros',
+    Tecnico: 'Administración',
+  };
+
+  return labels[group] ?? group;
+}
+
+export function Sidebar({ currentPage, items, onLogout, onNavigate, swaggerUrl, user }: SidebarProps) {
   const groups = Array.from(new Set(items.map((item) => item.group)));
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar institutional-sidebar">
       <div className="sidebar-rail" aria-hidden="true">
         <div className="brand-logo-wrap sidebar-rail-logo">
-          <span className="badge">CIE</span>
+          <img
+            className="institutional-logo sidebar-logo"
+            src={INSTITUTIONAL_LOGO_SRC}
+            alt=""
+          />
         </div>
       </div>
 
       <div className="sidebar-panel">
         <div className="brand sidebar-brand">
-          <div className="brand-logo-wrap">
-            <span className="badge">CIE</span>
+          <div className="brand-logo-wrap sidebar-logo-wrap">
+            <img
+              className="institutional-logo sidebar-logo"
+              src={INSTITUTIONAL_LOGO_SRC}
+              alt="Policía Vial Estatal de Oaxaca"
+            />
           </div>
           <div className="sidebar-title-wrap">
-            <strong>Control operativo</strong>
+            <p className="eyebrow sidebar-eyebrow">Sistema institucional</p>
+            <strong>Control de Infracciones</strong>
             <small>Infracciones y encierros</small>
           </div>
+        </div>
+
+        <div className="sidebar-session-card" aria-label="Sesión activa">
+          <span className="sidebar-session-label">Usuario</span>
+          <strong>{user.nombreUsuario}</strong>
+          <span>{user.rol?.nombreRol ?? 'Sin rol asignado'}</span>
         </div>
 
         <nav className="sidebar-nav" aria-label="Menu principal">
           {groups.map((group) => (
             <div key={group} className="sidebar-nav-group">
-              <p className="sidebar-nav-title">{group}</p>
+              <p className="sidebar-nav-title">{normalizeGroupLabel(group)}</p>
               {items
                 .filter((item) => item.group === group)
                 .map((item) => (
@@ -55,12 +87,18 @@ export function Sidebar({ currentPage, items, onNavigate, swaggerUrl }: SidebarP
           ))}
 
           <div className="sidebar-nav-group">
-            <p className="sidebar-nav-title">Tecnico</p>
+            <p className="sidebar-nav-title">Técnico</p>
             <a className="nav-item nav-link" href={swaggerUrl} target="_blank" rel="noreferrer">
               Swagger
             </a>
           </div>
         </nav>
+
+        <div className="sidebar-footer">
+          <button className="secondary-button sidebar-logout" type="button" onClick={onLogout}>
+            Cerrar sesión
+          </button>
+        </div>
       </div>
     </aside>
   );

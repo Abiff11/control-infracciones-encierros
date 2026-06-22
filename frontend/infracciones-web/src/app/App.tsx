@@ -239,8 +239,10 @@ function App() {
         <Sidebar
           currentPage={currentPage}
           items={NAV_ITEMS}
+          onLogout={logout}
           onNavigate={handleNavigate}
           swaggerUrl={swaggerUrl}
+          user={session.user}
         />
       }
       header={

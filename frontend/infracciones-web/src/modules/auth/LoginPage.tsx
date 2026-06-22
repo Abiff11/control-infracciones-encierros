@@ -9,6 +9,8 @@ const DEFAULT_FORM: LoginRequest = {
   password: '',
 };
 
+const INSTITUTIONAL_LOGO_SRC = `${import.meta.env.BASE_URL}policia-vial-estatal-oaxaca-seeklogo.png`;
+
 interface LoginPageProps {
   error: string | null;
   loading: boolean;
@@ -22,7 +24,7 @@ function LoginPage({ error, loading, onSubmit }: LoginPageProps) {
     event.preventDefault();
 
     if (!form.email.trim() || !form.password.trim()) {
-      await showWarningAlert('Datos incompletos', 'Ingresa correo y password.');
+      await showWarningAlert('Datos incompletos', 'Ingresa correo y contrasena.');
       return;
     }
 
@@ -36,11 +38,14 @@ function LoginPage({ error, loading, onSubmit }: LoginPageProps) {
     <main className="auth-shell">
       <section className="auth-card">
         <div className="auth-copy">
-          <p className="eyebrow">Sistema operativo</p>
-          <h1>Control de infracciones y encierros</h1>
+          <div className="brand-logo-wrap login-logo-wrap">
+            <img className="institutional-logo" src={INSTITUTIONAL_LOGO_SRC} alt="Policia Vial Estatal de Oaxaca" />
+          </div>
+          <p className="eyebrow">Sistema institucional</p>
+          <h1>Control de Infracciones y Encierros</h1>
           <p>
-            Inicia sesión para consultar catálogos, revisar infracciones y
-            operar pagos, liberaciones, retenciones y salidas.
+            Inicia sesion para consultar catalogos, revisar infracciones y operar pagos,
+            liberaciones, retenciones y salidas.
           </p>
         </div>
 
@@ -63,7 +68,7 @@ function LoginPage({ error, loading, onSubmit }: LoginPageProps) {
           </div>
 
           <div className="field">
-            <label htmlFor="login-password">Password</label>
+            <label htmlFor="login-password">Contrasena</label>
             <input
               id="login-password"
               type="password"
@@ -75,7 +80,7 @@ function LoginPage({ error, loading, onSubmit }: LoginPageProps) {
                 }))
               }
               autoComplete="current-password"
-              placeholder="Ingresa tu password"
+              placeholder="Ingresa tu contrasena"
             />
           </div>
 
@@ -83,7 +88,7 @@ function LoginPage({ error, loading, onSubmit }: LoginPageProps) {
 
           <div className="button-row">
             <button className="button-primary" type="submit" disabled={loading}>
-              {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
+              {loading ? 'Iniciando sesion...' : 'Iniciar sesion'}
             </button>
 
             <a className="button-link" href={swaggerUrl} target="_blank" rel="noreferrer">
