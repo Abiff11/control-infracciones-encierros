@@ -9,6 +9,7 @@ export interface NavigationItem {
 export const NAV_ITEMS: NavigationItem[] = [
   { group: 'Consulta', key: 'dashboard', label: 'Dashboard' },
   { group: 'Consulta', key: 'infracciones', label: 'Infracciones' },
+  { group: 'Consulta', key: 'reportes-infracciones', label: 'Reportes de infracciones' },
   { group: 'Consulta', key: 'flujo-operativo', label: 'Flujo operativo' },
   { group: 'Operacion', key: 'nueva-infraccion', label: 'Nueva infraccion' },
   { group: 'Encierros', key: 'encierros-vehiculos', label: 'Inventario de encierros' },

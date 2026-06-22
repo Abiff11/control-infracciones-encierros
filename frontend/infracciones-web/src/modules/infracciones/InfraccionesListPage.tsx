@@ -32,12 +32,6 @@ import {
   InfraccionOperacionModal,
   type InfraccionOperacionTipo,
 } from './InfraccionOperacionModal';
-import { InfraccionesReportModal } from './InfraccionesReportModal';
-import {
-  DEFAULT_INFRACCIONES_FIELD_IDS,
-  INFRACCIONES_REPORT_FIELDS,
-  type InfraccionesReportFieldId,
-} from './infracciones-report-fields';
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -75,8 +69,6 @@ interface InfraccionesListPageProps {
   refreshKey: number;
   onNavigateCreate: () => void;
 }
-
-const REPORT_FIELD_STORAGE_KEY = 'cie.infracciones.reportFields';
 
 const DEFAULT_FILTERS: FiltersForm = {
   search: '',
@@ -189,41 +181,6 @@ function OperationButton({ children, onClick }: { children: string; onClick: () 
   );
 }
 
-function readStoredReportFieldIds(): InfraccionesReportFieldId[] {
-  if (typeof window === 'undefined') {
-    return DEFAULT_INFRACCIONES_FIELD_IDS;
-  }
-
-  try {
-    const rawValue = window.localStorage.getItem(REPORT_FIELD_STORAGE_KEY);
-    if (!rawValue) {
-      return DEFAULT_INFRACCIONES_FIELD_IDS;
-    }
-
-    const parsed = JSON.parse(rawValue) as unknown;
-    if (!Array.isArray(parsed)) {
-      return DEFAULT_INFRACCIONES_FIELD_IDS;
-    }
-
-    const availableIds = new Set(INFRACCIONES_REPORT_FIELDS.map((field) => field.id));
-    const validIds = parsed.filter((fieldId): fieldId is InfraccionesReportFieldId =>
-      typeof fieldId === 'string' && availableIds.has(fieldId),
-    );
-
-    return validIds.length > 0 ? validIds : DEFAULT_INFRACCIONES_FIELD_IDS;
-  } catch {
-    return DEFAULT_INFRACCIONES_FIELD_IDS;
-  }
-}
-
-function persistReportFieldIds(fieldIds: InfraccionesReportFieldId[]): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  window.localStorage.setItem(REPORT_FIELD_STORAGE_KEY, JSON.stringify(fieldIds));
-}
-
 function InfraccionesListPage({
   catalogs,
   refreshKey,
@@ -239,16 +196,10 @@ function InfraccionesListPage({
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [operationState, setOperationState] = useState<OperationState | null>(null);
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
-  const [reportModalOpen, setReportModalOpen] = useState(false);
-  const [selectedReportFieldIds, setSelectedReportFieldIds] = useState<InfraccionesReportFieldId[]>(
-    readStoredReportFieldIds,
-  );
-  const [selectedRowIds, setSelectedRowIds] = useState<Set<number>>(() => new Set());
 
   const query = useMemo(() => buildQuery(activeFilters), [activeFilters]);
   const meta: PaginationMeta | null = state.data?.meta ?? null;
   const items = state.data?.data ?? [];
-  const allVisibleSelected = items.length > 0 && items.every((item) => selectedRowIds.has(item.idInfraccion));
 
   useEffect(() => {
     let mounted = true;
@@ -291,10 +242,6 @@ function InfraccionesListPage({
       mounted = false;
     };
   }, [query, refreshKey, localRefreshKey, token]);
-
-  useEffect(() => {
-    setSelectedRowIds(new Set());
-  }, [query, refreshKey, localRefreshKey]);
 
   useEffect(() => {
     const detailId = selectedId;
@@ -341,11 +288,6 @@ function InfraccionesListPage({
       mounted = false;
     };
   }, [selectedId, token]);
-
-  function updateSelectedReportFieldIds(fieldIds: InfraccionesReportFieldId[]): void {
-    setSelectedReportFieldIds(fieldIds);
-    persistReportFieldIds(fieldIds);
-  }
 
   function updateDraftField(field: keyof FiltersForm, value: string): void {
     setDraftFilters((current) => ({
@@ -402,32 +344,6 @@ function InfraccionesListPage({
   function completeOperation(): void {
     setOperationState(null);
     setLocalRefreshKey((current) => current + 1);
-  }
-
-  function toggleRowSelection(idInfraccion: number, checked: boolean): void {
-    setSelectedRowIds((current) => {
-      const next = new Set(current);
-      if (checked) {
-        next.add(idInfraccion);
-      } else {
-        next.delete(idInfraccion);
-      }
-      return next;
-    });
-  }
-
-  function toggleAllVisibleRows(checked: boolean): void {
-    setSelectedRowIds((current) => {
-      const next = new Set(current);
-      for (const item of items) {
-        if (checked) {
-          next.add(item.idInfraccion);
-        } else {
-          next.delete(item.idInfraccion);
-        }
-      }
-      return next;
-    });
   }
 
   function renderEncierroCell(item: InfraccionListItem) {
@@ -527,34 +443,6 @@ function InfraccionesListPage({
     );
   }
 
-  function buildContextLines(): string[] {
-    const lines: string[] = [];
-
-    if (activeFilters.search) lines.push(`Busqueda: ${activeFilters.search}`);
-    if (activeFilters.anio) lines.push(`Año: ${activeFilters.anio}`);
-    if (activeFilters.fechaDesde) lines.push(`Desde: ${activeFilters.fechaDesde}`);
-    if (activeFilters.fechaHasta) lines.push(`Hasta: ${activeFilters.fechaHasta}`);
-    if (activeFilters.folioInfraccion) lines.push(`Folio: ${activeFilters.folioInfraccion}`);
-    if (activeFilters.placas) lines.push(`Placas: ${activeFilters.placas}`);
-    if (activeFilters.estadoOperativo) lines.push(`Estado operativo: ${activeFilters.estadoOperativo}`);
-
-    if (activeFilters.idDelegacion) {
-      const delegacion = catalogs?.delegaciones.find(
-        (item) => String(item.idDelegacion) === activeFilters.idDelegacion,
-      );
-      lines.push(`Delegacion: ${delegacion?.nombreDelegacion ?? activeFilters.idDelegacion}`);
-    }
-
-    if (activeFilters.idEncierro) {
-      const encierro = catalogs?.encierros.find(
-        (item) => String(item.idEncierro) === activeFilters.idEncierro,
-      );
-      lines.push(`Encierro: ${encierro?.nombreEncierro ?? activeFilters.idEncierro}`);
-    }
-
-    return lines;
-  }
-
   return (
     <section className="page-stack">
       <header className="page-header page-header-row">
@@ -562,14 +450,11 @@ function InfraccionesListPage({
           <p className="eyebrow">Consulta</p>
           <h1>Infracciones</h1>
           <p className="page-description">
-            Consulta operativa con indicadores fijos, selección de filas y reportes configurables.
+            Consulta operativa con indicadores fijos y columnas operativas.
           </p>
         </div>
 
         <div className="button-row">
-          <Button variant="secondary" type="button" onClick={() => setReportModalOpen(true)}>
-            Generar reporte
-          </Button>
           <Button variant="primary" type="button" onClick={onNavigateCreate}>
             Nueva infraccion
           </Button>
@@ -742,32 +627,14 @@ function InfraccionesListPage({
             <div>
               <p className="section-label">Resultados</p>
               <h2>Listado operativo</h2>
-              <div className="table-field-meta">
-                <span>{selectedRowIds.size} fila(s) seleccionada(s)</span>
-                <span>{selectedReportFieldIds.length} campo(s) de reporte</span>
-                {meta ? <span>Total {meta.total}</span> : null}
-              </div>
-            </div>
-
-            <div className="button-row button-row-end">
-              <Button type="button" variant="secondary" onClick={() => setReportModalOpen(true)}>
-                Exportar reporte
-              </Button>
+              <div className="table-field-meta">{meta ? <span>Total {meta.total}</span> : null}</div>
             </div>
           </div>
 
-          <div className="table-wrap">
+          <div className="table-wrap table-wrap-expanded">
             <table className="data-table">
               <thead>
                 <tr>
-                  <th className="table-selection-cell">
-                    <input
-                      type="checkbox"
-                      aria-label="Seleccionar filas visibles"
-                      checked={allVisibleSelected}
-                      onChange={(event) => toggleAllVisibleRows(event.target.checked)}
-                    />
-                  </th>
                   <th>Folio</th>
                   <th>Fecha</th>
                   <th>Infractor</th>
@@ -785,7 +652,7 @@ function InfraccionesListPage({
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="empty-state">
+                    <td colSpan={12} className="empty-state">
                       {state.status === 'loading'
                         ? 'Cargando infracciones...'
                         : 'No hay infracciones para mostrar.'}
@@ -794,16 +661,6 @@ function InfraccionesListPage({
                 ) : (
                   items.map((item) => (
                     <tr key={item.idInfraccion}>
-                      <td className="table-selection-cell">
-                        <input
-                          type="checkbox"
-                          aria-label={`Seleccionar ${item.folioInfraccion}`}
-                          checked={selectedRowIds.has(item.idInfraccion)}
-                          onChange={(event) =>
-                            toggleRowSelection(item.idInfraccion, event.target.checked)
-                          }
-                        />
-                      </td>
                       <td>
                         <strong>{item.folioInfraccion}</strong>
                       </td>
@@ -879,16 +736,6 @@ function InfraccionesListPage({
         type={operationState?.type ?? null}
         onClose={closeOperation}
         onCompleted={completeOperation}
-      />
-
-      <InfraccionesReportModal
-        open={reportModalOpen}
-        items={items}
-        selectedRowIds={selectedRowIds}
-        selectedFieldIds={selectedReportFieldIds}
-        contextLines={buildContextLines()}
-        onSelectedFieldIdsChange={updateSelectedReportFieldIds}
-        onClose={() => setReportModalOpen(false)}
       />
     </section>
   );

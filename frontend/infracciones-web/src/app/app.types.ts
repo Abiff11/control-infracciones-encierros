@@ -8,5 +8,6 @@ export type PageKey =
   | 'salida'
   | 'encierros-vehiculos'
   | 'flujo-operativo'
+  | 'reportes-infracciones'
   | 'importaciones'
   | 'catalogos';
