@@ -31,6 +31,7 @@ import { ImportacionInfraccionesQueryDto } from './dto/importacion-infracciones-
 import { PreviewInfraccionesExcelDto } from './dto/preview-infracciones-excel.dto';
 import {
   ImportacionesService,
+  type UploadedImportFile,
   type ImportacionDetalleResponse,
   type ImportacionPreviewResponse,
 } from './importaciones.service';
@@ -127,7 +128,7 @@ export class ImportacionesController {
   })
   @ApiOperation({ summary: 'Previsualizar importacion de infracciones anual' })
   preview(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: UploadedImportFile,
     @Body() dto: PreviewInfraccionesExcelDto,
   ): Promise<ImportacionPreviewResponse> {
     validateExcelUpload(file);
@@ -155,7 +156,7 @@ export class ImportacionesController {
   })
   @ApiOperation({ summary: 'Confirmar importacion de infracciones anual' })
   confirmar(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: UploadedImportFile,
     @Body() dto: ConfirmarInfraccionesExcelDto,
     @CurrentUser() currentUser: LoginResponseUsuarioDto,
   ): Promise<ImportacionDetalleResponse> {

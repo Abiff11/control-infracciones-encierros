@@ -113,6 +113,7 @@ async function bootstrap() {
   const port = configService.get<number>('app.port', 3000);
 
   await app.listen(port);
+  console.log(`Servidor escuchando en el puerto ${port} `);
 }
 bootstrap().catch((error: unknown) => {
   console.error(error instanceof Error ? error.message : error);
