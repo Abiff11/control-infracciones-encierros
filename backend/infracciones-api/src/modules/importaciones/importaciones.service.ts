@@ -109,6 +109,13 @@ export interface ImportacionDetalleResponse {
 
 const CHUNK_SIZE = 250;
 
+export interface UploadedImportFile {
+  buffer: Buffer;
+  originalname: string;
+  size: number;
+  mimetype?: string;
+}
+
 @Injectable()
 export class ImportacionesService {
   constructor(
@@ -149,7 +156,7 @@ export class ImportacionesService {
   ) {}
 
   async preview(
-    file: Express.Multer.File,
+    file: UploadedImportFile,
     dto: PreviewInfraccionesExcelDto,
   ): Promise<ImportacionPreviewResponse> {
     if (!file) {
@@ -216,7 +223,7 @@ export class ImportacionesService {
   }
 
   async confirmar(
-    file: Express.Multer.File,
+    file: UploadedImportFile,
     dto: ConfirmarInfraccionesExcelDto,
     idUsuario: number,
   ): Promise<ImportacionDetalleResponse> {

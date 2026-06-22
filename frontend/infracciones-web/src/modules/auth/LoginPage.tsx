@@ -2,10 +2,11 @@ import { useState, type FormEvent } from 'react';
 
 import { swaggerUrl } from '../../services/api/apiClient';
 import type { LoginRequest } from '../../types/auth.types';
+import { showWarningAlert } from '../../utils/sweetAlert';
 
 const DEFAULT_FORM: LoginRequest = {
-  email: 'admin@example.com',
-  password: 'Admin123!',
+  email: '',
+  password: '',
 };
 
 interface LoginPageProps {
@@ -17,9 +18,18 @@ interface LoginPageProps {
 function LoginPage({ error, loading, onSubmit }: LoginPageProps) {
   const [form, setForm] = useState<LoginRequest>(DEFAULT_FORM);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void onSubmit(form);
+
+    if (!form.email.trim() || !form.password.trim()) {
+      await showWarningAlert('Datos incompletos', 'Ingresa correo y password.');
+      return;
+    }
+
+    void onSubmit({
+      email: form.email.trim(),
+      password: form.password,
+    });
   }
 
   return (
@@ -34,7 +44,7 @@ function LoginPage({ error, loading, onSubmit }: LoginPageProps) {
           </p>
         </div>
 
-        <form className="auth-form" onSubmit={handleSubmit}>
+        <form className="auth-form" onSubmit={(event) => void handleSubmit(event)}>
           <div className="field">
             <label htmlFor="login-email">Email</label>
             <input
@@ -48,7 +58,7 @@ function LoginPage({ error, loading, onSubmit }: LoginPageProps) {
                 }))
               }
               autoComplete="email"
-              placeholder="admin@example.com"
+              placeholder="usuario@dominio.gob.mx"
             />
           </div>
 
@@ -65,7 +75,7 @@ function LoginPage({ error, loading, onSubmit }: LoginPageProps) {
                 }))
               }
               autoComplete="current-password"
-              placeholder="Admin123!"
+              placeholder="Ingresa tu password"
             />
           </div>
 
@@ -80,11 +90,6 @@ function LoginPage({ error, loading, onSubmit }: LoginPageProps) {
               Abrir Swagger
             </a>
           </div>
-
-          <p className="form-hint">
-            Credenciales de prueba: <strong>admin@example.com</strong> /
-            <strong> Admin123!</strong>
-          </p>
         </form>
       </section>
     </main>

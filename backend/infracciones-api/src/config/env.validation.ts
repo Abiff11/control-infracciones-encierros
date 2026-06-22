@@ -1,13 +1,13 @@
 type EnvRecord = Record<string, unknown>;
 
-const PRODUCTION_REQUIRED_KEYS = [
+const PRODUCTION_REQUIRED_KEYS = ['JWT_SECRET', 'CORS_ORIGIN'] as const;
+
+const REQUIRED_KEYS = [
   'DB_HOST',
   'DB_PORT',
   'DB_USERNAME',
   'DB_PASSWORD',
   'DB_DATABASE',
-  'JWT_SECRET',
-  'CORS_ORIGIN',
 ] as const;
 
 function getString(config: EnvRecord, key: string): string | undefined {
@@ -75,6 +75,12 @@ export function validateEnv(config: EnvRecord): EnvRecord {
   const errors: string[] = [];
   const nodeEnv = getString(config, 'NODE_ENV') || 'development';
   const isProduction = nodeEnv === 'production';
+
+  for (const key of REQUIRED_KEYS) {
+    if (!getString(config, key)) {
+      errors.push(`${key} es obligatorio.`);
+    }
+  }
 
   if (isProduction) {
     for (const key of PRODUCTION_REQUIRED_KEYS) {

@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 
@@ -14,18 +15,22 @@ import { ESTADOS_OPERATIVOS_VEHICULO } from '../constants/estado-operativo-vehic
 export class FindInfraccionesQueryDto {
   @IsOptional()
   @IsString()
+  @MaxLength(30)
   folioInfraccion?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(120)
   search?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(20)
   rfc?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(30)
   claveOficial?: string;
 
   @IsOptional()
@@ -82,26 +87,32 @@ export class FindInfraccionesQueryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(20)
   placas?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(50)
   serie?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(50)
   motor?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(150)
   nombreInfractor?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(50)
   licencia?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(30)
   clavePolicia?: string;
 
   @IsOptional()
@@ -116,10 +127,12 @@ export class FindInfraccionesQueryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(40)
   sortBy?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(10)
   sortOrder?: string;
 
   @Type(() => Number)

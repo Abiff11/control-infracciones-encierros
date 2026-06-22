@@ -32,6 +32,12 @@ import {
   InfraccionOperacionModal,
   type InfraccionOperacionTipo,
 } from './InfraccionOperacionModal';
+import { InfraccionesReportModal } from './InfraccionesReportModal';
+import {
+  DEFAULT_INFRACCIONES_FIELD_IDS,
+  INFRACCIONES_REPORT_FIELDS,
+  type InfraccionesReportFieldId,
+} from './infracciones-report-fields';
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -43,6 +49,7 @@ interface LoadState<T> {
 
 interface FiltersForm {
   search: string;
+  anio: string;
   fechaDesde: string;
   fechaHasta: string;
   idDelegacion: string;
@@ -69,8 +76,11 @@ interface InfraccionesListPageProps {
   onNavigateCreate: () => void;
 }
 
+const REPORT_FIELD_STORAGE_KEY = 'cie.infracciones.reportFields';
+
 const DEFAULT_FILTERS: FiltersForm = {
   search: '',
+  anio: '',
   fechaDesde: '',
   fechaHasta: '',
   idDelegacion: '',
@@ -82,7 +92,7 @@ const DEFAULT_FILTERS: FiltersForm = {
   claveOficial: '',
   estadoOperativo: '',
   page: '1',
-  limit: '10',
+  limit: '30',
 };
 
 function createIdleState<T>(): LoadState<T> {
@@ -109,6 +119,7 @@ function toNumber(value: string): number | undefined {
 function buildQuery(filters: FiltersForm): InfraccionesQuery {
   return {
     search: filters.search || undefined,
+    anio: toNumber(filters.anio),
     fechaDesde: filters.fechaDesde || undefined,
     fechaHasta: filters.fechaHasta || undefined,
     idDelegacion: toNumber(filters.idDelegacion),
@@ -118,9 +129,7 @@ function buildQuery(filters: FiltersForm): InfraccionesQuery {
     placas: filters.placas || undefined,
     rfc: filters.rfc || undefined,
     claveOficial: filters.claveOficial || undefined,
-    estadoOperativo: (filters.estadoOperativo || undefined) as
-      | EstadoOperativoVehiculo
-      | undefined,
+    estadoOperativo: (filters.estadoOperativo || undefined) as EstadoOperativoVehiculo | undefined,
     page: toNumber(filters.page),
     limit: toNumber(filters.limit),
   };
@@ -180,6 +189,41 @@ function OperationButton({ children, onClick }: { children: string; onClick: () 
   );
 }
 
+function readStoredReportFieldIds(): InfraccionesReportFieldId[] {
+  if (typeof window === 'undefined') {
+    return DEFAULT_INFRACCIONES_FIELD_IDS;
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(REPORT_FIELD_STORAGE_KEY);
+    if (!rawValue) {
+      return DEFAULT_INFRACCIONES_FIELD_IDS;
+    }
+
+    const parsed = JSON.parse(rawValue) as unknown;
+    if (!Array.isArray(parsed)) {
+      return DEFAULT_INFRACCIONES_FIELD_IDS;
+    }
+
+    const availableIds = new Set(INFRACCIONES_REPORT_FIELDS.map((field) => field.id));
+    const validIds = parsed.filter((fieldId): fieldId is InfraccionesReportFieldId =>
+      typeof fieldId === 'string' && availableIds.has(fieldId),
+    );
+
+    return validIds.length > 0 ? validIds : DEFAULT_INFRACCIONES_FIELD_IDS;
+  } catch {
+    return DEFAULT_INFRACCIONES_FIELD_IDS;
+  }
+}
+
+function persistReportFieldIds(fieldIds: InfraccionesReportFieldId[]): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(REPORT_FIELD_STORAGE_KEY, JSON.stringify(fieldIds));
+}
+
 function InfraccionesListPage({
   catalogs,
   refreshKey,
@@ -195,10 +239,16 @@ function InfraccionesListPage({
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [operationState, setOperationState] = useState<OperationState | null>(null);
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [selectedReportFieldIds, setSelectedReportFieldIds] = useState<InfraccionesReportFieldId[]>(
+    readStoredReportFieldIds,
+  );
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<number>>(() => new Set());
 
   const query = useMemo(() => buildQuery(activeFilters), [activeFilters]);
   const meta: PaginationMeta | null = state.data?.meta ?? null;
   const items = state.data?.data ?? [];
+  const allVisibleSelected = items.length > 0 && items.every((item) => selectedRowIds.has(item.idInfraccion));
 
   useEffect(() => {
     let mounted = true;
@@ -241,6 +291,10 @@ function InfraccionesListPage({
       mounted = false;
     };
   }, [query, refreshKey, localRefreshKey, token]);
+
+  useEffect(() => {
+    setSelectedRowIds(new Set());
+  }, [query, refreshKey, localRefreshKey]);
 
   useEffect(() => {
     const detailId = selectedId;
@@ -288,6 +342,11 @@ function InfraccionesListPage({
     };
   }, [selectedId, token]);
 
+  function updateSelectedReportFieldIds(fieldIds: InfraccionesReportFieldId[]): void {
+    setSelectedReportFieldIds(fieldIds);
+    persistReportFieldIds(fieldIds);
+  }
+
   function updateDraftField(field: keyof FiltersForm, value: string): void {
     setDraftFilters((current) => ({
       ...current,
@@ -299,8 +358,8 @@ function InfraccionesListPage({
     event?.preventDefault();
     const nextFilters = {
       ...draftFilters,
-      page: draftFilters.page || '1',
-      limit: draftFilters.limit || '10',
+      page: '1',
+      limit: draftFilters.limit || '30',
     };
     setDraftFilters(nextFilters);
     setActiveFilters(nextFilters);
@@ -343,6 +402,32 @@ function InfraccionesListPage({
   function completeOperation(): void {
     setOperationState(null);
     setLocalRefreshKey((current) => current + 1);
+  }
+
+  function toggleRowSelection(idInfraccion: number, checked: boolean): void {
+    setSelectedRowIds((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(idInfraccion);
+      } else {
+        next.delete(idInfraccion);
+      }
+      return next;
+    });
+  }
+
+  function toggleAllVisibleRows(checked: boolean): void {
+    setSelectedRowIds((current) => {
+      const next = new Set(current);
+      for (const item of items) {
+        if (checked) {
+          next.add(item.idInfraccion);
+        } else {
+          next.delete(item.idInfraccion);
+        }
+      }
+      return next;
+    });
   }
 
   function renderEncierroCell(item: InfraccionListItem) {
@@ -393,7 +478,7 @@ function InfraccionesListPage({
     return (
       <div className="table-cell-stack">
         <strong>{getPagoLabel(item)}</strong>
-        <span>{formatEmptyValue(item.pago?.montoPagado)}</span>
+        <span>{formatCurrencyMxn(item.pago?.montoPagado)}</span>
       </div>
     );
   }
@@ -442,6 +527,34 @@ function InfraccionesListPage({
     );
   }
 
+  function buildContextLines(): string[] {
+    const lines: string[] = [];
+
+    if (activeFilters.search) lines.push(`Busqueda: ${activeFilters.search}`);
+    if (activeFilters.anio) lines.push(`Año: ${activeFilters.anio}`);
+    if (activeFilters.fechaDesde) lines.push(`Desde: ${activeFilters.fechaDesde}`);
+    if (activeFilters.fechaHasta) lines.push(`Hasta: ${activeFilters.fechaHasta}`);
+    if (activeFilters.folioInfraccion) lines.push(`Folio: ${activeFilters.folioInfraccion}`);
+    if (activeFilters.placas) lines.push(`Placas: ${activeFilters.placas}`);
+    if (activeFilters.estadoOperativo) lines.push(`Estado operativo: ${activeFilters.estadoOperativo}`);
+
+    if (activeFilters.idDelegacion) {
+      const delegacion = catalogs?.delegaciones.find(
+        (item) => String(item.idDelegacion) === activeFilters.idDelegacion,
+      );
+      lines.push(`Delegacion: ${delegacion?.nombreDelegacion ?? activeFilters.idDelegacion}`);
+    }
+
+    if (activeFilters.idEncierro) {
+      const encierro = catalogs?.encierros.find(
+        (item) => String(item.idEncierro) === activeFilters.idEncierro,
+      );
+      lines.push(`Encierro: ${encierro?.nombreEncierro ?? activeFilters.idEncierro}`);
+    }
+
+    return lines;
+  }
+
   return (
     <section className="page-stack">
       <header className="page-header page-header-row">
@@ -449,13 +562,18 @@ function InfraccionesListPage({
           <p className="eyebrow">Consulta</p>
           <h1>Infracciones</h1>
           <p className="page-description">
-            Consulta operativa con filtros completos y acciones contextuales sin salir del listado.
+            Consulta operativa con indicadores fijos, selección de filas y reportes configurables.
           </p>
         </div>
 
-        <Button variant="primary" type="button" onClick={onNavigateCreate}>
-          Nueva infraccion
-        </Button>
+        <div className="button-row">
+          <Button variant="secondary" type="button" onClick={() => setReportModalOpen(true)}>
+            Generar reporte
+          </Button>
+          <Button variant="primary" type="button" onClick={onNavigateCreate}>
+            Nueva infraccion
+          </Button>
+        </div>
       </header>
 
       <Card>
@@ -475,13 +593,24 @@ function InfraccionesListPage({
             </div>
           </div>
 
-          <div className="form-grid form-grid-2">
+          <div className="form-grid form-grid-3">
             <Field htmlFor="infracciones-search" label="Busqueda general">
               <TextInput
                 id="infracciones-search"
                 value={draftFilters.search}
                 onChange={(event) => updateDraftField('search', event.target.value)}
                 placeholder="Buscar por coincidencia en cualquier campo"
+              />
+            </Field>
+
+            <Field htmlFor="infracciones-anio" label="Año">
+              <TextInput
+                id="infracciones-anio"
+                type="number"
+                min={1900}
+                value={draftFilters.anio}
+                onChange={(event) => updateDraftField('anio', event.target.value)}
+                placeholder="2025"
               />
             </Field>
 
@@ -580,12 +709,8 @@ function InfraccionesListPage({
                 <option value="">Todos</option>
                 <option value="SIN_RETENCION">SIN_RETENCION</option>
                 <option value="EN_ENCIERRO_SIN_PAGO">EN_ENCIERRO_SIN_PAGO</option>
-                <option value="PAGADO_PENDIENTE_LIBERACION">
-                  PAGADO_PENDIENTE_LIBERACION
-                </option>
-                <option value="LIBERADO_PENDIENTE_SALIDA">
-                  LIBERADO_PENDIENTE_SALIDA
-                </option>
+                <option value="PAGADO_PENDIENTE_LIBERACION">PAGADO_PENDIENTE_LIBERACION</option>
+                <option value="LIBERADO_PENDIENTE_SALIDA">LIBERADO_PENDIENTE_SALIDA</option>
                 <option value="VEHICULO_ENTREGADO">VEHICULO_ENTREGADO</option>
               </SelectField>
             </Field>
@@ -613,23 +738,36 @@ function InfraccionesListPage({
 
       <Card>
         <div className="page-stack">
-          <div className="panel-header">
+          <div className="table-field-toolbar">
             <div>
               <p className="section-label">Resultados</p>
               <h2>Listado operativo</h2>
+              <div className="table-field-meta">
+                <span>{selectedRowIds.size} fila(s) seleccionada(s)</span>
+                <span>{selectedReportFieldIds.length} campo(s) de reporte</span>
+                {meta ? <span>Total {meta.total}</span> : null}
+              </div>
             </div>
 
-            {meta ? (
-              <p className="meta-copy">
-                Total {meta.total} · Página {meta.page} de {Math.max(1, meta.totalPages)}
-              </p>
-            ) : null}
+            <div className="button-row button-row-end">
+              <Button type="button" variant="secondary" onClick={() => setReportModalOpen(true)}>
+                Exportar reporte
+              </Button>
+            </div>
           </div>
 
           <div className="table-wrap">
             <table className="data-table">
               <thead>
                 <tr>
+                  <th className="table-selection-cell">
+                    <input
+                      type="checkbox"
+                      aria-label="Seleccionar filas visibles"
+                      checked={allVisibleSelected}
+                      onChange={(event) => toggleAllVisibleRows(event.target.checked)}
+                    />
+                  </th>
                   <th>Folio</th>
                   <th>Fecha</th>
                   <th>Infractor</th>
@@ -647,7 +785,7 @@ function InfraccionesListPage({
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="empty-state">
+                    <td colSpan={13} className="empty-state">
                       {state.status === 'loading'
                         ? 'Cargando infracciones...'
                         : 'No hay infracciones para mostrar.'}
@@ -656,7 +794,19 @@ function InfraccionesListPage({
                 ) : (
                   items.map((item) => (
                     <tr key={item.idInfraccion}>
-                      <td>{item.folioInfraccion}</td>
+                      <td className="table-selection-cell">
+                        <input
+                          type="checkbox"
+                          aria-label={`Seleccionar ${item.folioInfraccion}`}
+                          checked={selectedRowIds.has(item.idInfraccion)}
+                          onChange={(event) =>
+                            toggleRowSelection(item.idInfraccion, event.target.checked)
+                          }
+                        />
+                      </td>
+                      <td>
+                        <strong>{item.folioInfraccion}</strong>
+                      </td>
                       <td>
                         <div className="table-cell-stack">
                           <strong>{formatDate(item.fechaInfraccion)}</strong>
@@ -729,6 +879,16 @@ function InfraccionesListPage({
         type={operationState?.type ?? null}
         onClose={closeOperation}
         onCompleted={completeOperation}
+      />
+
+      <InfraccionesReportModal
+        open={reportModalOpen}
+        items={items}
+        selectedRowIds={selectedRowIds}
+        selectedFieldIds={selectedReportFieldIds}
+        contextLines={buildContextLines()}
+        onSelectedFieldIdsChange={updateSelectedReportFieldIds}
+        onClose={() => setReportModalOpen(false)}
       />
     </section>
   );

@@ -13,7 +13,11 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { LoginResponseUsuarioDto } from '../auth/dto/login-response.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { READ_ROLES, WRITE_ROLES } from '../auth/constants/roles.constants';
+import {
+  CAPTURE_ROLES,
+  READ_ROLES,
+  WRITE_ROLES,
+} from '../auth/constants/roles.constants';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
 import { CreateInfraccionCompletaDto } from './dto/create-infraccion-completa.dto';
@@ -77,7 +81,7 @@ export class InfraccionesController {
     return this.infraccionesService.findByIdOrFail(idInfraccion);
   }
 
-  @Roles(...WRITE_ROLES)
+  @Roles(...CAPTURE_ROLES)
   @Post()
   @ApiOperation({ summary: 'Crear captura completa de infracción' })
   crearInfraccionCompleta(

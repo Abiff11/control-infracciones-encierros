@@ -1,4 +1,20 @@
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+const DEFAULT_API_URL = '/api';
+
+function normalizeApiUrl(value: string | undefined): string {
+  const configuredValue = value?.trim();
+
+  if (!configuredValue) {
+    return DEFAULT_API_URL;
+  }
+
+  if (configuredValue.startsWith('/')) {
+    return configuredValue.replace(/\/+$/, '') || DEFAULT_API_URL;
+  }
+
+  return configuredValue.replace(/\/+$/, '');
+}
+
+const API_URL = normalizeApiUrl(import.meta.env.VITE_API_URL);
 
 export class ApiError extends Error {
   status: number;
@@ -75,10 +91,21 @@ export async function request<T>(
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch (error) {
+    throw new ApiError(
+      0,
+      error instanceof Error
+        ? `No se pudo conectar con el servidor: ${error.message}`
+        : 'No se pudo conectar con el servidor.',
+    );
+  }
 
   if (!response.ok) {
     const payload = await response.text();
