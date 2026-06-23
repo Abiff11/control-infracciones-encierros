@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react';
 
-import { swaggerUrl } from '../../services/api/apiClient';
 import type { LoginRequest } from '../../types/auth.types';
 import { showWarningAlert } from '../../utils/sweetAlert';
 
@@ -35,23 +34,26 @@ function LoginPage({ error, loading, onSubmit }: LoginPageProps) {
   }
 
   return (
-    <main className="auth-shell">
-      <section className="auth-card">
-        <div className="auth-copy">
-          <div className="brand-logo-wrap login-logo-wrap">
-            <img className="institutional-logo" src={INSTITUTIONAL_LOGO_SRC} alt="Policia Vial Estatal de Oaxaca" />
-          </div>
-          <p className="eyebrow">Sistema institucional</p>
-          <h1>Control de Infracciones y Encierros</h1>
-          <p>
-            Inicia sesion para consultar catalogos, revisar infracciones y operar pagos,
-            liberaciones, retenciones y salidas.
-          </p>
-        </div>
+    <main className="auth-shell login-access-shell">
+      <section className="auth-card login-access-card">
+        <form className="auth-form login-access-form" onSubmit={(event) => void handleSubmit(event)}>
+          <p className="eyebrow login-access-eyebrow">Acceso</p>
 
-        <form className="auth-form" onSubmit={(event) => void handleSubmit(event)}>
-          <div className="field">
-            <label htmlFor="login-email">Email</label>
+          <div className="brand-logo-wrap login-logo-wrap">
+            <img
+              className="institutional-logo login-logo"
+              src={INSTITUTIONAL_LOGO_SRC}
+              alt="Policia Vial Estatal de Oaxaca"
+            />
+          </div>
+
+          <div className="login-access-copy">
+            <h1>Control de infracciones y encierros</h1>
+            <p>Ingresa con tu cuenta para acceder a tu panel operativo.</p>
+          </div>
+
+          <div className="field login-field">
+            <label htmlFor="login-email">Correo</label>
             <input
               id="login-email"
               type="email"
@@ -63,11 +65,10 @@ function LoginPage({ error, loading, onSubmit }: LoginPageProps) {
                 }))
               }
               autoComplete="email"
-              placeholder="usuario@dominio.gob.mx"
             />
           </div>
 
-          <div className="field">
+          <div className="field login-field">
             <label htmlFor="login-password">Contrasena</label>
             <input
               id="login-password"
@@ -80,21 +81,14 @@ function LoginPage({ error, loading, onSubmit }: LoginPageProps) {
                 }))
               }
               autoComplete="current-password"
-              placeholder="Ingresa tu contrasena"
             />
           </div>
 
-          {error ? <div className="notice notice-error">{error}</div> : null}
+          {error ? <div className="notice notice-error login-notice">{error}</div> : null}
 
-          <div className="button-row">
-            <button className="button-primary" type="submit" disabled={loading}>
-              {loading ? 'Iniciando sesion...' : 'Iniciar sesion'}
-            </button>
-
-            <a className="button-link" href={swaggerUrl} target="_blank" rel="noreferrer">
-              Abrir Swagger
-            </a>
-          </div>
+          <button className="button-primary login-submit-button" type="submit" disabled={loading}>
+            {loading ? 'Entrando...' : 'Entrar'}
+          </button>
         </form>
       </section>
     </main>
