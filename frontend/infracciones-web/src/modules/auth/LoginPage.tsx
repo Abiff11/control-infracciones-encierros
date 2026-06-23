@@ -35,12 +35,12 @@ function LoginPage({ error, loading, onSubmit }: LoginPageProps) {
   }
 
   return (
-    <main className="auth-shell login-access-shell">
-      <section className="auth-card login-access-card">
-        <form className="auth-form login-access-form" onSubmit={(event) => void handleSubmit(event)}>
+    <main className="login-access-shell">
+      <section className="login-access-card">
+        <form className="login-access-form" onSubmit={(event) => void handleSubmit(event)}>
           <p className="eyebrow login-access-eyebrow">Acceso</p>
 
-          <div className="brand-logo-wrap login-logo-wrap">
+          <div className="login-logo-wrap">
             <img
               className="institutional-logo login-logo"
               src={INSTITUTIONAL_LOGO_SRC}
