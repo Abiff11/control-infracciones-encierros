@@ -4,6 +4,7 @@ import type { LoginResponseUsuario } from '../../types/auth.types';
 import '../../app/App.institutional.css';
 
 const INSTITUTIONAL_LOGO_SRC = `${import.meta.env.BASE_URL}policia-vial-estatal-oaxaca-seeklogo.png`;
+const SWAGGER_ROLES = new Set(['ADMIN', 'SUPERADMIN', 'SUPER_ADMIN']);
 
 export interface SidebarItem {
   key: PageKey;
@@ -31,8 +32,14 @@ function normalizeGroupLabel(group: NavigationItem['group']): string {
   return labels[group] ?? group;
 }
 
+function canAccessTechnicalTools(user: LoginResponseUsuario): boolean {
+  const roleName = user.rol?.nombreRol?.toUpperCase();
+  return Boolean(roleName && SWAGGER_ROLES.has(roleName));
+}
+
 export function Sidebar({ currentPage, items, onLogout, onNavigate, swaggerUrl, user }: SidebarProps) {
   const isAdmin = user.rol?.nombreRol === 'ADMIN';
+  const showSwagger = canAccessTechnicalTools(user);
   const visibleItems = items.filter((item) => isAdmin || item.key !== 'usuarios');
   const groups = Array.from(new Set(visibleItems.map((item) => item.group)));
 
@@ -89,12 +96,14 @@ export function Sidebar({ currentPage, items, onLogout, onNavigate, swaggerUrl, 
             </div>
           ))}
 
-          <div className="sidebar-nav-group">
-            <p className="sidebar-nav-title">Técnico</p>
-            <a className="nav-item nav-link" href={swaggerUrl} target="_blank" rel="noreferrer">
-              Swagger
-            </a>
-          </div>
+          {showSwagger ? (
+            <div className="sidebar-nav-group">
+              <p className="sidebar-nav-title">Técnico</p>
+              <a className="nav-item nav-link" href={swaggerUrl} target="_blank" rel="noreferrer">
+                Swagger
+              </a>
+            </div>
+          ) : null}
         </nav>
 
         <div className="sidebar-footer">
