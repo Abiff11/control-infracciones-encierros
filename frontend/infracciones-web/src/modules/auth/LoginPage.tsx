@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 
 import type { LoginRequest } from '../../types/auth.types';
 import { showWarningAlert } from '../../utils/sweetAlert';
+import './LoginPage.css';
 
 const DEFAULT_FORM: LoginRequest = {
   email: '',
