@@ -38,6 +38,12 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LoginRateLimitGuard } from './guards/login-rate-limit.guard';
 
 function getClientIp(request: Request): string | undefined {
+  const cfConnectingIp = request.headers['cf-connecting-ip'];
+
+  if (typeof cfConnectingIp === 'string' && cfConnectingIp.trim()) {
+    return cfConnectingIp.trim();
+  }
+
   const forwardedFor = request.headers['x-forwarded-for'];
 
   if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
@@ -93,7 +99,7 @@ export class AuthController {
   }
 
   @UseGuards(LoginRateLimitGuard)
-  @Throttle({ auth: { limit: 20, ttl: 60_000 } })
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('login')
   @ApiOperation({ summary: 'Iniciar sesion y obtener token JWT' })
   @ApiBody({ type: LoginDto })
@@ -130,7 +136,7 @@ export class AuthController {
   }
 
   @Post('refresh')
-  @Throttle({ refresh: { limit: 60, ttl: 60_000 } })
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @ApiOperation({ summary: 'Rotar refresh token y renovar access token' })
   @ApiOkResponse({ type: LoginResponseDto })
   @ApiUnauthorizedResponse({ description: 'Refresh token invalido o vencido' })
@@ -170,7 +176,7 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Throttle({ auth: { limit: 20, ttl: 60_000 } })
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('logout')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Cerrar sesion activa' })
@@ -197,7 +203,7 @@ export class AuthController {
   }
 
   @Post('logout-tolerant')
-  @Throttle({ auth: { limit: 20, ttl: 60_000 } })
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Cerrar sesion limpiando cookie aunque el access token expire',
   })
@@ -218,15 +224,5 @@ export class AuthController {
     );
 
     return { ok: true as const };
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Get('profile')
-  @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Obtener perfil del usuario autenticado' })
-  @ApiOkResponse({ type: LoginResponseUsuarioDto })
-  @ApiUnauthorizedResponse({ description: 'Token invalido o ausente' })
-  profile(@CurrentUser() usuario: LoginResponseUsuarioDto) {
-    return usuario;
   }
 }
