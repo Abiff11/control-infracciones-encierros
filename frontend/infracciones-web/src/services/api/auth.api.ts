@@ -46,11 +46,15 @@ function extractErrorMessage(payload: string): string {
   return payload;
 }
 
-function buildHeaders(token?: string): Headers {
+function buildHeaders(token?: string, hasJsonBody = false): Headers {
   const headers = new Headers({
     Accept: 'application/json',
   });
   const csrfToken = readCookie(CSRF_COOKIE_NAME);
+
+  if (hasJsonBody) {
+    headers.set('Content-Type', 'application/json');
+  }
 
   if (csrfToken) {
     headers.set(CSRF_HEADER_NAME, csrfToken);
@@ -76,9 +80,10 @@ async function fetchJson<T>(
   options: RequestInit = {},
   token?: string,
 ): Promise<T> {
+  const hasJsonBody = typeof options.body === 'string';
   const response = await fetch(`${apiUrl}${path}`, {
     ...options,
-    headers: buildHeaders(token),
+    headers: buildHeaders(token, hasJsonBody),
     credentials: 'include',
   });
 
