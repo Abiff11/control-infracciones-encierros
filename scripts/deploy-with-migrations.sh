@@ -1,49 +1,51 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.service.yml}"
-ENV_FILE="${ENV_FILE:-.env}"
-BACKUP_DIR="${BACKUP_DIR:-backups}"
-DB_NETWORK="${DB_NETWORK:-intranet_db}"
-BACKUP_TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-BACKUP_FILE="${BACKUP_FILE:-${BACKUP_DIR}/postgres-backup-${BACKUP_TIMESTAMP}.dump}"
+APP_DIR="/opt/intranet/apps/control-infracciones-encierros"
+COMPOSE_FILE="docker-compose.service.yml"
+ENV_FILE=".env"
+TARGET_REF="${1:-origin/main}"
 MIGRATION_CMD="${MIGRATION_CMD:-npm run migration:run:prod}"
+PUBLIC_URL="${PUBLIC_URL:-https://infracciones.sisoaxaca.com}"
+DB_ENV_FILE="${DB_ENV_FILE:-/opt/intranet/infra/security/control_infracciones.db.env}"
 HEALTHCHECK_TIMEOUT="${HEALTHCHECK_TIMEOUT:-180}"
 
-cd "$ROOT_DIR"
+cd "$APP_DIR"
 
+echo "== Validando archivos requeridos =="
 test -f "$COMPOSE_FILE"
 test -f "$ENV_FILE"
+test -f "$DB_ENV_FILE"
 
-mkdir -p "$BACKUP_DIR"
+echo "== Backup PostgreSQL antes de migraciones =="
+if systemctl list-unit-files | grep -q '^intranet-postgres-backup.service'; then
+  sudo systemctl start intranet-postgres-backup.service
+  systemctl status intranet-postgres-backup.service --no-pager -l | tail -20
+elif test -x /opt/intranet/infra/scripts/backup-postgres.sh; then
+  /opt/intranet/infra/scripts/backup-postgres.sh
+else
+  echo "ERROR: No se encontro servicio ni script de backup PostgreSQL." >&2
+  exit 1
+fi
 
-set -a
-# shellcheck disable=SC1090
-source "$ENV_FILE"
-set +a
+echo "== Estado Git antes del deploy con migraciones =="
+git status -sb
 
-: "${DB_HOST:?Define DB_HOST en .env}"
-: "${DB_PORT:?Define DB_PORT en .env}"
-: "${DB_USERNAME:?Define DB_USERNAME en .env}"
-: "${DB_DATABASE:?Define DB_DATABASE en .env}"
-: "${DB_PASSWORD:?Define DB_PASSWORD en .env}"
+echo "== Sincronizando codigo =="
+git fetch origin
+git reset --hard "$TARGET_REF"
+git clean -fd -e .env -e storage -e uploads -e backups
 
-echo "Creando respaldo PostgreSQL en $BACKUP_FILE"
-docker run --rm \
-  --network "$DB_NETWORK" \
-  -e PGPASSWORD="$DB_PASSWORD" \
-  postgres:16-alpine \
-  sh -lc "pg_dump -h \"$DB_HOST\" -p \"$DB_PORT\" -U \"$DB_USERNAME\" -F c \"$DB_DATABASE\"" \
-  > "$BACKUP_FILE"
+echo "== Commit desplegado =="
+git log --oneline -1
 
-echo "Construyendo imagenes backend/frontend"
+echo "== Construyendo imagenes =="
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build backend frontend
 
-echo "Ejecutando migraciones TypeORM"
+echo "== Ejecutando migraciones TypeORM =="
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm backend sh -lc "$MIGRATION_CMD"
 
-echo "Levantando servicios backend/frontend"
+echo "== Levantando servicios =="
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d backend frontend
 
 wait_for_health() {
@@ -67,16 +69,6 @@ wait_for_health() {
       return 0
     fi
 
-    if [[ "$status" == "running" || "$status" == "created" || "$status" == "starting" || "$status" == "up" ]]; then
-      if (( $(date +%s) - started_at > HEALTHCHECK_TIMEOUT )); then
-        echo "Timeout esperando healthcheck de $service_name" >&2
-        docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps
-        exit 1
-      fi
-      sleep 5
-      continue
-    fi
-
     if [[ "$status" == "unhealthy" || "$status" == "exited" || "$status" == "dead" ]]; then
       echo "$service_name no quedo saludable: $status" >&2
       docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps
@@ -96,6 +88,18 @@ wait_for_health() {
 wait_for_health backend
 wait_for_health frontend
 
+echo "== Estado Docker Compose =="
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps
 
-echo "Deploy con migraciones terminado"
+echo "== Validando backend health interno =="
+docker exec control_infracciones_backend wget -qO- http://127.0.0.1:3104/api/health
+echo
+
+echo "== Validando frontend interno =="
+docker exec control_infracciones_frontend wget -qO- http://127.0.0.1:8080/healthz >/dev/null
+echo "frontend ok"
+
+echo "== Validando proteccion publica Cloudflare Access =="
+curl -sI "$PUBLIC_URL" | grep -Ei 'HTTP/|location:|www-authenticate:|server:' || true
+
+echo "== Deploy con migraciones terminado correctamente =="

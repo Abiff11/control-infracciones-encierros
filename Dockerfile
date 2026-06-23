@@ -22,8 +22,7 @@ COPY --from=api-builder --chown=node:node /app/backend/package*.json ./
 COPY --from=api-builder --chown=node:node /app/backend/node_modules ./node_modules
 COPY --from=api-builder --chown=node:node /app/backend/dist ./dist
 USER node
-EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD node -e "const http=require('http');const port=process.env.PORT||3000;const req=http.get({host:'127.0.0.1',port,path:'/health',timeout:3000},res=>process.exit(res.statusCode===200?0:1));req.on('error',()=>process.exit(1));req.on('timeout',()=>{req.destroy();process.exit(1);});"
+EXPOSE 3104
 CMD ["node", "dist/main.js"]
 
 FROM node:${NODE_VERSION} AS web-builder
@@ -33,12 +32,17 @@ RUN npm ci
 COPY frontend/infracciones-web/ ./
 ARG VITE_API_URL=/api
 ENV VITE_API_URL=${VITE_API_URL}
+ARG VITE_BASE_PATH=/
+ENV VITE_BASE_PATH=${VITE_BASE_PATH}
+ARG VITE_SOCKET_URL=/
+ENV VITE_SOCKET_URL=${VITE_SOCKET_URL}
+ARG VITE_SOCKET_PATH=/socket.io
+ENV VITE_SOCKET_PATH=${VITE_SOCKET_PATH}
 RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:1.27-alpine AS web-production
-COPY nginx/control-infracciones-encierros.conf /etc/nginx/conf.d/default.conf
+COPY nginx/frontend.conf /etc/nginx/conf.d/default.conf
 COPY --from=web-builder /app/frontend/dist /usr/share/nginx/html
 USER nginx
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1
 CMD ["nginx", "-g", "daemon off;"]

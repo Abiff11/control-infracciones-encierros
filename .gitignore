@@ -20,9 +20,32 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Respaldos y dumps locales
+*.bak
+*.backup
+*.patch
+*.sql
+*.dump
+*.tar
+*.tar.gz
+*.zip
+backups/
+db-backups/
+db-audit/
+
+# Material sensible local
+*.key
+*.pem
+*.crt
+
+# Cargas y almacenamiento runtime
+uploads/
+storage/
+
 # Sistema / editor
 .DS_Store
 Thumbs.db
+desktop.ini
 .vscode/
 .idea/
 

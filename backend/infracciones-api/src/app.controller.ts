@@ -1,9 +1,21 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
+import { DataSource } from 'typeorm';
+
 import { AppService } from './app.service';
+
+type HealthResponse = {
+  status: 'ok' | 'error';
+  service: string;
+  timestamp: string;
+  database: 'ok' | 'error';
+};
 
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  constructor(
+    private readonly appService: AppService,
+    private readonly dataSource: DataSource,
+  ) {}
 
   @Get()
   getHello(): string {
@@ -11,11 +23,25 @@ export class AppController {
   }
 
   @Get('health')
-  health(): { status: string; service: string; timestamp: string } {
-    return {
-      status: 'ok',
-      service: 'control-infracciones-api',
-      timestamp: new Date().toISOString(),
-    };
+  async health(): Promise<HealthResponse> {
+    const timestamp = new Date().toISOString();
+
+    try {
+      await this.dataSource.query('SELECT 1');
+
+      return {
+        status: 'ok',
+        service: 'control-infracciones-api',
+        timestamp,
+        database: 'ok',
+      };
+    } catch {
+      throw new ServiceUnavailableException({
+        status: 'error',
+        service: 'control-infracciones-api',
+        timestamp,
+        database: 'error',
+      });
+    }
   }
 }

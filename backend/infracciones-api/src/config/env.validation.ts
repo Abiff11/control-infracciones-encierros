@@ -10,6 +10,18 @@ const REQUIRED_KEYS = [
   'DB_DATABASE',
 ] as const;
 
+const SECRET_PLACEHOLDER_PATTERNS = [
+  'change_me',
+  'changeme',
+  'no_subir',
+  'placeholder',
+  'password_real',
+  'secret_real',
+  'secreto_real',
+  'minimo_32',
+  'min_32',
+] as const;
+
 function getString(config: EnvRecord, key: string): string | undefined {
   const value = config[key];
   return typeof value === 'string' ? value.trim() : undefined;
@@ -68,7 +80,28 @@ function hasPlaceholderValue(value: string | undefined): boolean {
     return true;
   }
 
-  return value.toLowerCase().includes('change_me');
+  const normalizedValue = value.toLowerCase();
+  return SECRET_PLACEHOLDER_PATTERNS.some((pattern) =>
+    normalizedValue.includes(pattern),
+  );
+}
+
+function validateProductionSecret(
+  key: string,
+  value: string | undefined,
+  minLength: number,
+  errors: string[],
+): void {
+  if (hasPlaceholderValue(value)) {
+    errors.push(`${key} debe definirse con un valor real en produccion.`);
+    return;
+  }
+
+  if ((value?.length ?? 0) < minLength) {
+    errors.push(
+      `${key} debe tener al menos ${minLength} caracteres en produccion.`,
+    );
+  }
 }
 
 export function validateEnv(config: EnvRecord): EnvRecord {
@@ -89,12 +122,29 @@ export function validateEnv(config: EnvRecord): EnvRecord {
       }
     }
 
-    if (hasPlaceholderValue(getString(config, 'JWT_SECRET'))) {
-      errors.push('JWT_SECRET debe cambiarse en produccion.');
-    }
+    validateProductionSecret(
+      'JWT_SECRET',
+      getString(config, 'JWT_SECRET'),
+      32,
+      errors,
+    );
+    validateProductionSecret(
+      'DB_PASSWORD',
+      getString(config, 'DB_PASSWORD'),
+      12,
+      errors,
+    );
 
-    if (hasPlaceholderValue(getString(config, 'DB_PASSWORD'))) {
-      errors.push('DB_PASSWORD debe cambiarse en produccion.');
+    const configuredOrigins = [
+      getString(config, 'FRONTEND_ORIGINS'),
+      getString(config, 'CORS_ORIGIN'),
+    ]
+      .filter(Boolean)
+      .flatMap((value) => value?.split(',') ?? [])
+      .map((value) => value.trim());
+
+    if (configuredOrigins.some((origin) => origin === '*')) {
+      errors.push('CORS no puede usar * como origen permitido en produccion.');
     }
 
     if (getString(config, 'DB_SYNCHRONIZE')?.toLowerCase() === 'true') {
