@@ -46,6 +46,7 @@ const EXCEL_MIME_TYPES = new Set([
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]);
+const IMPORT_THROTTLE = { default: { limit: 5, ttl: 60_000 } };
 
 function getSafeFileExtension(filename: string): string {
   const normalized = filename.trim().toLowerCase();
@@ -118,10 +119,7 @@ export class ImportacionesController {
   ) {}
 
   @Post('preview')
-  @Throttle({
-    import: { limit: 5, ttl: 60_000 },
-    upload: { limit: 5, ttl: 60_000 },
-  })
+  @Throttle(IMPORT_THROTTLE)
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: MAX_EXCEL_FILE_SIZE_BYTES },
@@ -153,10 +151,7 @@ export class ImportacionesController {
   }
 
   @Post('confirmar')
-  @Throttle({
-    import: { limit: 5, ttl: 60_000 },
-    upload: { limit: 5, ttl: 60_000 },
-  })
+  @Throttle(IMPORT_THROTTLE)
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: MAX_EXCEL_FILE_SIZE_BYTES },
