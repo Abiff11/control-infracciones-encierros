@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import {
   clearAuthSession,
@@ -66,39 +66,42 @@ export function useAuth() {
     };
   }, []);
 
-  const handleSessionExpired = (message: string): void => {
+  const handleSessionExpired = useCallback((message: string): void => {
     clearAuthSession();
     setAuthMessage(message);
     setAuthLoading(false);
     setBootstrapping(false);
-  };
+  }, []);
 
-  const activateSession = async (
-    user: LoginResponseUsuario,
-    token: string,
-  ): Promise<void> => {
-    updateAuthSession(token, user);
-    setAuthMessage(null);
-    setBootstrapping(false);
-  };
-
-  const login = async (credentials: LoginRequest): Promise<void> => {
-    setAuthLoading(true);
-    setAuthMessage(null);
-
-    try {
-      await ensureCsrfToken();
-      const response = await loginRequest(credentials);
-      await activateSession(response.usuario, response.accessToken);
-    } catch (error) {
-      setAuthMessage(`No se pudo iniciar sesion: ${getErrorMessage(error)}`);
-    } finally {
-      setAuthLoading(false);
+  const activateSession = useCallback(
+    async (user: LoginResponseUsuario, token: string): Promise<void> => {
+      updateAuthSession(token, user);
+      setAuthMessage(null);
       setBootstrapping(false);
-    }
-  };
+    },
+    [],
+  );
 
-  const logout = async (): Promise<void> => {
+  const login = useCallback(
+    async (credentials: LoginRequest): Promise<void> => {
+      setAuthLoading(true);
+      setAuthMessage(null);
+
+      try {
+        await ensureCsrfToken();
+        const response = await loginRequest(credentials);
+        await activateSession(response.usuario, response.accessToken);
+      } catch (error) {
+        setAuthMessage(`No se pudo iniciar sesion: ${getErrorMessage(error)}`);
+      } finally {
+        setAuthLoading(false);
+        setBootstrapping(false);
+      }
+    },
+    [activateSession],
+  );
+
+  const logout = useCallback(async (): Promise<void> => {
     setAuthLoading(true);
 
     try {
@@ -117,30 +120,31 @@ export function useAuth() {
       setAuthLoading(false);
       setBootstrapping(false);
     }
-  };
+  }, [session?.token]);
 
-  const runProtectedRequest = async <T,>(
-    action: (token: string) => Promise<T>,
-  ): Promise<T> => {
-    const token = session?.token;
+  const runProtectedRequest = useCallback(
+    async <T,>(action: (token: string) => Promise<T>): Promise<T> => {
+      const token = session?.token;
 
-    if (!token) {
-      throw new Error('No hay una sesion activa.');
-    }
-
-    try {
-      return await action(token);
-    } catch (error) {
-      if (isUnauthorizedError(error)) {
-        handleSessionExpired('La sesion expiro. Vuelve a iniciar sesion.');
-        throw new Error('La sesion expiro. Vuelve a iniciar sesion.', {
-          cause: error,
-        });
+      if (!token) {
+        throw new Error('No hay una sesion activa.');
       }
 
-      throw error;
-    }
-  };
+      try {
+        return await action(token);
+      } catch (error) {
+        if (isUnauthorizedError(error)) {
+          handleSessionExpired('La sesion expiro. Vuelve a iniciar sesion.');
+          throw new Error('La sesion expiro. Vuelve a iniciar sesion.', {
+            cause: error,
+          });
+        }
+
+        throw error;
+      }
+    },
+    [handleSessionExpired, session?.token],
+  );
 
   return {
     authLoading,
