@@ -1,0 +1,128 @@
+.login-access-shell {
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+.login-access-card {
+  width: min(100%, 430px);
+  max-width: 430px;
+  display: block;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 24px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
+}
+
+.login-access-form {
+  display: grid;
+  gap: 14px;
+  padding: 0;
+}
+
+.login-access-eyebrow {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.login-logo-wrap {
+  width: 86px;
+  height: 86px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.login-logo {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+}
+
+.login-access-copy {
+  display: grid;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.login-access-copy h1 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.14;
+  letter-spacing: -0.03em;
+}
+
+.login-access-copy p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.login-field {
+  display: grid;
+  gap: 7px;
+}
+
+.login-field label {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.login-field input {
+  min-height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.login-field input:focus {
+  border-color: #64748b;
+  box-shadow: 0 0 0 4px rgba(100, 116, 139, 0.12);
+}
+
+.login-submit-button {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 2px;
+  border-radius: 8px;
+  background: #172033;
+  border-color: #172033;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.login-submit-button:hover {
+  background: #0f172a;
+  border-color: #0f172a;
+}
+
+.login-notice {
+  margin: 0;
+  font-size: 12px;
+}
+
+@media (max-width: 540px) {
+  .login-access-shell {
+    padding: 16px;
+  }
+
+  .login-access-card {
+    padding: 20px;
+  }
+
+  .login-access-copy h1 {
+    font-size: 22px;
+  }
+}
