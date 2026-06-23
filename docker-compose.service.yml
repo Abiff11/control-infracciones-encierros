@@ -17,8 +17,6 @@ services:
       PORT: 3104
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_DATABASE: control_infracciones_db
-      DB_USERNAME: infracciones_user
       DB_SYNCHRONIZE: "false"
       ENABLE_SWAGGER: "false"
     expose:
