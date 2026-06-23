@@ -1,126 +1,146 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { getErrorMessage, isUnauthorizedError } from '../services/api/apiClient';
-import { getProfile, login as loginRequest } from '../services/api/auth.api';
+import {
+  clearAuthSession,
+  getAuthSession,
+  subscribeAuthSession,
+  updateAuthSession,
+} from '../services/api/authSession';
+import {
+  ensureCsrfToken,
+  getErrorMessage,
+  isUnauthorizedError,
+} from '../services/api/apiClient';
+import {
+  login as loginRequest,
+  logout as logoutRequest,
+  logoutTolerant as logoutTolerantRequest,
+  refresh as refreshRequest,
+} from '../services/api/auth.api';
 import type {
   LoginRequest,
   LoginResponseUsuario,
   SessionState,
 } from '../types/auth.types';
-import {
-  clearStoredToken,
-  loadStoredToken,
-  saveStoredToken,
-} from '../utils/session';
 
 export function useAuth() {
-  const [storedToken] = useState(() => loadStoredToken());
-  const [bootstrapping, setBootstrapping] = useState(Boolean(storedToken));
+  const [bootstrapping, setBootstrapping] = useState(true);
   const [authLoading, setAuthLoading] = useState(false);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
-  const [session, setSession] = useState<SessionState | null>(null);
+  const [session, setSession] = useState<SessionState | null>(getAuthSession());
 
-  const handleSessionExpired = useCallback((message: string): void => {
-    clearStoredToken();
-    setSession(null);
-    setAuthMessage(message);
-    setAuthLoading(false);
-    setBootstrapping(false);
-  }, []);
-
-  const activateSession = useCallback(
-    async (user: LoginResponseUsuario, token: string): Promise<void> => {
-      saveStoredToken(token);
-      setSession({ token, user });
-      setAuthMessage(null);
-    },
+  useEffect(
+    () =>
+      subscribeAuthSession(() => {
+        setSession(getAuthSession());
+      }),
     [],
   );
 
-  const restoreSession = useCallback(
-    async (token: string): Promise<void> => {
-      try {
-        const profile = await getProfile(token);
-        await activateSession(profile, token);
-      } catch (error) {
-        if (isUnauthorizedError(error)) {
-          handleSessionExpired(
-            'La sesion anterior expiro. Inicia sesion de nuevo.',
-          );
-        } else {
-          handleSessionExpired(
-            `No se pudo restaurar la sesion: ${getErrorMessage(error)}`,
-          );
-        }
-      } finally {
-        setBootstrapping(false);
-      }
-    },
-    [activateSession, handleSessionExpired],
-  );
-
-  const login = useCallback(
-    async (credentials: LoginRequest): Promise<void> => {
-      setAuthLoading(true);
-      setAuthMessage(null);
-
-      try {
-        const response = await loginRequest(credentials);
-        await activateSession(response.usuario, response.accessToken);
-      } catch (error) {
-        setAuthMessage(`No se pudo iniciar sesion: ${getErrorMessage(error)}`);
-        clearStoredToken();
-      } finally {
-        setAuthLoading(false);
-        setBootstrapping(false);
-      }
-    },
-    [activateSession],
-  );
-
-  const logout = useCallback((): void => {
-    clearStoredToken();
-    setSession(null);
-    setAuthMessage(null);
-    setAuthLoading(false);
-    setBootstrapping(false);
-  }, []);
-
-  const runProtectedRequest = useCallback(
-    async <T,>(action: (token: string) => Promise<T>): Promise<T> => {
-      const token = session?.token;
-
-      if (!token) {
-        throw new Error('No hay una sesion activa.');
-      }
-
-      try {
-        return await action(token);
-      } catch (error) {
-        if (isUnauthorizedError(error)) {
-          handleSessionExpired('La sesion expiro. Vuelve a iniciar sesion.');
-          throw new Error('La sesion expiro. Vuelve a iniciar sesion.', {
-            cause: error,
-          });
-        }
-
-        throw error;
-      }
-    },
-    [handleSessionExpired, session?.token],
-  );
-
   useEffect(() => {
-    if (!storedToken) {
-      return;
+    let cancelled = false;
+
+    async function bootstrapSession(): Promise<void> {
+      try {
+        await ensureCsrfToken();
+        const response = await refreshRequest();
+        if (!cancelled) {
+          updateAuthSession(response.accessToken, response.usuario);
+          setAuthMessage(null);
+        }
+      } catch {
+        if (!cancelled) {
+          clearAuthSession();
+        }
+      } finally {
+        if (!cancelled) {
+          setBootstrapping(false);
+        }
+      }
     }
 
-    const timeoutId = window.setTimeout(() => {
-      void restoreSession(storedToken);
-    }, 0);
+    void bootstrapSession();
 
-    return () => window.clearTimeout(timeoutId);
-  }, [restoreSession, storedToken]);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleSessionExpired = (message: string): void => {
+    clearAuthSession();
+    setAuthMessage(message);
+    setAuthLoading(false);
+    setBootstrapping(false);
+  };
+
+  const activateSession = async (
+    user: LoginResponseUsuario,
+    token: string,
+  ): Promise<void> => {
+    updateAuthSession(token, user);
+    setAuthMessage(null);
+    setBootstrapping(false);
+  };
+
+  const login = async (credentials: LoginRequest): Promise<void> => {
+    setAuthLoading(true);
+    setAuthMessage(null);
+
+    try {
+      await ensureCsrfToken();
+      const response = await loginRequest(credentials);
+      await activateSession(response.usuario, response.accessToken);
+    } catch (error) {
+      setAuthMessage(`No se pudo iniciar sesion: ${getErrorMessage(error)}`);
+    } finally {
+      setAuthLoading(false);
+      setBootstrapping(false);
+    }
+  };
+
+  const logout = async (): Promise<void> => {
+    setAuthLoading(true);
+
+    try {
+      const token = session?.token;
+
+      if (token) {
+        await logoutRequest(token);
+      } else {
+        await logoutTolerantRequest();
+      }
+    } catch {
+      await logoutTolerantRequest();
+    } finally {
+      clearAuthSession();
+      setAuthMessage(null);
+      setAuthLoading(false);
+      setBootstrapping(false);
+    }
+  };
+
+  const runProtectedRequest = async <T,>(
+    action: (token: string) => Promise<T>,
+  ): Promise<T> => {
+    const token = session?.token;
+
+    if (!token) {
+      throw new Error('No hay una sesion activa.');
+    }
+
+    try {
+      return await action(token);
+    } catch (error) {
+      if (isUnauthorizedError(error)) {
+        handleSessionExpired('La sesion expiro. Vuelve a iniciar sesion.');
+        throw new Error('La sesion expiro. Vuelve a iniciar sesion.', {
+          cause: error,
+        });
+      }
+
+      throw error;
+    }
+  };
 
   return {
     authLoading,

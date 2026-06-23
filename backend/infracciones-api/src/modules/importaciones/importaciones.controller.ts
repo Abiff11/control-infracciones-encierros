@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   ParseIntPipe,
@@ -11,6 +12,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -18,6 +20,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { FileInterceptor } from '@nestjs/platform-express';
 
 import { IMPORT_ROLES } from '../auth/constants/roles.constants';
@@ -111,9 +114,14 @@ export class ImportacionesController {
   constructor(
     private readonly importacionesService: ImportacionesService,
     private readonly reportesService: ImportacionesReportesService,
+    private readonly configService: ConfigService,
   ) {}
 
   @Post('preview')
+  @Throttle({
+    import: { limit: 5, ttl: 60_000 },
+    upload: { limit: 5, ttl: 60_000 },
+  })
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: MAX_EXCEL_FILE_SIZE_BYTES },
@@ -139,11 +147,16 @@ export class ImportacionesController {
     @UploadedFile() file: UploadedImportFile,
     @Body() dto: PreviewInfraccionesExcelDto,
   ): Promise<ImportacionPreviewResponse> {
+    this.assertExcelImportEnabled();
     validateExcelUpload(file);
     return this.importacionesService.preview(file, dto);
   }
 
   @Post('confirmar')
+  @Throttle({
+    import: { limit: 5, ttl: 60_000 },
+    upload: { limit: 5, ttl: 60_000 },
+  })
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: MAX_EXCEL_FILE_SIZE_BYTES },
@@ -172,6 +185,7 @@ export class ImportacionesController {
     @Body() dto: ConfirmarInfraccionesExcelDto,
     @CurrentUser() currentUser: LoginResponseUsuarioDto,
   ): Promise<ImportacionDetalleResponse> {
+    this.assertExcelImportEnabled();
     validateExcelUpload(file);
     return this.importacionesService.confirmar(
       file,
@@ -218,5 +232,16 @@ export class ImportacionesController {
     idImportacionInfracciones: number,
   ): Promise<ImportacionDetalleResponse> {
     return this.importacionesService.findByIdOrFail(idImportacionInfracciones);
+  }
+
+  private assertExcelImportEnabled(): void {
+    const enabled =
+      this.configService.get<string>('ENABLE_EXCEL_IMPORT', 'false') === 'true';
+
+    if (!enabled) {
+      throw new ForbiddenException(
+        'La importacion masiva esta deshabilitada por configuracion.',
+      );
+    }
   }
 }

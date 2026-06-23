@@ -3,9 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
+import { createHash, randomBytes } from 'node:crypto';
 import type { StringValue } from 'ms';
-import { Repository } from 'typeorm';
+import { MoreThan, Repository } from 'typeorm';
 
+import { sanitizeAuditPayload } from '../../common/redact-sensitive-data';
+import { AuthLoginAttempt } from './entities/auth-login-attempt.entity';
 import { LoginDto } from './dto/login.dto';
 import {
   LoginResponseDto,
@@ -19,6 +22,11 @@ type JwtPayload = {
   rol?: string;
 };
 
+export interface AuthSessionBundle extends LoginResponseDto {
+  refreshToken: string;
+  refreshTokenExpiresAt: Date;
+}
+
 @Injectable()
 export class AuthService {
   private readonly jwtExpiresIn: StringValue;
@@ -26,39 +34,113 @@ export class AuthService {
   constructor(
     @InjectRepository(Usuario)
     private readonly usuariosRepository: Repository<Usuario>,
+    @InjectRepository(AuthLoginAttempt)
+    private readonly loginAttemptsRepository: Repository<AuthLoginAttempt>,
     private readonly jwtService: JwtService,
-    configService: ConfigService,
+    private readonly configService: ConfigService,
   ) {
-    this.jwtExpiresIn = (configService.get<string>('JWT_EXPIRES_IN') ??
-      '8h') as StringValue;
+    this.jwtExpiresIn = (this.configService.get<string>(
+      'ACCESS_TOKEN_EXPIRES_IN',
+    ) ??
+      this.configService.get<string>('JWT_EXPIRES_IN') ??
+      '15m') as StringValue;
   }
 
-  async login(loginDto: LoginDto): Promise<LoginResponseDto> {
+  async login(
+    loginDto: LoginDto,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<AuthSessionBundle> {
     const usuario = await this.validateUsuario(
       loginDto.email,
       loginDto.password,
+      ip,
+      userAgent,
     );
 
-    const accessToken = await this.jwtService.signAsync(
-      this.buildJwtPayload(usuario),
-      {
-        expiresIn: this.jwtExpiresIn,
-      },
-    );
-
-    return {
-      accessToken,
-      tokenType: 'Bearer',
-      expiresIn: this.jwtExpiresIn,
-      usuario: this.sanitizeUsuario(usuario),
-    };
+    return this.buildSessionBundle(usuario);
   }
 
-  async validateUsuario(email: string, password: string): Promise<Usuario> {
-    const usuario = await this.findUsuarioByEmailOrFail(email);
+  async refreshSession(
+    refreshToken: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<AuthSessionBundle> {
+    const tokenHash = this.hashRefreshToken(refreshToken);
+    const usuario = await this.usuariosRepository.findOne({
+      where: {
+        refreshTokenHash: tokenHash,
+        refreshTokenExpiresAt: MoreThan(new Date()),
+      },
+      relations: { rol: true },
+    });
 
-    if (!usuario.activo) {
-      throw new UnauthorizedException('Usuario inactivo');
+    if (usuario) {
+      if (!usuario.activo || this.isUserLocked(usuario)) {
+        await this.clearRefreshSession(usuario.idUsuario);
+        throw new UnauthorizedException('Credenciales invalidas');
+      }
+
+      return this.rotateSession(usuario);
+    }
+
+    const staleUsuario = await this.usuariosRepository.findOne({
+      where: { refreshTokenHash: tokenHash },
+      relations: { rol: true },
+    });
+
+    if (staleUsuario) {
+      await this.clearRefreshSession(staleUsuario.idUsuario);
+    }
+
+    await this.registerLoginAttempt(
+      staleUsuario?.email ?? 'unknown',
+      staleUsuario?.idUsuario ?? null,
+      false,
+      'REFRESH_INVALID',
+      ip,
+      userAgent,
+    );
+    throw new UnauthorizedException('Credenciales invalidas');
+  }
+
+  async logoutByUserId(idUsuario: number): Promise<void> {
+    await this.clearRefreshSession(idUsuario);
+  }
+
+  async logoutByRefreshToken(refreshToken: string): Promise<void> {
+    const usuario = await this.findUsuarioByRefreshToken(refreshToken);
+
+    if (!usuario) {
+      return;
+    }
+
+    await this.clearRefreshSession(usuario.idUsuario);
+  }
+
+  async validateUsuario(
+    email: string,
+    password: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<Usuario> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const usuario = await this.findUsuarioByEmailOrFail(
+      normalizedEmail,
+      ip,
+      userAgent,
+    );
+
+    if (!usuario.activo || this.isUserLocked(usuario)) {
+      await this.registerLoginAttempt(
+        normalizedEmail,
+        usuario.idUsuario,
+        false,
+        'USER_INACTIVE_OR_LOCKED',
+        ip,
+        userAgent,
+      );
+      throw new UnauthorizedException('Credenciales invalidas');
     }
 
     const passwordMatches = await bcrypt.compare(
@@ -67,8 +149,39 @@ export class AuthService {
     );
 
     if (!passwordMatches) {
+      usuario.failedLoginAttempts = (usuario.failedLoginAttempts ?? 0) + 1;
+
+      if (usuario.failedLoginAttempts >= this.getAuthMaxFailedAttempts()) {
+        usuario.lockedUntil = new Date(
+          Date.now() + this.getAuthLockMinutes() * 60 * 1000,
+        );
+      }
+
+      await this.usuariosRepository.save(usuario);
+      await this.registerLoginAttempt(
+        normalizedEmail,
+        usuario.idUsuario,
+        false,
+        'PASSWORD_INVALID',
+        ip,
+        userAgent,
+      );
       throw new UnauthorizedException('Credenciales invalidas');
     }
+
+    usuario.failedLoginAttempts = 0;
+    usuario.lockedUntil = null;
+    usuario.lastLoginAt = new Date();
+    usuario.passwordChangedAt = usuario.passwordChangedAt ?? null;
+    await this.usuariosRepository.save(usuario);
+    await this.registerLoginAttempt(
+      normalizedEmail,
+      usuario.idUsuario,
+      true,
+      'LOGIN_OK',
+      ip,
+      userAgent,
+    );
 
     return usuario;
   }
@@ -76,17 +189,11 @@ export class AuthService {
   async findActiveUsuarioByIdOrFail(idUsuario: number): Promise<Usuario> {
     const usuario = await this.usuariosRepository.findOne({
       where: { idUsuario },
-      relations: {
-        rol: true,
-      },
+      relations: { rol: true },
     });
 
-    if (!usuario) {
+    if (!usuario || !usuario.activo || this.isUserLocked(usuario)) {
       throw new UnauthorizedException('Credenciales invalidas');
-    }
-
-    if (!usuario.activo) {
-      throw new UnauthorizedException('Usuario inactivo');
     }
 
     return usuario;
@@ -115,18 +222,147 @@ export class AuthService {
     };
   }
 
-  private async findUsuarioByEmailOrFail(email: string): Promise<Usuario> {
+  private async buildSessionBundle(
+    usuario: Usuario,
+  ): Promise<AuthSessionBundle> {
+    const accessToken = await this.jwtService.signAsync(
+      this.buildJwtPayload(usuario),
+      {
+        expiresIn: this.jwtExpiresIn,
+      },
+    );
+
+    const refreshToken = this.createRefreshToken();
+    const refreshTokenExpiresAt = this.resolveRefreshTokenExpiry();
+
+    usuario.refreshTokenHash = this.hashRefreshToken(refreshToken);
+    usuario.refreshTokenExpiresAt = refreshTokenExpiresAt;
+    await this.usuariosRepository.save(usuario);
+
+    return {
+      accessToken,
+      tokenType: 'Bearer',
+      expiresIn: this.jwtExpiresIn,
+      usuario: this.sanitizeUsuario(usuario),
+      refreshToken,
+      refreshTokenExpiresAt,
+    };
+  }
+
+  private async rotateSession(usuario: Usuario): Promise<AuthSessionBundle> {
+    return this.buildSessionBundle(usuario);
+  }
+
+  private async findUsuarioByEmailOrFail(
+    email: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<Usuario> {
     const usuario = await this.usuariosRepository.findOne({
       where: { email: email.trim().toLowerCase() },
-      relations: {
-        rol: true,
-      },
+      relations: { rol: true },
     });
 
     if (!usuario) {
+      await this.registerLoginAttempt(
+        email,
+        null,
+        false,
+        'USER_NOT_FOUND',
+        ip,
+        userAgent,
+      );
       throw new UnauthorizedException('Credenciales invalidas');
     }
 
     return usuario;
+  }
+
+  private async findUsuarioByRefreshToken(
+    refreshToken: string,
+  ): Promise<Usuario | null> {
+    const refreshTokenHash = this.hashRefreshToken(refreshToken);
+
+    return this.usuariosRepository.findOne({
+      where: {
+        refreshTokenHash,
+      },
+      relations: { rol: true },
+    });
+  }
+
+  private async clearRefreshSession(idUsuario: number): Promise<void> {
+    const usuario = await this.usuariosRepository.findOne({
+      where: { idUsuario },
+    });
+
+    if (!usuario) {
+      return;
+    }
+
+    usuario.refreshTokenHash = null;
+    usuario.refreshTokenExpiresAt = null;
+    await this.usuariosRepository.save(usuario);
+  }
+
+  private createRefreshToken(): string {
+    return randomBytes(48).toString('base64url');
+  }
+
+  private hashRefreshToken(refreshToken: string): string {
+    return createHash('sha256').update(refreshToken).digest('hex');
+  }
+
+  private isUserLocked(usuario: Usuario): boolean {
+    return Boolean(
+      usuario.lockedUntil && usuario.lockedUntil.getTime() > Date.now(),
+    );
+  }
+
+  private getAuthMaxFailedAttempts(): number {
+    const value = Number(
+      this.configService.get<string>('AUTH_MAX_FAILED_ATTEMPTS', '5'),
+    );
+
+    return Number.isFinite(value) && value > 0 ? value : 5;
+  }
+
+  private getAuthLockMinutes(): number {
+    const value = Number(
+      this.configService.get<string>('AUTH_LOCK_MINUTES', '15'),
+    );
+
+    return Number.isFinite(value) && value > 0 ? value : 15;
+  }
+
+  private resolveRefreshTokenExpiry(): Date {
+    const minutes = Number(
+      this.configService.get<string>('REFRESH_TOKEN_EXPIRES_IN_MINUTES', '60'),
+    );
+    const safeMinutes = Number.isFinite(minutes) && minutes > 0 ? minutes : 60;
+
+    return new Date(Date.now() + safeMinutes * 60 * 1000);
+  }
+
+  private async registerLoginAttempt(
+    email: string,
+    idUsuario: number | null,
+    success: boolean,
+    reason: string | null,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<void> {
+    const attempt = this.loginAttemptsRepository.create(
+      sanitizeAuditPayload({
+        email: email.trim().toLowerCase(),
+        idUsuario,
+        success,
+        reason,
+        ip: ip ?? null,
+        userAgent: userAgent ?? null,
+      }),
+    );
+
+    await this.loginAttemptsRepository.save(attempt);
   }
 }

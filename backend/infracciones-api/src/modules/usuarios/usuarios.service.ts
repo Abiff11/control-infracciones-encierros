@@ -9,6 +9,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
 import { Brackets, Repository } from 'typeorm';
 
+import { sanitizeAuditPayload } from '../../common/redact-sensitive-data';
+import { AuditoriaService } from '../auditoria/auditoria.service';
 import { ROLES } from '../auth/constants/roles.constants';
 import { Rol } from '../roles/entities/rol.entity';
 import { Usuario } from './entities/usuario.entity';
@@ -29,6 +31,7 @@ export class UsuariosService {
     private readonly usuariosRepository: Repository<Usuario>,
     @InjectRepository(Rol)
     private readonly rolesRepository: Repository<Rol>,
+    private readonly auditoriaService: AuditoriaService,
   ) {}
 
   async findAll(query: FindUsuariosQueryDto): Promise<UsuarioListResponseDto> {
@@ -101,6 +104,15 @@ export class UsuariosService {
     });
 
     const saved = await this.usuariosRepository.save(usuario);
+    await this.auditoriaService.registrar({
+      accion: 'CREAR_USUARIO',
+      entidad: 'usuarios',
+      entidadId: saved.idUsuario,
+      antesJson: null,
+      despuesJson: sanitizeAuditPayload(
+        this.toResponseDto(await this.findByIdOrFail(saved.idUsuario)),
+      ),
+    });
     return this.findOne(saved.idUsuario);
   }
 
@@ -109,6 +121,8 @@ export class UsuariosService {
     dto: UpdateUsuarioDto,
   ): Promise<UsuarioResponseDto> {
     const usuario = await this.findByIdOrFail(idUsuario);
+
+    const before = sanitizeAuditPayload(this.toResponseDto(usuario));
 
     const nextNombreUsuario =
       dto.nombreUsuario !== undefined
@@ -145,6 +159,15 @@ export class UsuariosService {
     }
 
     const saved = await this.usuariosRepository.save(usuario);
+    await this.auditoriaService.registrar({
+      accion: 'EDITAR_USUARIO',
+      entidad: 'usuarios',
+      entidadId: saved.idUsuario,
+      antesJson: before,
+      despuesJson: sanitizeAuditPayload(
+        this.toResponseDto(await this.findByIdOrFail(saved.idUsuario)),
+      ),
+    });
     return this.findOne(saved.idUsuario);
   }
 
@@ -153,6 +176,7 @@ export class UsuariosService {
     currentUserId?: number,
   ): Promise<UsuarioResponseDto> {
     const usuario = await this.findByIdOrFail(idUsuario);
+    const before = sanitizeAuditPayload(this.toResponseDto(usuario));
 
     if (currentUserId !== undefined && currentUserId === usuario.idUsuario) {
       throw new ForbiddenException('No puedes desactivar tu propio usuario.');
@@ -166,6 +190,15 @@ export class UsuariosService {
 
     usuario.activo = false;
     const saved = await this.usuariosRepository.save(usuario);
+    await this.auditoriaService.registrar({
+      accion: 'DESACTIVAR_USUARIO',
+      entidad: 'usuarios',
+      entidadId: saved.idUsuario,
+      antesJson: before,
+      despuesJson: sanitizeAuditPayload(
+        this.toResponseDto(await this.findByIdOrFail(saved.idUsuario)),
+      ),
+    });
     return this.findOne(saved.idUsuario);
   }
 

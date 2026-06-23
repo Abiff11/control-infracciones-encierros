@@ -27,6 +27,7 @@ import { Infraccion } from '../infracciones/entities/infraccion.entity';
 import { InfraccionesService } from '../infracciones/infracciones.service';
 import { Motivo } from '../motivos/entities/motivo.entity';
 import { Usuario } from '../usuarios/entities/usuario.entity';
+import { AuditoriaService } from '../auditoria/auditoria.service';
 import {
   ImportacionInfraccionError,
   ImportacionInfraccionErrorTipo,
@@ -151,6 +152,7 @@ export class ImportacionesService {
     private readonly infraccionesRepository: Repository<Infraccion>,
     @InjectRepository(Usuario)
     private readonly usuariosRepository: Repository<Usuario>,
+    private readonly auditoriaService: AuditoriaService,
     private readonly infraccionesService: InfraccionesService,
     private readonly encierrosService: EncierrosService,
   ) {}
@@ -327,6 +329,21 @@ export class ImportacionesService {
       importacion.fechaImportacion = new Date();
 
       await this.importacionesRepository.save(importacion);
+
+      await this.auditoriaService.registrar({
+        idUsuario,
+        accion: 'IMPORTACION_INFRACCIONES_CONFIRMADA',
+        entidad: 'importaciones_infracciones',
+        entidadId: importacion.idImportacionInfracciones,
+        despuesJson: {
+          idImportacionInfracciones: importacion.idImportacionInfracciones,
+          anio: importacion.anio,
+          idRegion: importacion.region?.idRegion ?? null,
+          totalRegistros: importacion.totalFilas,
+          totalInsertados: importacion.filasImportadas,
+          totalErrores: importacion.filasConError,
+        },
+      });
 
       return this.findByIdOrFail(importacion.idImportacionInfracciones);
     } catch (error) {

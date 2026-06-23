@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { normalizeDate } from '../../common/utils/normalize-date';
+import { AuditoriaService } from '../auditoria/auditoria.service';
 import { ACCION_MOVIMIENTO } from '../infracciones/constants/accion-movimiento.constants';
 import { ESTATUS_INFRACCION } from '../infracciones/constants/estatus-infraccion.constants';
 import { InfraccionesService } from '../infracciones/infracciones.service';
@@ -25,6 +26,7 @@ export class PagosService {
     @InjectRepository(PagoInfraccion)
     private readonly pagosRepository: Repository<PagoInfraccion>,
     private readonly infraccionesService: InfraccionesService,
+    private readonly auditoriaService: AuditoriaService,
   ) {}
 
   async findByIdOrFail(idPagoInfraccion: number): Promise<PagoInfraccion> {
@@ -77,6 +79,20 @@ export class PagosService {
       accion: ACCION_MOVIMIENTO.PAGO_REGISTRADO,
       observaciones: `Pago registrado con folio ${params.folioPago}`,
       fechaMovimiento: params.fechaPago,
+    });
+
+    await this.auditoriaService.registrar({
+      idUsuario: params.idUsuarioRegistraPago,
+      accion: 'PAGO_REGISTRADO',
+      entidad: 'pagos',
+      entidadId: savedPago.idPagoInfraccion,
+      despuesJson: {
+        idPagoInfraccion: savedPago.idPagoInfraccion,
+        idInfraccion: params.idInfraccion,
+        folioPago: params.folioPago,
+        monto: params.monto,
+        fechaPago: params.fechaPago,
+      },
     });
 
     return savedPago;

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { AuditoriaModule } from '../auditoria/auditoria.module';
 import { CatalogosModule } from '../catalogos/catalogos.module';
 import { ClaseVehiculo } from '../catalogos/entities/clase-vehiculo.entity';
 import { Delegacion } from '../catalogos/entities/delegacion.entity';
@@ -47,6 +48,7 @@ import { ImportacionesReportesService } from './importaciones-reportes.service';
     CatalogosModule,
     InfraccionesModule,
     EncierrosModule,
+    AuditoriaModule,
   ],
   controllers: [ImportacionesController],
   providers: [ImportacionesService, ImportacionesReportesService],

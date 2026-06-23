@@ -25,6 +25,7 @@ import { FindInfraccionesQueryDto } from './dto/find-infracciones-query.dto';
 import { RegistrarMovimientoDto } from './dto/registrar-movimiento.dto';
 import { InfraccionesListService } from './infracciones-list.service';
 import { InfraccionesService } from './infracciones.service';
+import { redactOperationalSensitiveDataForConsulta } from './infracciones.visibility';
 
 @ApiTags('infracciones')
 @ApiBearerAuth('JWT-auth')
@@ -39,8 +40,17 @@ export class InfraccionesController {
 
   @Get()
   @ApiOperation({ summary: 'Listar infracciones con filtros y paginación' })
-  findAll(@Query() query: FindInfraccionesQueryDto) {
-    return this.infraccionesListService.findAll(query);
+  async findAll(
+    @Query() query: FindInfraccionesQueryDto,
+    @CurrentUser() currentUser: LoginResponseUsuarioDto,
+  ) {
+    const response = await this.infraccionesListService.findAll(query);
+
+    if (currentUser.rol?.nombreRol === 'CONSULTA') {
+      return redactOperationalSensitiveDataForConsulta(response);
+    }
+
+    return response;
   }
 
   @Get('resumen/estatus')
@@ -51,16 +61,36 @@ export class InfraccionesController {
 
   @Get(':folioInfraccion/flujo')
   @ApiOperation({ summary: 'Obtener flujo operativo de una infracción' })
-  findFlujo(@Param('folioInfraccion') folioInfraccion: string) {
-    return this.infraccionesService.findFlujoByInfraccion(folioInfraccion);
+  async findFlujo(
+    @Param('folioInfraccion') folioInfraccion: string,
+    @CurrentUser() currentUser: LoginResponseUsuarioDto,
+  ) {
+    const response =
+      await this.infraccionesService.findFlujoByInfraccion(folioInfraccion);
+
+    if (currentUser.rol?.nombreRol === 'CONSULTA') {
+      return redactOperationalSensitiveDataForConsulta(response);
+    }
+
+    return response;
   }
 
   @Get(':idInfraccion/detalle')
   @ApiOperation({ summary: 'Obtener detalle completo de una infracción' })
-  findDetalle(@Param('idInfraccion', ParseIntPipe) idInfraccion: number) {
-    return this.infraccionesService.findDetalleCompletoByInfraccion(
-      idInfraccion,
-    );
+  async findDetalle(
+    @Param('idInfraccion', ParseIntPipe) idInfraccion: number,
+    @CurrentUser() currentUser: LoginResponseUsuarioDto,
+  ) {
+    const response =
+      await this.infraccionesService.findDetalleCompletoByInfraccion(
+        idInfraccion,
+      );
+
+    if (currentUser.rol?.nombreRol === 'CONSULTA') {
+      return redactOperationalSensitiveDataForConsulta(response);
+    }
+
+    return response;
   }
 
   @Get(':idInfraccion/movimientos')
@@ -77,8 +107,18 @@ export class InfraccionesController {
 
   @Get(':idInfraccion')
   @ApiOperation({ summary: 'Obtener infracción por id' })
-  findById(@Param('idInfraccion', ParseIntPipe) idInfraccion: number) {
-    return this.infraccionesService.findByIdOrFail(idInfraccion);
+  async findById(
+    @Param('idInfraccion', ParseIntPipe) idInfraccion: number,
+    @CurrentUser() currentUser: LoginResponseUsuarioDto,
+  ) {
+    const response =
+      await this.infraccionesService.findByIdOrFail(idInfraccion);
+
+    if (currentUser.rol?.nombreRol === 'CONSULTA') {
+      return redactOperationalSensitiveDataForConsulta(response);
+    }
+
+    return response;
   }
 
   @Roles(...CAPTURE_ROLES)

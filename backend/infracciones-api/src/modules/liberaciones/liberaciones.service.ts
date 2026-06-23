@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { normalizeDate } from '../../common/utils/normalize-date';
+import { AuditoriaService } from '../auditoria/auditoria.service';
 import { ACCION_MOVIMIENTO } from '../infracciones/constants/accion-movimiento.constants';
 import { ESTATUS_INFRACCION } from '../infracciones/constants/estatus-infraccion.constants';
 import { InfraccionesService } from '../infracciones/infracciones.service';
@@ -28,6 +29,7 @@ export class LiberacionesService {
     @InjectRepository(LiberacionVehiculo)
     private readonly liberacionesRepository: Repository<LiberacionVehiculo>,
     private readonly infraccionesService: InfraccionesService,
+    private readonly auditoriaService: AuditoriaService,
   ) {}
 
   async findByIdOrFail(
@@ -87,6 +89,20 @@ export class LiberacionesService {
       accion: ACCION_MOVIMIENTO.LIBERACION_GENERADA,
       observaciones: `Liberacion generada con folio ${params.folioLiberacion}`,
       fechaMovimiento: params.fechaLiberacion,
+    });
+
+    await this.auditoriaService.registrar({
+      idUsuario: params.idUsuarioLibera,
+      accion: 'LIBERACION_GENERADA',
+      entidad: 'liberaciones',
+      entidadId: savedLiberacion.idLiberacionVehiculo,
+      despuesJson: {
+        idLiberacionVehiculo: savedLiberacion.idLiberacionVehiculo,
+        idInfraccion: params.idInfraccion,
+        idPagoInfraccion: params.idPagoInfraccion,
+        folioLiberacion: params.folioLiberacion,
+        fechaLiberacion: params.fechaLiberacion,
+      },
     });
 
     return savedLiberacion;

@@ -2,9 +2,16 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
 import type { Express, NextFunction, Request, Response } from 'express';
 
 import { AppModule } from './app.module';
+import {
+  assertValidCsrfRequest,
+  getCsrfCookieOptions,
+  isSafeHttpMethod,
+  issueCsrfCookie,
+} from './common/csrf.util';
 import { SafeExceptionFilter } from './common/filters/safe-exception.filter';
 
 const DEV_CORS_ORIGINS = [
@@ -59,6 +66,16 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const allowedOrigins = resolveAllowedOrigins(configService);
   const httpAdapter = app.getHttpAdapter().getInstance() as Express;
+  const nodeEnv = configService.get<string>('NODE_ENV') ?? 'development';
+  const csrfSecret =
+    configService.get<string>('CSRF_SECRET') ??
+    configService.get<string>('JWT_SECRET') ??
+    'local_dev_csrf_secret_change_me';
+  const csrfCookieOptions = getCsrfCookieOptions({
+    nodeEnv,
+    cookieSecure: configService.get<string>('COOKIE_SECURE'),
+    cookieSameSite: configService.get<string>('COOKIE_SAME_SITE'),
+  });
 
   httpAdapter.set('trust proxy', 1);
   httpAdapter.disable('x-powered-by');
@@ -77,12 +94,37 @@ async function bootstrap() {
     next();
   });
 
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+    }),
+  );
+
   app.enableCors({
     origin: allowedOrigins,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type', 'Accept'],
-    credentials: false,
+    allowedHeaders: ['Authorization', 'Content-Type', 'Accept', 'x-csrf-token'],
+    credentials: true,
     maxAge: 600,
+  });
+
+  app.use((request: Request, response: Response, next: NextFunction) => {
+    if (isSafeHttpMethod(request.method)) {
+      issueCsrfCookie(response, csrfSecret, csrfCookieOptions);
+      next();
+      return;
+    }
+
+    try {
+      assertValidCsrfRequest(request, csrfSecret);
+      next();
+    } catch {
+      response.status(403).json({
+        statusCode: 403,
+        message: 'Token CSRF invalido',
+        error: 'Forbidden',
+      });
+    }
   });
 
   app.useGlobalFilters(new SafeExceptionFilter());

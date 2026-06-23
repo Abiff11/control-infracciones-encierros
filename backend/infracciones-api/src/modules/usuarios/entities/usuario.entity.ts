@@ -28,4 +28,31 @@ export class Usuario {
 
   @Column({ name: 'activo', type: 'boolean', default: true })
   activo!: boolean;
+
+  @Column({
+    name: 'refresh_token_hash',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  refreshTokenHash!: string | null;
+
+  @Column({
+    name: 'refresh_token_expires_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  refreshTokenExpiresAt!: Date | null;
+
+  @Column({ name: 'failed_login_attempts', type: 'integer', default: 0 })
+  failedLoginAttempts!: number;
+
+  @Column({ name: 'locked_until', type: 'timestamptz', nullable: true })
+  lockedUntil!: Date | null;
+
+  @Column({ name: 'last_login_at', type: 'timestamptz', nullable: true })
+  lastLoginAt!: Date | null;
+
+  @Column({ name: 'password_changed_at', type: 'timestamptz', nullable: true })
+  passwordChangedAt!: Date | null;
 }

@@ -15,7 +15,7 @@ interface SidebarProps {
   currentPage: PageKey;
   swaggerUrl: string;
   user: LoginResponseUsuario;
-  onLogout: () => void;
+  onLogout: () => void | Promise<void>;
   onNavigate: (page: PageKey) => void;
 }
 

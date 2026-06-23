@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { AuditoriaModule } from '../auditoria/auditoria.module';
 import { InfraccionesModule } from '../infracciones/infracciones.module';
 import { EncierrosController } from './encierros.controller';
 import { EncierrosService } from './encierros.service';
@@ -12,6 +13,7 @@ import { SalidaVehiculo } from './entities/salida-vehiculo.entity';
   imports: [
     TypeOrmModule.forFeature([Encierro, RetencionVehiculo, SalidaVehiculo]),
     InfraccionesModule,
+    AuditoriaModule,
   ],
   controllers: [EncierrosController],
   providers: [EncierrosService],

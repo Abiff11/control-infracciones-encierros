@@ -3,6 +3,7 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
 
 import { normalizeDate } from '../../common/utils/normalize-date';
+import { AuditoriaService } from '../auditoria/auditoria.service';
 import { ACCION_MOVIMIENTO } from '../infracciones/constants/accion-movimiento.constants';
 import { ESTATUS_INFRACCION } from '../infracciones/constants/estatus-infraccion.constants';
 import { ESTADO_OPERATIVO_VEHICULO } from '../infracciones/constants/estado-operativo-vehiculo.constants';
@@ -110,6 +111,7 @@ export class EncierrosService {
     private readonly retencionesRepository: Repository<RetencionVehiculo>,
     @InjectRepository(SalidaVehiculo)
     private readonly salidasRepository: Repository<SalidaVehiculo>,
+    private readonly auditoriaService: AuditoriaService,
     private readonly infraccionesService: InfraccionesService,
   ) {}
 
@@ -289,6 +291,20 @@ export class EncierrosService {
       accion: ACCION_MOVIMIENTO.VEHICULO_ENTREGADO,
       observaciones: 'Salida vehicular registrada',
       fechaMovimiento: params.fechaSalida,
+    });
+
+    await this.auditoriaService.registrar({
+      idUsuario: params.idUsuarioValidaSalida,
+      accion: 'SALIDA_ENCIERRO_REGISTRADA',
+      entidad: 'salidas_vehiculo',
+      entidadId: savedSalida.idSalidaVehiculo,
+      despuesJson: {
+        idSalidaVehiculo: savedSalida.idSalidaVehiculo,
+        idRetencionVehiculo: params.idRetencionVehiculo,
+        idLiberacionVehiculo: params.idLiberacionVehiculo,
+        idUsuarioValidaSalida: params.idUsuarioValidaSalida,
+        fechaSalida: savedSalida.fechaSalida,
+      },
     });
 
     return savedSalida;

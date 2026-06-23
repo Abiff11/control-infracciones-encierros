@@ -1,6 +1,10 @@
 type EnvRecord = Record<string, unknown>;
 
-const PRODUCTION_REQUIRED_KEYS = ['JWT_SECRET', 'CORS_ORIGIN'] as const;
+const PRODUCTION_REQUIRED_KEYS = [
+  'JWT_SECRET',
+  'CSRF_SECRET',
+  'CORS_ORIGIN',
+] as const;
 
 const REQUIRED_KEYS = [
   'DB_HOST',
@@ -129,11 +133,21 @@ export function validateEnv(config: EnvRecord): EnvRecord {
       errors,
     );
     validateProductionSecret(
+      'CSRF_SECRET',
+      getString(config, 'CSRF_SECRET'),
+      32,
+      errors,
+    );
+    validateProductionSecret(
       'DB_PASSWORD',
       getString(config, 'DB_PASSWORD'),
       12,
       errors,
     );
+
+    if (getString(config, 'CSRF_SECRET') === getString(config, 'JWT_SECRET')) {
+      errors.push('CSRF_SECRET debe ser distinto de JWT_SECRET en produccion.');
+    }
 
     const configuredOrigins = [
       getString(config, 'FRONTEND_ORIGINS'),
@@ -161,12 +175,58 @@ export function validateEnv(config: EnvRecord): EnvRecord {
     DB_PORT: parseNumber(config, 'DB_PORT', 5432, 1, 65535, errors),
     DB_SYNCHRONIZE: parseBoolean(config, 'DB_SYNCHRONIZE', false, errors),
     DB_LOGGING: parseBoolean(config, 'DB_LOGGING', false, errors),
+    ENABLE_EXCEL_IMPORT: parseBoolean(
+      config,
+      'ENABLE_EXCEL_IMPORT',
+      false,
+      errors,
+    ),
     DB_MAX_QUERY_EXECUTION_TIME: parseNumber(
       config,
       'DB_MAX_QUERY_EXECUTION_TIME',
       500,
       0,
       60000,
+      errors,
+    ),
+    LOGIN_RATE_LIMIT_WINDOW_MS: parseNumber(
+      config,
+      'LOGIN_RATE_LIMIT_WINDOW_MS',
+      60000,
+      1000,
+      3600000,
+      errors,
+    ),
+    LOGIN_RATE_LIMIT_MAX_ATTEMPTS: parseNumber(
+      config,
+      'LOGIN_RATE_LIMIT_MAX_ATTEMPTS',
+      10,
+      1,
+      1000,
+      errors,
+    ),
+    AUTH_MAX_FAILED_ATTEMPTS: parseNumber(
+      config,
+      'AUTH_MAX_FAILED_ATTEMPTS',
+      5,
+      1,
+      100,
+      errors,
+    ),
+    AUTH_LOCK_MINUTES: parseNumber(
+      config,
+      'AUTH_LOCK_MINUTES',
+      15,
+      1,
+      1440,
+      errors,
+    ),
+    REFRESH_TOKEN_EXPIRES_IN_MINUTES: parseNumber(
+      config,
+      'REFRESH_TOKEN_EXPIRES_IN_MINUTES',
+      60,
+      1,
+      43200,
       errors,
     ),
   };

@@ -1,13 +1,18 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { AuditoriaModule } from '../auditoria/auditoria.module';
 import { InfraccionesModule } from '../infracciones/infracciones.module';
 import { LiberacionVehiculo } from './entities/liberacion-vehiculo.entity';
 import { LiberacionesController } from './liberaciones.controller';
 import { LiberacionesService } from './liberaciones.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([LiberacionVehiculo]), InfraccionesModule],
+  imports: [
+    TypeOrmModule.forFeature([LiberacionVehiculo]),
+    InfraccionesModule,
+    AuditoriaModule,
+  ],
   controllers: [LiberacionesController],
   providers: [LiberacionesService],
   exports: [LiberacionesService],

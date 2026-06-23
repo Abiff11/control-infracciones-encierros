@@ -7,6 +7,7 @@ import type { StringValue } from 'ms';
 
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { AuthController } from './auth.controller';
+import { AuthLoginAttempt } from './entities/auth-login-attempt.entity';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LoginRateLimitGuard } from './guards/login-rate-limit.guard';
@@ -17,7 +18,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
   imports: [
     ConfigModule,
     PassportModule,
-    TypeOrmModule.forFeature([Usuario]),
+    TypeOrmModule.forFeature([Usuario, AuthLoginAttempt]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -25,8 +26,9 @@ import { JwtStrategy } from './strategies/jwt.strategy';
         secret:
           configService.get<string>('JWT_SECRET') ?? 'change_me_in_local_dev',
         signOptions: {
-          expiresIn: (configService.get<string>('JWT_EXPIRES_IN') ??
-            '8h') as StringValue,
+          expiresIn: (configService.get<string>('ACCESS_TOKEN_EXPIRES_IN') ??
+            configService.get<string>('JWT_EXPIRES_IN') ??
+            '15m') as StringValue,
         },
       }),
     }),

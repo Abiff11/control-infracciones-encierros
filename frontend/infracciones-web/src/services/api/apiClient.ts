@@ -1,20 +1,17 @@
-const DEFAULT_API_URL = '/api';
+import { refresh as refreshAuthSession } from './auth.api';
+import {
+  clearAuthSession,
+  getAuthSession,
+  updateAuthSession,
+} from './authSession';
+import { apiUrl, swaggerUrl } from './apiConfig';
 
-function normalizeApiUrl(value: string | undefined): string {
-  const configuredValue = value?.trim();
+const CSRF_COOKIE_NAME = 'cie_csrf_token';
+const CSRF_HEADER_NAME = 'x-csrf-token';
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-  if (!configuredValue) {
-    return DEFAULT_API_URL;
-  }
-
-  if (configuredValue.startsWith('/')) {
-    return configuredValue.replace(/\/+$/, '') || DEFAULT_API_URL;
-  }
-
-  return configuredValue.replace(/\/+$/, '');
-}
-
-const API_URL = normalizeApiUrl(import.meta.env.VITE_API_URL);
+let csrfTokenPromise: Promise<void> | null = null;
+let sessionRefreshPromise: Promise<void> | null = null;
 
 export class ApiError extends Error {
   status: number;
@@ -74,17 +71,105 @@ function extractErrorMessage(payload: string): string {
   return payload;
 }
 
+function readCookie(cookieName: string): string {
+  const cookie = document.cookie
+    .split(';')
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(`${cookieName}=`));
+
+  if (!cookie) {
+    return '';
+  }
+
+  return decodeURIComponent(cookie.slice(cookieName.length + 1));
+}
+
+export async function ensureCsrfToken(forceRefresh = false): Promise<void> {
+  if (!forceRefresh && readCookie(CSRF_COOKIE_NAME)) {
+    return;
+  }
+
+  if (!csrfTokenPromise) {
+    csrfTokenPromise = fetch(`${apiUrl}/auth/token-check`, {
+      credentials: 'include',
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new ApiError(
+            response.status,
+            'No se pudo preparar la sesion segura.',
+          );
+        }
+      })
+      .finally(() => {
+        csrfTokenPromise = null;
+      });
+  }
+
+  return csrfTokenPromise;
+}
+
+async function refreshSession(): Promise<void> {
+  if (!sessionRefreshPromise) {
+    sessionRefreshPromise = ensureCsrfToken(true)
+      .then(() => refreshAuthSession())
+      .then((response) => {
+        updateAuthSession(response.accessToken, response.usuario);
+      })
+      .catch(() => {
+        clearAuthSession();
+        throw new ApiError(401, 'La sesion expiro. Vuelve a iniciar sesion.');
+      })
+      .finally(() => {
+        sessionRefreshPromise = null;
+      });
+  }
+
+  return sessionRefreshPromise;
+}
+
+function resolveMethod(method?: string): string {
+  return (method ?? 'GET').toUpperCase();
+}
+
 export async function request<T>(
   path: string,
   options: RequestInit = {},
   token?: string | null,
 ): Promise<T> {
-  const headers = new Headers(options.headers);
+  const method = resolveMethod(options.method);
+  const isMutating = MUTATING_METHODS.has(method);
+  const sessionToken = token ?? getAuthSession()?.token ?? null;
 
-  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  if (isMutating) {
+    await ensureCsrfToken(false);
+  }
+
+  return requestOnce<T>(path, options, sessionToken, isMutating, true, true);
+}
+
+async function requestOnce<T>(
+  path: string,
+  options: RequestInit,
+  token: string | null,
+  isMutating: boolean,
+  allowCsrfRetry: boolean,
+  allowAuthRetry: boolean,
+): Promise<T> {
+  const method = resolveMethod(options.method);
+  const headers = new Headers(options.headers);
+  const isFormData =
+    typeof FormData !== 'undefined' && options.body instanceof FormData;
 
   if (options.body && !isFormData && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
+  }
+
+  if (isMutating) {
+    const csrfToken = readCookie(CSRF_COOKIE_NAME);
+    if (csrfToken) {
+      headers.set(CSRF_HEADER_NAME, csrfToken);
+    }
   }
 
   if (token) {
@@ -94,9 +179,11 @@ export async function request<T>(
   let response: Response;
 
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await fetch(`${apiUrl}${path}`, {
       ...options,
+      method,
       headers,
+      credentials: 'include',
     });
   } catch (error) {
     throw new ApiError(
@@ -104,6 +191,30 @@ export async function request<T>(
       error instanceof Error
         ? `No se pudo conectar con el servidor: ${error.message}`
         : 'No se pudo conectar con el servidor.',
+    );
+  }
+
+  if (response.status === 403 && isMutating && allowCsrfRetry) {
+    await ensureCsrfToken(true);
+    return requestOnce<T>(
+      path,
+      options,
+      token,
+      isMutating,
+      false,
+      allowAuthRetry,
+    );
+  }
+
+  if (response.status === 401 && allowAuthRetry && (token || getAuthSession())) {
+    await refreshSession();
+    return requestOnce<T>(
+      path,
+      options,
+      getAuthSession()?.token ?? null,
+      isMutating,
+      allowCsrfRetry,
+      false,
     );
   }
 
@@ -136,5 +247,4 @@ export function getErrorMessage(error: unknown): string {
   return 'Error desconocido';
 }
 
-export const apiUrl = API_URL;
-export const swaggerUrl = `${API_URL}/docs`;
+export { apiUrl, swaggerUrl };
