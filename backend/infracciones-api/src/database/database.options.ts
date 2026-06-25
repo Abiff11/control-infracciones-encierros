@@ -13,6 +13,11 @@ const DEFAULT_DB_NAME = 'control_infracciones_db';
 const DEFAULT_DB_SYNCHRONIZE = false;
 const DEFAULT_DB_LOGGING = false;
 const DEFAULT_DB_MAX_QUERY_EXECUTION_TIME = 500;
+const DEFAULT_DB_POOL_MAX = 20;
+const DEFAULT_DB_POOL_IDLE_TIMEOUT_MS = 30_000;
+const DEFAULT_DB_POOL_CONNECTION_TIMEOUT_MS = 5_000;
+const DEFAULT_CACHE_QUERY_ENABLED = false;
+const DEFAULT_CACHE_QUERY_DURATION_MS = 30_000;
 
 function parseString(value: string | undefined, fallback: string): string {
   return value ?? fallback;
@@ -36,7 +41,20 @@ function parseNumber(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsedValue) ? parsedValue : fallback;
 }
 
+function parsePositiveNumber(
+  value: string | undefined,
+  fallback: number,
+  min = 1,
+): number {
+  const parsedValue = parseNumber(value, fallback);
+  return parsedValue >= min ? parsedValue : fallback;
+}
+
 export function createDatabaseOptions(): DataSourceOptions {
+  const queryCacheEnabled =
+    parseBooleanQuery(process.env.CACHE_QUERY_ENABLED) ??
+    DEFAULT_CACHE_QUERY_ENABLED;
+
   return {
     type: 'postgres',
     host: parseString(process.env.DB_HOST, DEFAULT_DB_HOST),
@@ -55,5 +73,27 @@ export function createDatabaseOptions(): DataSourceOptions {
       DEFAULT_DB_MAX_QUERY_EXECUTION_TIME,
     ),
     dropSchema: false,
+    extra: {
+      max: parsePositiveNumber(process.env.DB_POOL_MAX, DEFAULT_DB_POOL_MAX),
+      idleTimeoutMillis: parsePositiveNumber(
+        process.env.DB_POOL_IDLE_TIMEOUT_MS,
+        DEFAULT_DB_POOL_IDLE_TIMEOUT_MS,
+        1_000,
+      ),
+      connectionTimeoutMillis: parsePositiveNumber(
+        process.env.DB_POOL_CONNECTION_TIMEOUT_MS,
+        DEFAULT_DB_POOL_CONNECTION_TIMEOUT_MS,
+        500,
+      ),
+    },
+    cache: queryCacheEnabled
+      ? {
+          duration: parsePositiveNumber(
+            process.env.CACHE_QUERY_DURATION_MS,
+            DEFAULT_CACHE_QUERY_DURATION_MS,
+            1_000,
+          ),
+        }
+      : false,
   };
 }
