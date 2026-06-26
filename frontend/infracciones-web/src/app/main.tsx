@@ -1,3 +1,4 @@
+import '../services/api/sweetalert-fetch-errors';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
