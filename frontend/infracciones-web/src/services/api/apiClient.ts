@@ -9,9 +9,13 @@ import { apiUrl, swaggerUrl } from './apiConfig';
 const CSRF_COOKIE_NAME = 'cie_csrf_token';
 const CSRF_HEADER_NAME = 'x-csrf-token';
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const GET_CACHE_TTL_MS = Number(import.meta.env.VITE_API_GET_CACHE_TTL_MS ?? 1500);
 
 let csrfTokenPromise: Promise<void> | null = null;
 let sessionRefreshPromise: Promise<void> | null = null;
+
+const pendingGetRequests = new Map<string, Promise<unknown>>();
+const recentGetResponses = new Map<string, { expiresAt: number; value: unknown }>();
 
 export class ApiError extends Error {
   status: number;
@@ -115,9 +119,11 @@ async function refreshSession(): Promise<void> {
       .then(() => refreshAuthSession())
       .then((response) => {
         updateAuthSession(response.accessToken, response.usuario);
+        clearGetRequestCache();
       })
       .catch(() => {
         clearAuthSession();
+        clearGetRequestCache();
         throw new ApiError(401, 'La sesion expiro. Vuelve a iniciar sesion.');
       })
       .finally(() => {
@@ -130,6 +136,48 @@ async function refreshSession(): Promise<void> {
 
 function resolveMethod(method?: string): string {
   return (method ?? 'GET').toUpperCase();
+}
+
+function clearGetRequestCache() {
+  pendingGetRequests.clear();
+  recentGetResponses.clear();
+}
+
+function shouldReuseGetRequest(method: string, options: RequestInit) {
+  return method === 'GET' && !options.body && GET_CACHE_TTL_MS > 0;
+}
+
+function getRequestCacheKey(path: string, method: string, token: string | null) {
+  return `${method}:${token ?? 'anon'}:${path}`;
+}
+
+async function withGetRequestReuse<T>(key: string, factory: () => Promise<T>): Promise<T> {
+  const cached = recentGetResponses.get(key);
+  const now = Date.now();
+
+  if (cached && cached.expiresAt > now) {
+    return cached.value as T;
+  }
+
+  const pending = pendingGetRequests.get(key);
+  if (pending) {
+    return pending as Promise<T>;
+  }
+
+  const requestPromise = factory()
+    .then((value) => {
+      recentGetResponses.set(key, {
+        expiresAt: Date.now() + GET_CACHE_TTL_MS,
+        value,
+      });
+      return value;
+    })
+    .finally(() => {
+      pendingGetRequests.delete(key);
+    });
+
+  pendingGetRequests.set(key, requestPromise as Promise<unknown>);
+  return requestPromise;
 }
 
 export async function request<T>(
@@ -145,7 +193,13 @@ export async function request<T>(
     await ensureCsrfToken(false);
   }
 
-  return requestOnce<T>(path, options, sessionToken, isMutating, true, true);
+  const executeRequest = () => requestOnce<T>(path, options, sessionToken, isMutating, true, true);
+
+  if (shouldReuseGetRequest(method, options)) {
+    return withGetRequestReuse<T>(getRequestCacheKey(path, method, sessionToken), executeRequest);
+  }
+
+  return executeRequest();
 }
 
 async function requestOnce<T>(
@@ -224,6 +278,10 @@ async function requestOnce<T>(
     throw new ApiError(response.status, message);
   }
 
+  if (isMutating) {
+    clearGetRequestCache();
+  }
+
   if (response.status === 204) {
     return undefined as T;
   }
@@ -244,7 +302,9 @@ export function getErrorMessage(error: unknown): string {
     return error.message;
   }
 
-  return 'Error desconocido';
+  return 'Ocurrio un error inesperado.';
 }
 
-export { apiUrl, swaggerUrl };
+export function getSwaggerUrl(): string {
+  return swaggerUrl;
+}
