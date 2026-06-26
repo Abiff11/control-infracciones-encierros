@@ -16,6 +16,8 @@ const DEFAULT_DB_MAX_QUERY_EXECUTION_TIME = 500;
 const DEFAULT_DB_POOL_MAX = 20;
 const DEFAULT_DB_POOL_IDLE_TIMEOUT_MS = 30_000;
 const DEFAULT_DB_POOL_CONNECTION_TIMEOUT_MS = 5_000;
+const DEFAULT_DB_STATEMENT_TIMEOUT_MS = 15_000;
+const DEFAULT_DB_QUERY_TIMEOUT_MS = 20_000;
 const DEFAULT_CACHE_QUERY_ENABLED = false;
 const DEFAULT_CACHE_QUERY_DURATION_MS = 30_000;
 
@@ -84,6 +86,16 @@ export function createDatabaseOptions(): DataSourceOptions {
         process.env.DB_POOL_CONNECTION_TIMEOUT_MS,
         DEFAULT_DB_POOL_CONNECTION_TIMEOUT_MS,
         500,
+      ),
+      statement_timeout: parsePositiveNumber(
+        process.env.DB_STATEMENT_TIMEOUT_MS,
+        DEFAULT_DB_STATEMENT_TIMEOUT_MS,
+        1_000,
+      ),
+      query_timeout: parsePositiveNumber(
+        process.env.DB_QUERY_TIMEOUT_MS,
+        DEFAULT_DB_QUERY_TIMEOUT_MS,
+        1_000,
       ),
     },
     cache: queryCacheEnabled
