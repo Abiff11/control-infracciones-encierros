@@ -13,6 +13,7 @@ import {
   issueCsrfCookie,
 } from './common/csrf.util';
 import { SafeExceptionFilter } from './common/filters/safe-exception.filter';
+import { performanceGuardMiddleware } from './common/middleware/performance-guard.middleware';
 
 const DEV_CORS_ORIGINS = [
   'http://localhost:5173',
@@ -81,6 +82,7 @@ async function bootstrap() {
   httpAdapter.disable('x-powered-by');
   app.setGlobalPrefix('api');
 
+  app.use(performanceGuardMiddleware);
   app.use((_request: Request, response: Response, next: NextFunction) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('X-Frame-Options', 'DENY');
