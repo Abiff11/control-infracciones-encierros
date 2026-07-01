@@ -287,7 +287,7 @@ function DashboardPage({
 
       try {
         const query = buildInfraccionesQuery(appliedFilters, 200);
-        const [infracciones, encierrosResumen, ...estadoResponses] = await Promise.all([
+        const [infracciones, encierrosResumen] = await Promise.all([
           runProtectedRequest((token) => getInfracciones(token, query)),
           runProtectedRequest((token) =>
             getVehiculosEnEncierroResumen(token, {
@@ -301,7 +301,9 @@ function DashboardPage({
                 : undefined,
             }),
           ),
-          ...ESTADOS_OPERATIVOS.map((estadoOperativo) =>
+        ]);
+        const estadoResponses = await Promise.all(
+          ESTADOS_OPERATIVOS.map((estadoOperativo) =>
             runProtectedRequest((token) =>
               getInfracciones(token, {
                 ...query,
@@ -311,7 +313,7 @@ function DashboardPage({
               }),
             ),
           ),
-        ]);
+        );
 
         if (!mounted) {
           return;
@@ -434,12 +436,22 @@ function DashboardPage({
     : 0;
 
   function updateFilter<K extends keyof DashboardFilters>(key: K, value: DashboardFilters[K]): void {
-    setFilters((current) => ({
-      ...current,
-      [key]: value,
-      ...(key === 'idRegion' ? { idDelegacion: '' } : null),
-      ...(key === 'fechaDesde' || key === 'fechaHasta' ? { periodo: 'custom' as const } : null),
-    }));
+    setFilters((current) => {
+      const nextFilters: DashboardFilters = {
+        ...current,
+        [key]: value,
+      };
+
+      if (key === 'idRegion') {
+        nextFilters.idDelegacion = '';
+      }
+
+      if (key === 'fechaDesde' || key === 'fechaHasta') {
+        nextFilters.periodo = 'custom';
+      }
+
+      return nextFilters;
+    });
   }
 
   function resetFilters(): void {
@@ -549,7 +561,14 @@ function DashboardPage({
         </label>
         <label className="field">
           <span>Periodo</span>
-          <select value={filters.periodo} onChange={(event) => setFilters((current) => applyPeriod(current, event.target.value as DashboardFilters['periodo']))}>
+          <select
+            value={filters.periodo}
+            onChange={(event) =>
+              setFilters((current) =>
+                applyPeriod(current, event.target.value as DashboardFilters['periodo']),
+              )
+            }
+          >
             <option value="7">Ultimos 7 dias</option>
             <option value="30">Ultimos 30 dias</option>
             <option value="90">Ultimos 90 dias</option>
@@ -579,12 +598,7 @@ function DashboardPage({
           value={formatNumber(vehiculosRetenidos)}
           helper="Unidades aun asociadas a encierro"
         />
-        <MetricCard
-          accent="red"
-          label="Sin pago"
-          value={formatNumber(pendientesPago)}
-          helper="Prioridad de seguimiento"
-        />
+        <MetricCard accent="red" label="Sin pago" value={formatNumber(pendientesPago)} helper="Prioridad de seguimiento" />
         <MetricCard
           accent="green"
           label="Pagados por liberar"
@@ -597,12 +611,7 @@ function DashboardPage({
           value={formatNumber(liberadosPorEntregar)}
           helper="Pendientes en encierro"
         />
-        <MetricCard
-          accent="teal"
-          label="Entregados"
-          value={formatNumber(entregados)}
-          helper="Flujo concluido"
-        />
+        <MetricCard accent="teal" label="Entregados" value={formatNumber(entregados)} helper="Flujo concluido" />
       </section>
 
       {dashboardState.loading ? <p className="notice">Actualizando indicadores del dashboard...</p> : null}
