@@ -1,18 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import type { PageKey } from '../../app/app.types';
-import { getVehiculosEnEncierroResumen } from '../../services/api/encierros.api';
 import { getSwaggerUrl } from '../../services/api/apiClient';
-import { getInfracciones } from '../../services/api/infracciones.api';
+import { getDashboardResumen } from '../../services/api/dashboard.api';
 import type { LoginResponseUsuario } from '../../types/auth.types';
 import type { CatalogosBundle } from '../../types/catalogos.types';
-import type { VehiculosEncierroResumen } from '../../types/encierros.types';
 import type {
-  EstadoOperativoVehiculo,
-  InfraccionesQuery,
-  InfraccionesResponse,
-  PaginationMeta,
-} from '../../types/infracciones.types';
+  DashboardQuery,
+  DashboardResumenResponse,
+} from '../../types/dashboard.types';
+import type { EstadoOperativoVehiculo, PaginationMeta } from '../../types/infracciones.types';
 
 import './DashboardPage.css';
 
@@ -39,12 +36,9 @@ interface DashboardFilters {
 }
 
 interface DashboardState {
-  infracciones: InfraccionesResponse | null;
-  encierrosResumen: VehiculosEncierroResumen | null;
-  estadoCounts: Record<EstadoOperativoVehiculo, number>;
+  data: DashboardResumenResponse | null;
   loading: boolean;
   error: string | null;
-  updatedAt: string | null;
 }
 
 interface ChartDatum {
@@ -52,8 +46,6 @@ interface ChartDatum {
   value: number;
   hint?: string;
 }
-
-const DASHBOARD_SAMPLE_LIMIT = 100;
 
 const QUICK_ACTIONS: Array<{ key: PageKey; label: string; description: string }> = [
   {
@@ -149,7 +141,7 @@ function toOptionalNumber(value: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function buildInfraccionesQuery(filters: DashboardFilters, limit = DASHBOARD_SAMPLE_LIMIT): InfraccionesQuery {
+function buildDashboardQuery(filters: DashboardFilters): DashboardQuery {
   return {
     fechaDesde: filters.fechaDesde || undefined,
     fechaHasta: filters.fechaHasta || undefined,
@@ -160,10 +152,6 @@ function buildInfraccionesQuery(filters: DashboardFilters, limit = DASHBOARD_SAM
     estadoOperativo: filters.estadoOperativo
       ? (filters.estadoOperativo as EstadoOperativoVehiculo)
       : undefined,
-    page: 1,
-    limit,
-    sortBy: 'fechaInfraccion',
-    sortOrder: 'DESC',
   };
 }
 
@@ -181,6 +169,19 @@ function formatDateLabel(value: string): string {
   return new Intl.DateTimeFormat('es-MX', {
     day: '2-digit',
     month: 'short',
+  }).format(date);
+}
+
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('es-MX', {
+    dateStyle: 'short',
+    timeStyle: 'short',
   }).format(date);
 }
 
@@ -268,18 +269,9 @@ function DashboardPage({
   const [appliedFilters, setAppliedFilters] = useState<DashboardFilters>(() => createDefaultFilters());
   const [reloadKey, setReloadKey] = useState(0);
   const [dashboardState, setDashboardState] = useState<DashboardState>({
-    infracciones: null,
-    encierrosResumen: null,
-    estadoCounts: {
-      SIN_RETENCION: 0,
-      EN_ENCIERRO_SIN_PAGO: 0,
-      PAGADO_PENDIENTE_LIBERACION: 0,
-      LIBERADO_PENDIENTE_SALIDA: 0,
-      VEHICULO_ENTREGADO: 0,
-    },
+    data: null,
     loading: true,
     error: null,
-    updatedAt: null,
   });
 
   useEffect(() => {
@@ -293,52 +285,18 @@ function DashboardPage({
       }));
 
       try {
-        const query = buildInfraccionesQuery(appliedFilters, DASHBOARD_SAMPLE_LIMIT);
-        const [infracciones, encierrosResumen] = await Promise.all([
-          runProtectedRequest((token) => getInfracciones(token, query)),
-          runProtectedRequest((token) =>
-            getVehiculosEnEncierroResumen(token, {
-              idRegion: toOptionalNumber(appliedFilters.idRegion),
-              idDelegacion: toOptionalNumber(appliedFilters.idDelegacion),
-              idEncierro: toOptionalNumber(appliedFilters.idEncierro),
-              estadoOperativo: appliedFilters.estadoOperativo
-                ? (appliedFilters.estadoOperativo as EstadoOperativoVehiculo)
-                : undefined,
-            }),
-          ),
-        ]);
-        const estadoResponses = await Promise.all(
-          ESTADOS_OPERATIVOS.map((estadoOperativo) =>
-            runProtectedRequest((token) =>
-              getInfracciones(token, {
-                ...query,
-                estadoOperativo,
-                page: 1,
-                limit: 1,
-              }),
-            ),
-          ),
+        const response = await runProtectedRequest((token) =>
+          getDashboardResumen(token, buildDashboardQuery(appliedFilters)),
         );
 
         if (!mounted) {
           return;
         }
 
-        const estadoCounts = ESTADOS_OPERATIVOS.reduce(
-          (accumulator, estadoOperativo, index) => ({
-            ...accumulator,
-            [estadoOperativo]: estadoResponses[index]?.meta?.total ?? 0,
-          }),
-          {} as Record<EstadoOperativoVehiculo, number>,
-        );
-
         setDashboardState({
-          infracciones,
-          encierrosResumen,
-          estadoCounts,
+          data: response,
           loading: false,
           error: null,
-          updatedAt: new Date().toLocaleString('es-MX'),
         });
       } catch (error) {
         if (!mounted) {
@@ -369,60 +327,42 @@ function DashboardPage({
     return catalogs.delegaciones.filter((delegacion) => delegacion.region?.idRegion === idRegion);
   }, [catalogs, filters.idRegion]);
 
-  const totalInfracciones = dashboardState.infracciones?.meta?.total ?? infraccionesMeta?.total ?? 0;
-  const sampleSize = dashboardState.infracciones?.data.length ?? 0;
-  const encierrosResumen = dashboardState.encierrosResumen;
-  const vehiculosRetenidos = encierrosResumen?.totalVehiculosRetenidos ?? 0;
-  const pendientesPago = encierrosResumen?.totalSinPago ?? 0;
-  const pagadosPorLiberar = encierrosResumen?.totalPagadosPendienteLiberacion ?? 0;
-  const liberadosPorEntregar = encierrosResumen?.totalLiberadosPendienteSalida ?? 0;
-  const entregados = encierrosResumen?.totalEntregados ?? 0;
+  const data = dashboardState.data;
+  const resumen = data?.resumen;
+  const totalInfracciones = resumen?.totalInfracciones ?? infraccionesMeta?.total ?? 0;
+  const vehiculosRetenidos = resumen?.totalVehiculosRetenidos ?? 0;
+  const pendientesPago = resumen?.totalSinPago ?? 0;
+  const pagadosPorLiberar = resumen?.totalPagadosPendienteLiberacion ?? 0;
+  const liberadosPorEntregar = resumen?.totalLiberadosPendienteSalida ?? 0;
+  const entregados = resumen?.totalEntregados ?? 0;
 
-  const estadoChartData = ESTADOS_OPERATIVOS.map((estadoOperativo) => ({
-    label: ESTADO_LABELS[estadoOperativo],
-    value: dashboardState.estadoCounts[estadoOperativo] ?? 0,
-  }));
+  const estadoChartData: ChartDatum[] = ESTADOS_OPERATIVOS.map((estadoOperativo) => {
+    const item = data?.flujoOperativo.find((current) => current.estado === estadoOperativo);
 
-  const delegacionChartData = useMemo(() => {
-    const counts = new Map<string, number>();
+    return {
+      label: item?.label ?? ESTADO_LABELS[estadoOperativo],
+      value: item?.total ?? 0,
+    };
+  });
 
-    dashboardState.infracciones?.data.forEach((item) => {
-      const label = item.delegacion?.nombreDelegacion ?? 'Sin delegacion';
-      counts.set(label, (counts.get(label) ?? 0) + 1);
-    });
+  const delegacionChartData: ChartDatum[] =
+    data?.topDelegaciones.map((item) => ({
+      label: item.nombreDelegacion,
+      value: item.total,
+    })) ?? [];
 
-    return Array.from(counts.entries())
-      .map(([label, value]) => ({ label, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 6);
-  }, [dashboardState.infracciones]);
+  const dayChartData: ChartDatum[] =
+    data?.infraccionesPorDia.map((item) => ({
+      label: formatDateLabel(item.fecha),
+      value: item.total,
+    })) ?? [];
 
-  const dayChartData = useMemo(() => {
-    const counts = new Map<string, number>();
-
-    dashboardState.infracciones?.data.forEach((item) => {
-      const date = item.fechaInfraccion.slice(0, 10);
-      counts.set(date, (counts.get(date) ?? 0) + 1);
-    });
-
-    return Array.from(counts.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-8)
-      .map(([label, value]) => ({ label: formatDateLabel(label), value }));
-  }, [dashboardState.infracciones]);
-
-  const encierroChartData = useMemo(
-    () =>
-      (encierrosResumen?.porEncierro ?? [])
-        .map((item) => ({
-          label: item.encierro || 'Sin encierro',
-          value: item.total,
-          hint: `${item.sinPago} sin pago`,
-        }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 5),
-    [encierrosResumen],
-  );
+  const encierroChartData: ChartDatum[] =
+    data?.topEncierros.map((item) => ({
+      label: item.nombreEncierro,
+      value: item.total,
+      hint: `${formatNumber(item.sinPago)} sin pago`,
+    })) ?? [];
 
   const catalogCount = catalogs
     ? catalogs.regiones.length +
@@ -476,7 +416,7 @@ function DashboardPage({
           </p>
         </div>
         <div className="dashboard-refresh-box">
-          <span>{dashboardState.updatedAt ? `Actualizado: ${dashboardState.updatedAt}` : apiStatusLabel}</span>
+          <span>{data?.updatedAt ? `Actualizado: ${formatDateTime(data.updatedAt)}` : apiStatusLabel}</span>
           <button className="button-secondary" type="button" onClick={() => setReloadKey((current) => current + 1)}>
             Actualizar
           </button>
@@ -596,13 +536,13 @@ function DashboardPage({
           accent="blue"
           label="Total infracciones"
           value={formatNumber(totalInfracciones)}
-          helper={`Consulta: ${sampleSize} registros cargados`}
+          helper="Total real segun filtros aplicados"
         />
         <MetricCard
           accent="orange"
           label="Vehiculos retenidos"
           value={formatNumber(vehiculosRetenidos)}
-          helper="Unidades aun asociadas a encierro"
+          helper="Sin salida registrada"
         />
         <MetricCard accent="red" label="Sin pago" value={formatNumber(pendientesPago)} helper="Prioridad de seguimiento" />
         <MetricCard
@@ -632,7 +572,7 @@ function DashboardPage({
               <p className="section-label">Operacion</p>
               <h2>Infracciones por dia</h2>
             </div>
-            <span>Muestra reciente</span>
+            <span>Agregado real</span>
           </div>
           {dayChartData.length ? <ColumnChart data={dayChartData} /> : <EmptyChart message="Sin datos para graficar." />}
         </article>
@@ -667,7 +607,7 @@ function DashboardPage({
               <p className="section-label">Delegaciones</p>
               <h2>Top unidades</h2>
             </div>
-            <span>Muestra reciente</span>
+            <span>Agregado real</span>
           </div>
           {delegacionChartData.length ? (
             <BarChart data={delegacionChartData} />
