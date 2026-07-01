@@ -14,6 +14,24 @@ export interface DashboardResumenResponse {
     totalLiberadosPendienteSalida: number;
     totalEntregados: number;
   };
+  ingresos: {
+    totalIngresos: number;
+    ingresosHoy: number;
+    ingresosMesActual: number;
+    ingresosAnioActual: number;
+    porDia: Array<{
+      periodo: string;
+      total: number;
+    }>;
+    porMes: Array<{
+      periodo: string;
+      total: number;
+    }>;
+    porAnio: Array<{
+      periodo: string;
+      total: number;
+    }>;
+  };
   flujoOperativo: Array<{
     estado: string;
     label: string;
@@ -42,6 +60,7 @@ export interface DashboardResumenResponse {
 
 interface DashboardRawRow {
   resumen: DashboardResumen;
+  ingresos: DashboardIngresos;
   flujoOperativo: DashboardFlujoItem[];
   infraccionesPorDia: DashboardDiaItem[];
   topDelegaciones: DashboardDelegacionItem[];
@@ -56,6 +75,21 @@ interface DashboardResumen {
   totalPagadosPendienteLiberacion: number;
   totalLiberadosPendienteSalida: number;
   totalEntregados: number;
+}
+
+interface DashboardIngresos {
+  totalIngresos: number;
+  ingresosHoy: number;
+  ingresosMesActual: number;
+  ingresosAnioActual: number;
+  porDia: DashboardIngresoSerieItem[];
+  porMes: DashboardIngresoSerieItem[];
+  porAnio: DashboardIngresoSerieItem[];
+}
+
+interface DashboardIngresoSerieItem {
+  periodo: string;
+  total: number;
 }
 
 interface DashboardFlujoItem {
@@ -141,6 +175,14 @@ export class DashboardService {
           FROM filtered
           ${estadoFilter}
         ),
+        ingresos_base AS (
+          SELECT
+            pago.id_pago_infraccion,
+            pago.fecha_pago,
+            pago.monto::numeric AS monto
+          FROM scoped s
+          INNER JOIN pago_infraccion pago ON pago.id_infraccion = s.id_infraccion
+        ),
         flujo_base AS (
           SELECT *
           FROM (VALUES
@@ -162,6 +204,27 @@ export class DashboardService {
           GROUP BY fecha_infraccion::date
           ORDER BY fecha_infraccion::date DESC
           LIMIT 14
+        ),
+        ingresos_dia AS (
+          SELECT fecha_pago::date AS periodo, COALESCE(SUM(monto), 0)::numeric(14, 2) AS total
+          FROM ingresos_base
+          GROUP BY fecha_pago::date
+          ORDER BY fecha_pago::date DESC
+          LIMIT 14
+        ),
+        ingresos_mes AS (
+          SELECT date_trunc('month', fecha_pago)::date AS periodo, COALESCE(SUM(monto), 0)::numeric(14, 2) AS total
+          FROM ingresos_base
+          GROUP BY date_trunc('month', fecha_pago)::date
+          ORDER BY date_trunc('month', fecha_pago)::date DESC
+          LIMIT 12
+        ),
+        ingresos_anio AS (
+          SELECT date_trunc('year', fecha_pago)::date AS periodo, COALESCE(SUM(monto), 0)::numeric(14, 2) AS total
+          FROM ingresos_base
+          GROUP BY date_trunc('year', fecha_pago)::date
+          ORDER BY date_trunc('year', fecha_pago)::date DESC
+          LIMIT 6
         ),
         delegaciones AS (
           SELECT
@@ -201,6 +264,33 @@ export class DashboardService {
             'totalLiberadosPendienteSalida', (SELECT COUNT(*)::int FROM scoped WHERE estado_operativo = 'LIBERADO_PENDIENTE_SALIDA'),
             'totalEntregados', (SELECT COUNT(*)::int FROM scoped WHERE estado_operativo = 'VEHICULO_ENTREGADO')
           ) AS "resumen",
+          json_build_object(
+            'totalIngresos', COALESCE((SELECT SUM(monto) FROM ingresos_base), 0)::numeric(14, 2),
+            'ingresosHoy', COALESCE((SELECT SUM(monto) FROM ingresos_base WHERE fecha_pago::date = CURRENT_DATE), 0)::numeric(14, 2),
+            'ingresosMesActual', COALESCE((SELECT SUM(monto) FROM ingresos_base WHERE date_trunc('month', fecha_pago) = date_trunc('month', CURRENT_DATE)), 0)::numeric(14, 2),
+            'ingresosAnioActual', COALESCE((SELECT SUM(monto) FROM ingresos_base WHERE date_trunc('year', fecha_pago) = date_trunc('year', CURRENT_DATE)), 0)::numeric(14, 2),
+            'porDia', (
+              SELECT COALESCE(json_agg(json_build_object(
+                'periodo', ingreso_dia.periodo,
+                'total', ingreso_dia.total
+              ) ORDER BY ingreso_dia.periodo ASC), '[]'::json)
+              FROM ingresos_dia ingreso_dia
+            ),
+            'porMes', (
+              SELECT COALESCE(json_agg(json_build_object(
+                'periodo', ingreso_mes.periodo,
+                'total', ingreso_mes.total
+              ) ORDER BY ingreso_mes.periodo ASC), '[]'::json)
+              FROM ingresos_mes ingreso_mes
+            ),
+            'porAnio', (
+              SELECT COALESCE(json_agg(json_build_object(
+                'periodo', ingreso_anio.periodo,
+                'total', ingreso_anio.total
+              ) ORDER BY ingreso_anio.periodo ASC), '[]'::json)
+              FROM ingresos_anio ingreso_anio
+            )
+          ) AS "ingresos",
           (
             SELECT COALESCE(json_agg(json_build_object(
               'estado', fb.estado,
@@ -242,9 +332,11 @@ export class DashboardService {
     );
 
     const resumen = row?.resumen ?? this.createEmptyResumen();
+    const ingresos = row?.ingresos ?? this.createEmptyIngresos();
 
     return {
       resumen,
+      ingresos: this.normalizeIngresos(ingresos),
       flujoOperativo: this.normalizeFlujo(row?.flujoOperativo ?? []),
       infraccionesPorDia: row?.infraccionesPorDia ?? [],
       topDelegaciones: row?.topDelegaciones ?? [],
@@ -364,6 +456,18 @@ export class DashboardService {
     };
   }
 
+  private createEmptyIngresos(): DashboardIngresos {
+    return {
+      totalIngresos: 0,
+      ingresosHoy: 0,
+      ingresosMesActual: 0,
+      ingresosAnioActual: 0,
+      porDia: [],
+      porMes: [],
+      porAnio: [],
+    };
+  }
+
   private normalizeFlujo(items: DashboardFlujoItem[]): DashboardFlujoItem[] {
     const itemMap = new Map(items.map((item) => [item.estado, item]));
 
@@ -372,5 +476,31 @@ export class DashboardService {
       label: ESTADO_LABELS[estado],
       total: itemMap.get(estado)?.total ?? 0,
     }));
+  }
+
+  private normalizeIngresos(ingresos: DashboardIngresos): DashboardIngresos {
+    return {
+      totalIngresos: this.toNumber(ingresos.totalIngresos),
+      ingresosHoy: this.toNumber(ingresos.ingresosHoy),
+      ingresosMesActual: this.toNumber(ingresos.ingresosMesActual),
+      ingresosAnioActual: this.toNumber(ingresos.ingresosAnioActual),
+      porDia: ingresos.porDia.map((item) => ({
+        periodo: item.periodo,
+        total: this.toNumber(item.total),
+      })),
+      porMes: ingresos.porMes.map((item) => ({
+        periodo: item.periodo,
+        total: this.toNumber(item.total),
+      })),
+      porAnio: ingresos.porAnio.map((item) => ({
+        periodo: item.periodo,
+        total: this.toNumber(item.total),
+      })),
+    };
+  }
+
+  private toNumber(value: number | string | null | undefined): number {
+    const parsed = Number(value ?? 0);
+    return Number.isFinite(parsed) ? parsed : 0;
   }
 }
