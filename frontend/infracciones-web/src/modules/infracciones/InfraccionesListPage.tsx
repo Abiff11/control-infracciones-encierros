@@ -70,6 +70,18 @@ interface InfraccionesListPageProps {
   onNavigateCreate: () => void;
 }
 
+interface QuickStatusFilter {
+  label: string;
+  value: EstadoOperativoVehiculo | '';
+}
+
+interface NextOperation {
+  type: InfraccionOperacionTipo | null;
+  label: string;
+  helper: string;
+  disabled?: boolean;
+}
+
 const DEFAULT_FILTERS: FiltersForm = {
   search: '',
   anio: '',
@@ -86,6 +98,14 @@ const DEFAULT_FILTERS: FiltersForm = {
   page: '1',
   limit: '30',
 };
+
+const QUICK_STATUS_FILTERS: QuickStatusFilter[] = [
+  { label: 'Todos', value: '' },
+  { label: 'En encierro sin pago', value: 'EN_ENCIERRO_SIN_PAGO' },
+  { label: 'Pagados por liberar', value: 'PAGADO_PENDIENTE_LIBERACION' },
+  { label: 'Liberados por entregar', value: 'LIBERADO_PENDIENTE_SALIDA' },
+  { label: 'Entregados', value: 'VEHICULO_ENTREGADO' },
+];
 
 function createIdleState<T>(): LoadState<T> {
   return {
@@ -143,30 +163,78 @@ function getVehicleLabel(item: InfraccionListItem): string {
   return parts.length > 0 ? parts.join(' - ') : 'Sin informacion registrada';
 }
 
-function getPagoLabel(item: InfraccionListItem): string {
-  if (!item.pago?.tienePago) {
-    return 'Sin pago';
+function getOperationalDetail(item: InfraccionListItem): string {
+  switch (item.estadoOperativoCalculado) {
+    case 'SIN_RETENCION':
+      return 'No hay ingreso al encierro';
+    case 'EN_ENCIERRO_SIN_PAGO':
+      return 'Vehiculo en resguardo';
+    case 'PAGADO_PENDIENTE_LIBERACION':
+      return item.pago?.montoPagado
+        ? `Pago registrado por ${formatCurrencyMxn(item.pago.montoPagado)}`
+        : 'Pago registrado';
+    case 'LIBERADO_PENDIENTE_SALIDA':
+      return 'Liberacion autorizada';
+    case 'VEHICULO_ENTREGADO':
+      return 'Vehiculo entregado';
+    default:
+      return 'Revisar expediente';
   }
-
-  return [formatDateTime(item.pago.fechaUltimoPago), formatCurrencyMxn(item.pago.montoPagado)]
-    .filter((value) => value !== 'Sin informacion registrada')
-    .join(' | ');
 }
 
-function getLiberacionLabel(item: InfraccionListItem): string {
-  if (!item.liberacion?.tieneLiberacion) {
-    return 'Sin liberacion';
+function getNextOperation(item: InfraccionListItem): NextOperation {
+  switch (item.estadoOperativoCalculado) {
+    case 'SIN_RETENCION':
+      return {
+        type: 'retencion',
+        label: 'Registrar ingreso',
+        helper: 'Encierro debe recibir el vehiculo',
+      };
+    case 'EN_ENCIERRO_SIN_PAGO':
+      return {
+        type: 'pago',
+        label: 'Registrar pago',
+        helper: 'Infracciones debe registrar el pago',
+      };
+    case 'PAGADO_PENDIENTE_LIBERACION':
+      return {
+        type: 'liberacion',
+        label: 'Autorizar liberacion',
+        helper: 'Liberaciones debe emitir la autorizacion',
+      };
+    case 'LIBERADO_PENDIENTE_SALIDA':
+      return {
+        type: 'salida',
+        label: 'Registrar salida',
+        helper: 'Encierro debe entregar el vehiculo',
+      };
+    case 'VEHICULO_ENTREGADO':
+      return {
+        type: null,
+        label: 'Completado',
+        helper: 'Flujo operativo cerrado',
+        disabled: true,
+      };
+    default:
+      return {
+        type: null,
+        label: 'Revisar',
+        helper: 'Abre el expediente para validar datos',
+        disabled: true,
+      };
   }
-
-  return formatDateTime(item.liberacion.fechaLiberacion);
 }
 
-function getSalidaLabel(item: InfraccionListItem): string {
-  if (!item.salida?.tieneSalida) {
-    return 'Sin salida';
+function getIngresoLabel(item: InfraccionListItem): string {
+  if (!item.retencion) {
+    return 'Pendiente de ingreso';
   }
 
-  return formatDateTime(item.salida.fechaSalida);
+  return formatDateTime(item.retencion.fechaIngreso);
+}
+
+function getEncierroLabel(item: InfraccionListItem): string {
+  return item.retencion ? formatEmptyValue(item.retencion.encierro) : 'Sin encierro registrado';
 }
 
 function PendingText({ children }: { children: string }) {
@@ -312,6 +380,17 @@ function InfraccionesListPage({
     setActiveFilters(DEFAULT_FILTERS);
   }
 
+  function applyQuickStatusFilter(value: EstadoOperativoVehiculo | ''): void {
+    const nextFilters = {
+      ...draftFilters,
+      estadoOperativo: value,
+      page: '1',
+      limit: draftFilters.limit || '30',
+    };
+    setDraftFilters(nextFilters);
+    setActiveFilters(nextFilters);
+  }
+
   function changePage(page: number): void {
     const nextPage = String(page);
     setDraftFilters((current) => ({
@@ -346,99 +425,26 @@ function InfraccionesListPage({
     setLocalRefreshKey((current) => current + 1);
   }
 
-  function renderEncierroCell(item: InfraccionListItem) {
-    if (!item.retencion) {
+  function renderNextActionCell(item: InfraccionListItem) {
+    const nextOperation = getNextOperation(item);
+
+    if (!nextOperation.type || nextOperation.disabled) {
       return (
         <div className="table-cell-stack">
-          <OperationButton onClick={() => openOperation('retencion', item)}>Retener</OperationButton>
-          <PendingText>Sin encierro</PendingText>
+          <Button type="button" variant="secondary" className="table-operation-button" disabled>
+            {nextOperation.label}
+          </Button>
+          <PendingText>{nextOperation.helper}</PendingText>
         </div>
       );
     }
 
     return (
       <div className="table-cell-stack">
-        <strong>{formatEmptyValue(item.retencion.encierro)}</strong>
-        <span>{formatEmptyValue(item.retencion.folioResguardo)}</span>
-      </div>
-    );
-  }
-
-  function renderIngresoCell(item: InfraccionListItem) {
-    if (!item.retencion) {
-      return <PendingText>Pendiente de retencion</PendingText>;
-    }
-
-    return (
-      <div className="table-cell-stack">
-        <strong>{formatDateTime(item.retencion.fechaIngreso)}</strong>
-        <span>{formatEmptyValue(item.retencion.estadoIngreso)}</span>
-      </div>
-    );
-  }
-
-  function renderPagoCell(item: InfraccionListItem) {
-    if (!item.retencion) {
-      return <PendingText>Requiere retencion</PendingText>;
-    }
-
-    if (!item.pago?.tienePago) {
-      return (
-        <div className="table-cell-stack">
-          <OperationButton onClick={() => openOperation('pago', item)}>Pagar</OperationButton>
-          <PendingText>Sin pago registrado</PendingText>
-        </div>
-      );
-    }
-
-    return (
-      <div className="table-cell-stack">
-        <strong>{getPagoLabel(item)}</strong>
-        <span>{formatCurrencyMxn(item.pago?.montoPagado)}</span>
-      </div>
-    );
-  }
-
-  function renderLiberacionCell(item: InfraccionListItem) {
-    if (!item.pago?.tienePago) {
-      return <PendingText>Pendiente de pago</PendingText>;
-    }
-
-    if (!item.liberacion?.tieneLiberacion) {
-      return (
-        <div className="table-cell-stack">
-          <OperationButton onClick={() => openOperation('liberacion', item)}>Liberar</OperationButton>
-          <PendingText>Sin liberacion</PendingText>
-        </div>
-      );
-    }
-
-    return (
-      <div className="table-cell-stack">
-        <strong>{getLiberacionLabel(item)}</strong>
-        <span>Liberacion registrada</span>
-      </div>
-    );
-  }
-
-  function renderSalidaCell(item: InfraccionListItem) {
-    if (!item.liberacion?.tieneLiberacion) {
-      return <PendingText>Pendiente de liberacion</PendingText>;
-    }
-
-    if (!item.salida?.tieneSalida && item.retencion?.idRetencionVehiculo) {
-      return (
-        <div className="table-cell-stack">
-          <OperationButton onClick={() => openOperation('salida', item)}>Salida</OperationButton>
-          <PendingText>Sin salida</PendingText>
-        </div>
-      );
-    }
-
-    return (
-      <div className="table-cell-stack">
-        <strong>{getSalidaLabel(item)}</strong>
-        <span>Salida registrada</span>
+        <OperationButton onClick={() => openOperation(nextOperation.type as InfraccionOperacionTipo, item)}>
+          {nextOperation.label}
+        </OperationButton>
+        <PendingText>{nextOperation.helper}</PendingText>
       </div>
     );
   }
@@ -447,10 +453,11 @@ function InfraccionesListPage({
     <section className="page-stack">
       <header className="page-header page-header-row">
         <div>
-          <p className="eyebrow">Consulta</p>
-          <h1>Infracciones</h1>
+          <p className="eyebrow">Operacion principal</p>
+          <h1>Control operativo</h1>
           <p className="page-description">
-            Consulta operativa con indicadores fijos y columnas operativas.
+            Verifica el ingreso del vehiculo, el pago, la liberacion y la salida desde una sola
+            vista.
           </p>
         </div>
 
@@ -484,7 +491,7 @@ function InfraccionesListPage({
                 id="infracciones-search"
                 value={draftFilters.search}
                 onChange={(event) => updateDraftField('search', event.target.value)}
-                placeholder="Buscar por coincidencia en cualquier campo"
+                placeholder="Folio, placas, infractor, licencia, serie o motor"
               />
             </Field>
 
@@ -570,7 +577,7 @@ function InfraccionesListPage({
           </div>
 
           <div className="form-grid form-grid-3">
-            <Field htmlFor="infracciones-estatus" label="Estatus">
+            <Field htmlFor="infracciones-estatus" label="Estatus administrativo">
               <SelectField
                 id="infracciones-estatus"
                 value={draftFilters.idEstatusInfraccion}
@@ -592,11 +599,11 @@ function InfraccionesListPage({
                 onChange={(event) => updateDraftField('estadoOperativo', event.target.value)}
               >
                 <option value="">Todos</option>
-                <option value="SIN_RETENCION">SIN_RETENCION</option>
-                <option value="EN_ENCIERRO_SIN_PAGO">EN_ENCIERRO_SIN_PAGO</option>
-                <option value="PAGADO_PENDIENTE_LIBERACION">PAGADO_PENDIENTE_LIBERACION</option>
-                <option value="LIBERADO_PENDIENTE_SALIDA">LIBERADO_PENDIENTE_SALIDA</option>
-                <option value="VEHICULO_ENTREGADO">VEHICULO_ENTREGADO</option>
+                <option value="SIN_RETENCION">Sin ingreso a encierro</option>
+                <option value="EN_ENCIERRO_SIN_PAGO">En encierro sin pago</option>
+                <option value="PAGADO_PENDIENTE_LIBERACION">Pagado por liberar</option>
+                <option value="LIBERADO_PENDIENTE_SALIDA">Liberado por entregar</option>
+                <option value="VEHICULO_ENTREGADO">Vehiculo entregado</option>
               </SelectField>
             </Field>
 
@@ -626,9 +633,26 @@ function InfraccionesListPage({
           <div className="table-field-toolbar">
             <div>
               <p className="section-label">Resultados</p>
-              <h2>Listado operativo</h2>
-              <div className="table-field-meta">{meta ? <span>Total {meta.total}</span> : null}</div>
+              <h2>Control de flujo operativo</h2>
+              <div className="table-field-meta">
+                {meta ? <span>Total {meta.total}</span> : null}
+                <span> · </span>
+                <span>Accion unica por expediente</span>
+              </div>
             </div>
+          </div>
+
+          <div className="button-row">
+            {QUICK_STATUS_FILTERS.map((filter) => (
+              <Button
+                key={filter.value || 'todos'}
+                type="button"
+                variant={activeFilters.estadoOperativo === filter.value ? 'primary' : 'secondary'}
+                onClick={() => applyQuickStatusFilter(filter.value)}
+              >
+                {filter.label}
+              </Button>
+            ))}
           </div>
 
           <div className="table-wrap table-wrap-expanded">
@@ -636,23 +660,18 @@ function InfraccionesListPage({
               <thead>
                 <tr>
                   <th>Folio</th>
-                  <th>Fecha</th>
-                  <th>Infractor</th>
-                  <th>Placas</th>
                   <th>Vehiculo</th>
-                  <th>Encierro</th>
-                  <th>Ingreso</th>
-                  <th>Pago</th>
-                  <th>Liberacion</th>
-                  <th>Salida</th>
-                  <th>Estado operativo</th>
-                  <th>Acciones</th>
+                  <th>Infractor</th>
+                  <th>Encierro / Ingreso</th>
+                  <th>Estado actual</th>
+                  <th>Siguiente accion</th>
+                  <th>Detalle</th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="empty-state">
+                    <td colSpan={7} className="empty-state">
                       {state.status === 'loading'
                         ? 'Cargando infracciones...'
                         : 'No hay infracciones para mostrar.'}
@@ -662,43 +681,42 @@ function InfraccionesListPage({
                   items.map((item) => (
                     <tr key={item.idInfraccion}>
                       <td>
-                        <strong>{item.folioInfraccion}</strong>
-                      </td>
-                      <td>
                         <div className="table-cell-stack">
-                          <strong>{formatDate(item.fechaInfraccion)}</strong>
+                          <strong>{item.folioInfraccion}</strong>
+                          <span>{formatDate(item.fechaInfraccion)}</span>
                           <span>{formatTimeOfDay(item.horaInfraccion)}</span>
                         </div>
                       </td>
                       <td>
                         <div className="table-cell-stack">
-                          <strong>{getInfractorLabel(item)}</strong>
-                          <span>{formatEmptyValue(item.infractor.licencia)}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="table-cell-stack">
-                          <strong>{formatEmptyValue(item.vehiculo.placas)}</strong>
-                          <span>{formatEmptyValue(item.vehiculo.estadoPlacas)}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="table-cell-stack">
                           <strong>{getVehicleLabel(item)}</strong>
-                          <span>{formatEmptyValue(item.vehiculo.color)}</span>
+                          <span>Placas: {formatEmptyValue(item.vehiculo.placas)}</span>
+                          <span>Color: {formatEmptyValue(item.vehiculo.color)}</span>
                         </div>
                       </td>
-                      <td>{renderEncierroCell(item)}</td>
-                      <td>{renderIngresoCell(item)}</td>
-                      <td>{renderPagoCell(item)}</td>
-                      <td>{renderLiberacionCell(item)}</td>
-                      <td>{renderSalidaCell(item)}</td>
                       <td>
-                        <StatusBadge value={item.estadoOperativoCalculado} />
+                        <div className="table-cell-stack">
+                          <strong>{getInfractorLabel(item)}</strong>
+                          <span>Licencia: {formatEmptyValue(item.infractor.licencia)}</span>
+                        </div>
                       </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <strong>{getEncierroLabel(item)}</strong>
+                          <span>Ingreso: {getIngresoLabel(item)}</span>
+                          <span>Resguardo: {formatEmptyValue(item.retencion?.folioResguardo)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-cell-stack">
+                          <StatusBadge value={item.estadoOperativoCalculado} />
+                          <span>{getOperationalDetail(item)}</span>
+                        </div>
+                      </td>
+                      <td>{renderNextActionCell(item)}</td>
                       <td>
                         <Button type="button" variant="link" onClick={() => openDetail(item.idInfraccion)}>
-                          Ver detalle
+                          Ver expediente
                         </Button>
                       </td>
                     </tr>
