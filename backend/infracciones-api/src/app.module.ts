@@ -12,6 +12,8 @@ import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuditoriaModule } from './modules/auditoria/auditoria.module';
 import { CatalogosModule } from './modules/catalogos/catalogos.module';
+import { DashboardController } from './modules/dashboard/dashboard.controller';
+import { DashboardService } from './modules/dashboard/dashboard.service';
 import { ImportacionesModule } from './modules/importaciones/importaciones.module';
 import { EncierrosModule } from './modules/encierros/encierros.module';
 import { InfraccionesModule } from './modules/infracciones/infracciones.module';
@@ -107,9 +109,10 @@ import { VehiculosModule } from './modules/vehiculos/vehiculos.module';
     CatalogosModule,
     ImportacionesModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, DashboardController],
   providers: [
     AppService,
+    DashboardService,
     {
       provide: APP_GUARD,
       useClass: SelectiveThrottlerGuard,
