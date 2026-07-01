@@ -8,7 +8,7 @@ export interface NavigationItem {
 
 export const NAV_ITEMS: NavigationItem[] = [
   { group: 'Consulta', key: 'dashboard', label: 'Dashboard' },
-  { group: 'Consulta', key: 'infracciones', label: 'Infracciones' },
+  { group: 'Consulta', key: 'infracciones', label: 'Control operativo' },
   { group: 'Consulta', key: 'reportes-infracciones', label: 'Reportes de infracciones' },
   { group: 'Consulta', key: 'flujo-operativo', label: 'Flujo operativo' },
   { group: 'Administracion', key: 'usuarios', label: 'Usuarios' },
