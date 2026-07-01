@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import type { PageKey } from '../../app/app.types';
-import { getSwaggerUrl } from '../../services/api/apiClient';
 import { getDashboardResumen } from '../../services/api/dashboard.api';
-import type { LoginResponseUsuario } from '../../types/auth.types';
 import type { CatalogosBundle } from '../../types/catalogos.types';
 import type {
   DashboardQuery,
@@ -19,9 +16,7 @@ interface DashboardPageProps {
   apiStatusLabel: string;
   notice: string | null;
   refreshKey: number;
-  user: LoginResponseUsuario;
   runProtectedRequest: <T>(action: (token: string) => Promise<T>) => Promise<T>;
-  onNavigate: (page: PageKey) => void;
 }
 
 interface DashboardFilters {
@@ -46,29 +41,6 @@ interface ChartDatum {
   value: number;
   hint?: string;
 }
-
-const QUICK_ACTIONS: Array<{ key: PageKey; label: string; description: string }> = [
-  {
-    key: 'infracciones',
-    label: 'Control operativo',
-    description: 'Revisar pago, liberacion y salida',
-  },
-  {
-    key: 'nueva-infraccion',
-    label: 'Nueva infraccion',
-    description: 'Captura inicial del folio',
-  },
-  {
-    key: 'encierros-vehiculos',
-    label: 'Inventario de encierros',
-    description: 'Vehiculos retenidos y pendientes',
-  },
-  {
-    key: 'reportes-infracciones',
-    label: 'Reportes',
-    description: 'Exportacion y consulta avanzada',
-  },
-];
 
 const ESTADO_LABELS: Record<EstadoOperativoVehiculo, string> = {
   SIN_RETENCION: 'Sin retencion',
@@ -261,9 +233,7 @@ function DashboardPage({
   apiStatusLabel,
   notice,
   refreshKey,
-  user,
   runProtectedRequest,
-  onNavigate,
 }: DashboardPageProps) {
   const [filters, setFilters] = useState<DashboardFilters>(() => createDefaultFilters());
   const [appliedFilters, setAppliedFilters] = useState<DashboardFilters>(() => createDefaultFilters());
@@ -363,22 +333,6 @@ function DashboardPage({
       value: item.total,
       hint: `${formatNumber(item.sinPago)} sin pago`,
     })) ?? [];
-
-  const catalogCount = catalogs
-    ? catalogs.regiones.length +
-      catalogs.roles.length +
-      catalogs.delegaciones.length +
-      catalogs.sexos.length +
-      catalogs.servicios.length +
-      catalogs.clasesVehiculo.length +
-      catalogs.marcasVehiculo.length +
-      catalogs.lineasVehiculo.length +
-      catalogs.tiposProcedimiento.length +
-      catalogs.operativos.length +
-      catalogs.estatusInfraccion.length +
-      catalogs.motivos.length +
-      catalogs.encierros.length
-    : 0;
 
   function updateFilter<K extends keyof DashboardFilters>(key: K, value: DashboardFilters[K]): void {
     setFilters((current) => {
@@ -601,7 +555,7 @@ function DashboardPage({
           )}
         </article>
 
-        <article className="dashboard-panel">
+        <article className="dashboard-panel dashboard-panel-wide">
           <div className="dashboard-panel-header">
             <div>
               <p className="section-label">Delegaciones</p>
@@ -615,51 +569,6 @@ function DashboardPage({
             <EmptyChart message="Sin delegaciones para mostrar." />
           )}
         </article>
-
-        <article className="dashboard-panel dashboard-panel-system">
-          <div className="dashboard-panel-header">
-            <div>
-              <p className="section-label">Sistema</p>
-              <h2>Sesion y catalogos</h2>
-            </div>
-          </div>
-          <div className="dashboard-system-list">
-            <div>
-              <span>Usuario</span>
-              <strong>{user.nombreUsuario}</strong>
-              <small>{user.email}</small>
-            </div>
-            <div>
-              <span>Rol</span>
-              <strong>{user.rol?.nombreRol ?? 'Sin rol'}</strong>
-              <small>{user.activo ? 'Usuario activo' : 'Usuario inactivo'}</small>
-            </div>
-            <div>
-              <span>Catalogos</span>
-              <strong>{catalogs ? `${formatNumber(catalogCount)} registros` : 'Cargando'}</strong>
-              <a className="inline-link" href={getSwaggerUrl()} target="_blank" rel="noreferrer">
-                Swagger / docs
-              </a>
-            </div>
-          </div>
-        </article>
-      </section>
-
-      <section className="dashboard-actions-panel">
-        <div className="dashboard-panel-header">
-          <div>
-            <p className="section-label">Acciones rapidas</p>
-            <h2>Navegacion operativa</h2>
-          </div>
-        </div>
-        <div className="dashboard-actions-grid">
-          {QUICK_ACTIONS.map((action) => (
-            <button key={action.key} className="button-secondary" type="button" onClick={() => onNavigate(action.key)}>
-              <strong>{action.label}</strong>
-              <small>{action.description}</small>
-            </button>
-          ))}
-        </div>
       </section>
     </section>
   );
