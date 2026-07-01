@@ -284,8 +284,6 @@ function App() {
           notice={dashboardState.error}
           refreshKey={refreshKey}
           runProtectedRequest={runProtectedRequest}
-          user={session.user}
-          onNavigate={handleNavigate}
         />
       ) : null}
 
