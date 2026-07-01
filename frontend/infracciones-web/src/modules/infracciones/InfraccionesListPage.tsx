@@ -660,11 +660,11 @@ function InfraccionesListPage({
               <thead>
                 <tr>
                   <th>Folio</th>
-                  <th>Vehiculo</th>
+                  <th>Vehículo</th>
                   <th>Infractor</th>
                   <th>Encierro / Ingreso</th>
                   <th>Estado actual</th>
-                  <th>Siguiente accion</th>
+                  <th>Siguiente acción</th>
                   <th>Detalle</th>
                 </tr>
               </thead>

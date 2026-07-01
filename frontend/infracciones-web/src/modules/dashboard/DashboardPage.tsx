@@ -1,4 +1,4 @@
-import { swaggerUrl } from "../../services/api/apiClient";
+import { getSwaggerUrl } from "../../services/api/apiClient";
 import type { LoginResponseUsuario } from "../../types/auth.types";
 import type { CatalogosBundle } from "../../types/catalogos.types";
 import type { PaginationMeta } from "../../types/infracciones.types";
@@ -90,7 +90,7 @@ function DashboardPage({
           </h2>
           <a
             className="inline-link"
-            href={swaggerUrl}
+            href={getSwaggerUrl()}
             target="_blank"
             rel="noreferrer"
           >

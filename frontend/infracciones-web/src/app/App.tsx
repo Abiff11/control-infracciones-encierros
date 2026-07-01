@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
 import { useAuth } from '../hooks/useAuth';
 import { useCatalogos } from '../hooks/useCatalogos';
-import { swaggerUrl } from '../services/api/apiClient';
+import { getSwaggerUrl } from '../services/api/apiClient';
 import { createRetencion, createSalida } from '../services/api/encierros.api';
 import { createLiberacion } from '../services/api/liberaciones.api';
 import { createPago } from '../services/api/pagos.api';
@@ -243,7 +243,7 @@ function App() {
           items={NAV_ITEMS}
           onLogout={logout}
           onNavigate={handleNavigate}
-          swaggerUrl={swaggerUrl}
+          swaggerUrl={getSwaggerUrl()}
           user={session.user}
         />
       }

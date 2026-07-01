@@ -103,10 +103,9 @@ export function useAuth() {
 
   const logout = useCallback(async (): Promise<void> => {
     setAuthLoading(true);
+    const token = session?.token;
 
     try {
-      const token = session?.token;
-
       if (token) {
         await logoutRequest(token);
       } else {
@@ -120,7 +119,7 @@ export function useAuth() {
       setAuthLoading(false);
       setBootstrapping(false);
     }
-  }, [session?.token]);
+  }, [session]);
 
   const runProtectedRequest = useCallback(
     async <T,>(action: (token: string) => Promise<T>): Promise<T> => {
