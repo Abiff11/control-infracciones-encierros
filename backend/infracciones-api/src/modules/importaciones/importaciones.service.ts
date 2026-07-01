@@ -109,12 +109,30 @@ export interface ImportacionDetalleResponse {
 }
 
 const CHUNK_SIZE = 250;
+const FOLIO_PREFETCH_BATCH_SIZE = 1000;
+const ERROR_BATCH_SIZE = 500;
 
 export interface UploadedImportFile {
   buffer: Buffer;
   originalname: string;
   size: number;
   mimetype?: string;
+}
+
+type CatalogCache<T> = Map<string, T | null>;
+
+interface ImportCatalogCaches {
+  delegaciones: CatalogCache<Delegacion>;
+  sexos: CatalogCache<Sexo>;
+  servicios: CatalogCache<Servicio>;
+  clasesVehiculo: CatalogCache<ClaseVehiculo>;
+  marcasVehiculo: CatalogCache<MarcaVehiculo>;
+  lineasVehiculo: CatalogCache<LineaVehiculo>;
+  tiposProcedimiento: CatalogCache<TipoProcedimiento>;
+  estatusInfraccion: CatalogCache<EstatusInfraccion>;
+  operativos: CatalogCache<Operativo>;
+  encierros: CatalogCache<Encierro>;
+  motivos: CatalogCache<Motivo>;
 }
 
 @Injectable()
@@ -241,6 +259,9 @@ export class ImportacionesService {
       : null;
     const creator = await this.findUsuarioByIdOrFail(idUsuario);
     const officialMotivos = await this.getOfficialMotivosByKey();
+    const importCatalogCaches = this.createImportCatalogCaches(officialMotivos);
+    const existingFolios = await this.prefetchExistingFolios(normalizedRows);
+    const importedFolios = new Set<string>();
 
     const importacion = await this.importacionesRepository.save(
       this.importacionesRepository.create({
@@ -278,7 +299,9 @@ export class ImportacionesService {
             dto,
             region,
             delegacionDefault,
-            officialMotivos,
+            importCatalogCaches,
+            existingFolios,
+            importedFolios,
             idUsuario,
             importacion,
           });
@@ -308,12 +331,13 @@ export class ImportacionesService {
               }),
             );
           }
+
+          if (errorsToPersist.length >= ERROR_BATCH_SIZE) {
+            await this.flushImportErrors(errorsToPersist);
+          }
         }
 
-        if (errorsToPersist.length > 0) {
-          await this.importacionErroresRepository.save(errorsToPersist);
-          errorsToPersist.length = 0;
-        }
+        await this.flushImportErrors(errorsToPersist);
       }
 
       importacion.filasValidas = filasValidas;
@@ -426,7 +450,9 @@ export class ImportacionesService {
     dto: ConfirmarInfraccionesExcelDto;
     region: Region;
     delegacionDefault: Delegacion | null;
-    officialMotivos: Map<string, Motivo>;
+    importCatalogCaches: ImportCatalogCaches;
+    existingFolios: Set<string>;
+    importedFolios: Set<string>;
     idUsuario: number;
     importacion: ImportacionInfracciones;
   }): Promise<ImportRowResult> {
@@ -468,11 +494,11 @@ export class ImportacionesService {
       };
     }
 
-    const existingInfraccion = await this.infraccionesRepository.findOne({
-      where: { folioInfraccion: params.row.folioInfraccion },
-    });
+    const folioInfraccion = params.row.folioInfraccion;
+    const folioYaImportado = params.importedFolios.has(folioInfraccion);
+    const folioExisteEnBD = params.existingFolios.has(folioInfraccion);
 
-    if (existingInfraccion) {
+    if (folioYaImportado || folioExisteEnBD) {
       if (
         params.dto.modoDuplicados ===
         ImportacionInfraccionesModoDuplicados.OMITIR
@@ -481,7 +507,7 @@ export class ImportacionesService {
           numeroFila: params.row.numeroFila,
           tipo: RowIssueType.ADVERTENCIA,
           campo: 'folioInfraccion',
-          valor: params.row.folioInfraccion,
+          valor: folioInfraccion,
           mensaje: 'El folio ya existe. La fila se omite.',
         });
         return {
@@ -496,7 +522,7 @@ export class ImportacionesService {
         numeroFila: params.row.numeroFila,
         tipo: RowIssueType.ERROR,
         campo: 'folioInfraccion',
-        valor: params.row.folioInfraccion,
+        valor: folioInfraccion,
         mensaje: 'El folio ya existe. No se importara la fila.',
       });
       return {
@@ -512,6 +538,7 @@ export class ImportacionesService {
       params.region,
       params.dto.crearDelegacionesFaltantes,
       params.delegacionDefault,
+      params.importCatalogCaches.delegaciones,
     );
     if (resolvedDelegacion.issue) {
       issues.push({
@@ -526,6 +553,7 @@ export class ImportacionesService {
       params.dto.crearCatalogosFaltantes,
       'nombreSexo',
       'Sexo',
+      params.importCatalogCaches.sexos,
     );
     if (resolvedSexo.issue) {
       issues.push({ ...resolvedSexo.issue, numeroFila: params.row.numeroFila });
@@ -537,6 +565,7 @@ export class ImportacionesService {
       params.dto.crearCatalogosFaltantes,
       'nombreServicio',
       'Servicio',
+      params.importCatalogCaches.servicios,
     );
     if (resolvedServicio.issue) {
       issues.push({
@@ -551,6 +580,7 @@ export class ImportacionesService {
       params.dto.crearCatalogosFaltantes,
       'nombreClaseVehiculo',
       'Clase vehiculo',
+      params.importCatalogCaches.clasesVehiculo,
     );
     if (resolvedClase.issue) {
       issues.push({
@@ -565,6 +595,7 @@ export class ImportacionesService {
       params.dto.crearCatalogosFaltantes,
       'nombreMarcaVehiculo',
       'Marca vehiculo',
+      params.importCatalogCaches.marcasVehiculo,
     );
     if (resolvedMarca.issue) {
       issues.push({
@@ -577,6 +608,7 @@ export class ImportacionesService {
       resolvedMarca.value,
       normalizeCatalogText(params.row.tipo),
       params.dto.crearCatalogosFaltantes,
+      params.importCatalogCaches.lineasVehiculo,
     );
     if (resolvedLinea.issue) {
       issues.push({
@@ -591,6 +623,7 @@ export class ImportacionesService {
       params.dto.crearCatalogosFaltantes,
       'nombreTipoProcedimiento',
       'Tipo procedimiento',
+      params.importCatalogCaches.tiposProcedimiento,
     );
     if (resolvedTipoProcedimiento.issue) {
       issues.push({
@@ -605,6 +638,7 @@ export class ImportacionesService {
       params.dto.crearCatalogosFaltantes,
       'nombreEstatus',
       'Estatus infraccion',
+      params.importCatalogCaches.estatusInfraccion,
     );
     if (resolvedEstatus.issue) {
       issues.push({
@@ -616,6 +650,7 @@ export class ImportacionesService {
     const resolvedOperativo = await this.resolveOperativo(
       params.row.operativo,
       params.dto.crearCatalogosFaltantes,
+      params.importCatalogCaches.operativos,
     );
     if (resolvedOperativo.issue) {
       issues.push({
@@ -627,7 +662,7 @@ export class ImportacionesService {
     const motivosResolvidos = await this.resolveMotivos(
       params.row.motivos,
       params.row.numeroFila,
-      params.officialMotivos,
+      params.importCatalogCaches.motivos,
       params.dto.crearCatalogosFaltantes,
     );
     issues.push(...motivosResolvidos.issues);
@@ -728,6 +763,7 @@ export class ImportacionesService {
       const resolvedEncierro = await this.resolveEncierro(
         params.row.encierro,
         params.dto.crearCatalogosFaltantes,
+        params.importCatalogCaches.encierros,
       );
 
       if (resolvedEncierro.issue) {
@@ -761,6 +797,8 @@ export class ImportacionesService {
       }
     }
 
+    params.importedFolios.add(folioInfraccion);
+
     return {
       valid: true,
       imported: true,
@@ -772,7 +810,7 @@ export class ImportacionesService {
   private async resolveMotivos(
     motivosClaves: string[],
     numeroFila: number,
-    officialMotivos: Map<string, Motivo>,
+    motivosCache: CatalogCache<Motivo>,
     crearCatalogosFaltantes: boolean,
   ): Promise<{
     motivos: Motivo[];
@@ -787,16 +825,23 @@ export class ImportacionesService {
         continue;
       }
 
-      let motivo: Motivo | null = officialMotivos.get(motivoKey) ?? null;
+      let motivo: Motivo | null = null;
 
-      if (!motivo) {
+      if (motivosCache.has(motivoKey)) {
+        motivo = motivosCache.get(motivoKey) ?? null;
+      } else {
         motivo = await this.motivosRepository.findOne({
           where: { nombreMotivo: motivoKey },
         });
+
+        if (motivo) {
+          motivosCache.set(motivoKey, motivo);
+        }
       }
 
       if (!motivo) {
         if (!crearCatalogosFaltantes) {
+          motivosCache.set(motivoKey, null);
           issues.push({
             numeroFila,
             tipo: RowIssueType.ERROR,
@@ -814,9 +859,7 @@ export class ImportacionesService {
             descripcionMotivo: motivoKey,
           }),
         );
-        officialMotivos.set(motivoKey, motivo);
-      } else if (!officialMotivos.has(motivoKey)) {
-        officialMotivos.set(motivoKey, motivo);
+        motivosCache.set(motivoKey, motivo);
       }
 
       if (!motivo) {
@@ -839,6 +882,7 @@ export class ImportacionesService {
     region: Region,
     crearDelegacionesFaltantes: boolean,
     delegacionDefault: Delegacion | null,
+    cache: CatalogCache<Delegacion>,
   ): Promise<CatalogResolutionResult<Delegacion>> {
     if (!delegacionName && delegacionDefault) {
       return { value: delegacionDefault, created: false };
@@ -862,6 +906,41 @@ export class ImportacionesService {
       };
     }
 
+    const cacheKey = this.buildDelegacionCacheKey(
+      region.idRegion,
+      normalizedName,
+    );
+    if (cache.has(cacheKey)) {
+      const cached = cache.get(cacheKey) ?? null;
+      if (cached) {
+        return { value: cached, created: false };
+      }
+
+      if (!crearDelegacionesFaltantes) {
+        return {
+          value: null,
+          created: false,
+          issue: {
+            tipo: RowIssueType.ERROR,
+            campo: 'delegacion',
+            valor: normalizedName,
+            mensaje:
+              'La delegacion no existe y la creacion automatica esta deshabilitada.',
+          },
+        };
+      }
+
+      const created = await this.delegacionesRepository.save(
+        this.delegacionesRepository.create({
+          region,
+          nombreDelegacion: normalizedName,
+        }),
+      );
+
+      cache.set(cacheKey, created);
+      return { value: created, created: true };
+    }
+
     const existing = await this.delegacionesRepository.findOne({
       where: {
         region: { idRegion: region.idRegion },
@@ -870,10 +949,12 @@ export class ImportacionesService {
     });
 
     if (existing) {
+      cache.set(cacheKey, existing);
       return { value: existing, created: false };
     }
 
     if (!crearDelegacionesFaltantes) {
+      cache.set(cacheKey, null);
       return {
         value: null,
         created: false,
@@ -894,24 +975,58 @@ export class ImportacionesService {
       }),
     );
 
+    cache.set(cacheKey, created);
     return { value: created, created: true };
   }
 
   private async resolveOperativo(
     operativoName: string | null,
     crearCatalogosFaltantes: boolean,
+    cache: CatalogCache<Operativo>,
   ): Promise<CatalogResolutionResult<Operativo>> {
     const normalizedName =
       operativoName?.trim().toUpperCase() || 'OPERATIVO GENERAL';
+    if (cache.has(normalizedName)) {
+      const cached = cache.get(normalizedName) ?? null;
+      if (cached) {
+        return { value: cached, created: false };
+      }
+
+      if (!crearCatalogosFaltantes) {
+        return {
+          value: null,
+          created: false,
+          issue: {
+            tipo: RowIssueType.ERROR,
+            campo: 'operativo',
+            valor: normalizedName,
+            mensaje:
+              'El operativo no existe y la creacion automatica esta deshabilitada.',
+          },
+        };
+      }
+
+      const created = await this.operativosRepository.save(
+        this.operativosRepository.create({
+          nombreOperativo: normalizedName,
+        }),
+      );
+
+      cache.set(normalizedName, created);
+      return { value: created, created: true };
+    }
+
     const existing = await this.operativosRepository.findOne({
       where: { nombreOperativo: normalizedName },
     });
 
     if (existing) {
+      cache.set(normalizedName, existing);
       return { value: existing, created: false };
     }
 
     if (!crearCatalogosFaltantes) {
+      cache.set(normalizedName, null);
       return {
         value: null,
         created: false,
@@ -931,12 +1046,14 @@ export class ImportacionesService {
       }),
     );
 
+    cache.set(normalizedName, created);
     return { value: created, created: true };
   }
 
   private async resolveEncierro(
     encierroName: string | null,
     crearCatalogosFaltantes: boolean,
+    cache: CatalogCache<Encierro>,
   ): Promise<CatalogResolutionResult<Encierro>> {
     const normalizedName = encierroName?.trim().toUpperCase() || null;
 
@@ -953,15 +1070,46 @@ export class ImportacionesService {
       };
     }
 
+    if (cache.has(normalizedName)) {
+      const cached = cache.get(normalizedName) ?? null;
+      if (cached) {
+        return { value: cached, created: false };
+      }
+
+      if (!crearCatalogosFaltantes) {
+        return {
+          value: null,
+          created: false,
+          issue: {
+            tipo: RowIssueType.ADVERTENCIA,
+            campo: 'encierro',
+            valor: normalizedName,
+            mensaje: 'No se pudo resolver el encierro para la retencion.',
+          },
+        };
+      }
+
+      const created = await this.encierrosRepository.save(
+        this.encierrosRepository.create({
+          nombreEncierro: normalizedName,
+        }),
+      );
+
+      cache.set(normalizedName, created);
+      return { value: created, created: true };
+    }
+
     const existing = await this.encierrosRepository.findOne({
       where: { nombreEncierro: normalizedName },
     });
 
     if (existing) {
+      cache.set(normalizedName, existing);
       return { value: existing, created: false };
     }
 
     if (!crearCatalogosFaltantes) {
+      cache.set(normalizedName, null);
       return {
         value: null,
         created: false,
@@ -980,6 +1128,7 @@ export class ImportacionesService {
       }),
     );
 
+    cache.set(normalizedName, created);
     return { value: created, created: true };
   }
 
@@ -987,6 +1136,7 @@ export class ImportacionesService {
     marcaVehiculo: MarcaVehiculo | null,
     lineaName: string | null,
     crearCatalogosFaltantes: boolean,
+    cache: CatalogCache<LineaVehiculo>,
   ): Promise<CatalogResolutionResult<LineaVehiculo>> {
     if (!marcaVehiculo || !lineaName) {
       return {
@@ -1001,6 +1151,41 @@ export class ImportacionesService {
       };
     }
 
+    const cacheKey = this.buildLineaVehiculoCacheKey(
+      marcaVehiculo.idMarcaVehiculo,
+      lineaName,
+    );
+    if (cache.has(cacheKey)) {
+      const cached = cache.get(cacheKey) ?? null;
+      if (cached) {
+        return { value: cached, created: false };
+      }
+
+      if (!crearCatalogosFaltantes) {
+        return {
+          value: null,
+          created: false,
+          issue: {
+            tipo: RowIssueType.ERROR,
+            campo: 'lineaVehiculo',
+            valor: lineaName,
+            mensaje:
+              'La linea no existe y la creacion automatica esta deshabilitada.',
+          },
+        };
+      }
+
+      const created = await this.lineasVehiculoRepository.save(
+        this.lineasVehiculoRepository.create({
+          marcaVehiculo,
+          nombreLineaVehiculo: lineaName,
+        }),
+      );
+
+      cache.set(cacheKey, created);
+      return { value: created, created: true };
+    }
+
     const existing = await this.lineasVehiculoRepository.findOne({
       where: {
         marcaVehiculo: { idMarcaVehiculo: marcaVehiculo.idMarcaVehiculo },
@@ -1009,10 +1194,12 @@ export class ImportacionesService {
     });
 
     if (existing) {
+      cache.set(cacheKey, existing);
       return { value: existing, created: false };
     }
 
     if (!crearCatalogosFaltantes) {
+      cache.set(cacheKey, null);
       return {
         value: null,
         created: false,
@@ -1033,6 +1220,7 @@ export class ImportacionesService {
       }),
     );
 
+    cache.set(cacheKey, created);
     return { value: created, created: true };
   }
 
@@ -1042,6 +1230,7 @@ export class ImportacionesService {
     crearCatalogosFaltantes: boolean,
     propertyName: keyof T & string,
     label: string,
+    cache: CatalogCache<T>,
   ): Promise<CatalogResolutionResult<T>> {
     if (!value) {
       return {
@@ -1057,15 +1246,45 @@ export class ImportacionesService {
     }
 
     const criteria = { [propertyName]: value } as FindOptionsWhere<T>;
+
+    if (cache.has(value)) {
+      const cached = cache.get(value) ?? null;
+      if (cached) {
+        return { value: cached, created: false };
+      }
+
+      if (!crearCatalogosFaltantes) {
+        return {
+          value: null,
+          created: false,
+          issue: {
+            tipo: RowIssueType.ERROR,
+            campo: String(propertyName),
+            valor: value,
+            mensaje: `${label} no existe y la creacion automatica esta deshabilitada.`,
+          },
+        };
+      }
+
+      const created = await repository.save(
+        repository.create(criteria as DeepPartial<T>),
+      );
+
+      cache.set(value, created);
+      return { value: created, created: true };
+    }
+
     const existing = await repository.findOne({
       where: criteria,
     });
 
     if (existing) {
+      cache.set(value, existing);
       return { value: existing, created: false };
     }
 
     if (!crearCatalogosFaltantes) {
+      cache.set(value, null);
       return {
         value: null,
         created: false,
@@ -1082,12 +1301,88 @@ export class ImportacionesService {
       repository.create(criteria as DeepPartial<T>),
     );
 
+    cache.set(value, created);
     return { value: created, created: true };
   }
 
   private async getOfficialMotivosByKey(): Promise<Map<string, Motivo>> {
     const motivos = await this.motivosRepository.find();
     return new Map(motivos.map((motivo) => [motivo.nombreMotivo, motivo]));
+  }
+
+  private createImportCatalogCaches(
+    officialMotivos: Map<string, Motivo>,
+  ): ImportCatalogCaches {
+    return {
+      delegaciones: new Map<string, Delegacion | null>(),
+      sexos: new Map<string, Sexo | null>(),
+      servicios: new Map<string, Servicio | null>(),
+      clasesVehiculo: new Map<string, ClaseVehiculo | null>(),
+      marcasVehiculo: new Map<string, MarcaVehiculo | null>(),
+      lineasVehiculo: new Map<string, LineaVehiculo | null>(),
+      tiposProcedimiento: new Map<string, TipoProcedimiento | null>(),
+      estatusInfraccion: new Map<string, EstatusInfraccion | null>(),
+      operativos: new Map<string, Operativo | null>(),
+      encierros: new Map<string, Encierro | null>(),
+      motivos: new Map<string, Motivo | null>(officialMotivos),
+    };
+  }
+
+  private async prefetchExistingFolios(
+    rows: NormalizedInfraccionesExcelRow[],
+  ): Promise<Set<string>> {
+    const folios = Array.from(
+      new Set(
+        rows
+          .map((row) => row.folioInfraccion)
+          .filter((folio): folio is string => Boolean(folio)),
+      ),
+    );
+
+    const existingFolios = new Set<string>();
+
+    for (const chunk of this.chunkRows(folios, FOLIO_PREFETCH_BATCH_SIZE)) {
+      const registros = await this.infraccionesRepository
+        .createQueryBuilder('infraccion')
+        .select('infraccion.folioInfraccion', 'folioInfraccion')
+        .where('infraccion.folioInfraccion IN (:...folios)', {
+          folios: chunk,
+        })
+        .getRawMany<{ folioInfraccion: string }>();
+
+      for (const registro of registros) {
+        if (registro.folioInfraccion) {
+          existingFolios.add(registro.folioInfraccion);
+        }
+      }
+    }
+
+    return existingFolios;
+  }
+
+  private async flushImportErrors(
+    errorsToPersist: ImportacionInfraccionError[],
+  ): Promise<void> {
+    if (!errorsToPersist.length) {
+      return;
+    }
+
+    await this.importacionErroresRepository.save(errorsToPersist);
+    errorsToPersist.length = 0;
+  }
+
+  private buildDelegacionCacheKey(
+    idRegion: number,
+    nombreDelegacion: string,
+  ): string {
+    return `${idRegion}::${nombreDelegacion}`;
+  }
+
+  private buildLineaVehiculoCacheKey(
+    idMarcaVehiculo: number,
+    nombreLineaVehiculo: string,
+  ): string {
+    return `${idMarcaVehiculo}::${nombreLineaVehiculo}`;
   }
 
   private collectPreviewSets(
