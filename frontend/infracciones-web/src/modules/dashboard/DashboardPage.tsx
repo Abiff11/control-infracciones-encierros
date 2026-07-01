@@ -9,6 +9,7 @@ import type {
 import type { EstadoOperativoVehiculo } from '../../types/infracciones.types';
 
 import './DashboardPage.css';
+import './DashboardExtra.css';
 
 interface DashboardPageProps {
   catalogs: CatalogosBundle | null;
