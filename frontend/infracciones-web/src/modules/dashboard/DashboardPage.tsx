@@ -6,13 +6,12 @@ import type {
   DashboardQuery,
   DashboardResumenResponse,
 } from '../../types/dashboard.types';
-import type { EstadoOperativoVehiculo, PaginationMeta } from '../../types/infracciones.types';
+import type { EstadoOperativoVehiculo } from '../../types/infracciones.types';
 
 import './DashboardPage.css';
 
 interface DashboardPageProps {
   catalogs: CatalogosBundle | null;
-  infraccionesMeta: PaginationMeta | null;
   apiStatusLabel: string;
   notice: string | null;
   refreshKey: number;
@@ -229,7 +228,6 @@ function EmptyChart({ message }: { message: string }) {
 
 function DashboardPage({
   catalogs,
-  infraccionesMeta,
   apiStatusLabel,
   notice,
   refreshKey,
@@ -299,7 +297,7 @@ function DashboardPage({
 
   const data = dashboardState.data;
   const resumen = data?.resumen;
-  const totalInfracciones = resumen?.totalInfracciones ?? infraccionesMeta?.total ?? 0;
+  const totalInfracciones = resumen?.totalInfracciones ?? 0;
   const vehiculosRetenidos = resumen?.totalVehiculosRetenidos ?? 0;
   const pendientesPago = resumen?.totalSinPago ?? 0;
   const pagadosPorLiberar = resumen?.totalPagadosPendienteLiberacion ?? 0;

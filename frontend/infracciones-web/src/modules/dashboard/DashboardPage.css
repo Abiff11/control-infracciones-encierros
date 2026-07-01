@@ -4,8 +4,7 @@
 
 .dashboard-hero,
 .dashboard-filters,
-.dashboard-panel,
-.dashboard-actions-panel {
+.dashboard-panel {
   border: 1px solid var(--border);
   border-radius: 16px;
   background: #ffffff;
@@ -155,10 +154,6 @@
   grid-column: span 5;
 }
 
-.dashboard-panel-system {
-  grid-column: span 4;
-}
-
 .dashboard-panel-header {
   display: flex;
   align-items: flex-start;
@@ -293,70 +288,6 @@
   background: #f8fafc;
 }
 
-.dashboard-system-list {
-  display: grid;
-  gap: 12px;
-}
-
-.dashboard-system-list > div {
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: #fbfdff;
-}
-
-.dashboard-system-list span {
-  display: block;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.dashboard-system-list strong {
-  display: block;
-  margin-top: 6px;
-  color: var(--text);
-  font-size: 15px;
-}
-
-.dashboard-system-list small,
-.dashboard-system-list a {
-  display: block;
-  margin-top: 5px;
-  font-size: 12px;
-}
-
-.dashboard-actions-panel {
-  padding: 16px;
-}
-
-.dashboard-actions-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.dashboard-actions-grid button {
-  min-height: 78px;
-  display: grid;
-  align-content: center;
-  justify-items: start;
-  text-align: left;
-}
-
-.dashboard-actions-grid strong {
-  color: var(--text);
-  font-size: 13px;
-}
-
-.dashboard-actions-grid small {
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.35;
-}
-
 @media (max-width: 1280px) {
   .dashboard-filters {
     grid-template-columns: repeat(3, minmax(150px, 1fr));
@@ -367,8 +298,7 @@
   }
 
   .dashboard-panel,
-  .dashboard-panel-wide,
-  .dashboard-panel-system {
+  .dashboard-panel-wide {
     grid-column: span 6;
   }
 }
@@ -381,14 +311,12 @@
   }
 
   .dashboard-filters,
-  .dashboard-metrics-grid,
-  .dashboard-actions-grid {
+  .dashboard-metrics-grid {
     grid-template-columns: 1fr;
   }
 
   .dashboard-panel,
-  .dashboard-panel-wide,
-  .dashboard-panel-system {
+  .dashboard-panel-wide {
     grid-column: 1 / -1;
   }
 

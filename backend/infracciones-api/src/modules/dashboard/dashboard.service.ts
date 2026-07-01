@@ -4,6 +4,42 @@ import { DataSource } from 'typeorm';
 
 import { DashboardQueryDto } from './dto/dashboard-query.dto';
 
+export interface DashboardResumenResponse {
+  resumen: {
+    totalInfracciones: number;
+    totalSinRetencion: number;
+    totalVehiculosRetenidos: number;
+    totalSinPago: number;
+    totalPagadosPendienteLiberacion: number;
+    totalLiberadosPendienteSalida: number;
+    totalEntregados: number;
+  };
+  flujoOperativo: Array<{
+    estado: string;
+    label: string;
+    total: number;
+  }>;
+  infraccionesPorDia: Array<{
+    fecha: string;
+    total: number;
+  }>;
+  topDelegaciones: Array<{
+    idDelegacion: number | null;
+    nombreDelegacion: string;
+    total: number;
+  }>;
+  topEncierros: Array<{
+    idEncierro: number | null;
+    nombreEncierro: string;
+    total: number;
+    sinPago: number;
+    pagadosPendienteLiberacion: number;
+    liberadosPendienteSalida: number;
+    entregados: number;
+  }>;
+  updatedAt: string;
+}
+
 interface DashboardRawRow {
   resumen: DashboardResumen;
   flujoOperativo: DashboardFlujoItem[];
@@ -77,10 +113,14 @@ export class DashboardService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async getResumen(query: DashboardQueryDto) {
+  async getResumen(
+    query: DashboardQueryDto,
+  ): Promise<DashboardResumenResponse> {
     const { whereSql, params } = this.buildFilters(query);
     const estadoCase = this.getEstadoOperativoCase('i');
-    const estadoFilter = query.estadoOperativo ? `WHERE estado_operativo = $${params.length}` : '';
+    const estadoFilter = query.estadoOperativo
+      ? `WHERE estado_operativo = $${params.length}`
+      : '';
 
     const [row] = await this.dataSource.query<DashboardRawRow[]>(
       `
@@ -239,7 +279,9 @@ export class DashboardService {
     }
 
     if (query.idEstatusInfraccion) {
-      filters.push(`i.id_estatus_infraccion = ${addParam(query.idEstatusInfraccion)}`);
+      filters.push(
+        `i.id_estatus_infraccion = ${addParam(query.idEstatusInfraccion)}`,
+      );
     }
 
     if (query.idEncierro) {

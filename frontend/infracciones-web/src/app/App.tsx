@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { AppLayout } from '../components/layout/AppLayout';
 import { Sidebar } from '../components/layout/Sidebar';
@@ -10,11 +10,7 @@ import { getSwaggerUrl } from '../services/api/apiClient';
 import { createRetencion, createSalida } from '../services/api/encierros.api';
 import { createLiberacion } from '../services/api/liberaciones.api';
 import { createPago } from '../services/api/pagos.api';
-import {
-  createInfraccion,
-  getInfraccionFlujo,
-  getInfracciones,
-} from '../services/api/infracciones.api';
+import { createInfraccion, getInfraccionFlujo } from '../services/api/infracciones.api';
 import CatalogosPage from '../pages/CatalogosPage';
 import DashboardPage from '../modules/dashboard/DashboardPage';
 import EncierrosVehiculosPage from '../modules/encierros/EncierrosVehiculosPage';
@@ -34,7 +30,6 @@ import { NAV_ITEMS } from './navigation';
 import type {
   CreateInfraccionCompletaPayload,
   InfraccionFlujoResponse,
-  InfraccionesResponse,
 } from '../types/infracciones.types';
 import type {
   GenerarLiberacionPayload,
@@ -44,22 +39,6 @@ import type {
 } from '../types/operaciones.types';
 import '../app/App.css';
 import '../app/App.restore.css';
-
-type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
-
-interface LoadState<T> {
-  status: LoadStatus;
-  data: T | null;
-  error: string | null;
-}
-
-function createIdleState<T>(): LoadState<T> {
-  return {
-    status: 'idle',
-    data: null,
-    error: null,
-  };
-}
 
 function App() {
   const { authLoading, authMessage, bootstrapping, login, logout, runProtectedRequest, session } =
@@ -72,62 +51,11 @@ function App() {
   } = useCatalogos();
   const [currentPage, setCurrentPage] = useState<PageKey>('dashboard');
   const [refreshKey, setRefreshKey] = useState(0);
-  const [dashboardState, setDashboardState] = useState<LoadState<InfraccionesResponse>>(
-    createIdleState<InfraccionesResponse>(),
-  );
   const [pagoInitialId, setPagoInitialId] = useState<number | null>(null);
   const [liberacionInitialId, setLiberacionInitialId] = useState<number | null>(null);
   const [salidaInitialId, setSalidaInitialId] = useState<number | null>(null);
   const [operationReturnPage, setOperationReturnPage] = useState<PageKey>('infracciones');
   const isAdmin = session?.user.rol?.nombreRol === 'ADMIN';
-
-  useEffect(() => {
-    if (!session?.token) {
-      return;
-    }
-
-    let mounted = true;
-
-    async function loadDashboard(): Promise<void> {
-      setDashboardState((current) => ({
-        ...current,
-        status: 'loading',
-        error: null,
-      }));
-
-      try {
-        const response = await runProtectedRequest((token) =>
-          getInfracciones(token, { page: 1, limit: 5 }),
-        );
-
-        if (!mounted) {
-          return;
-        }
-
-        setDashboardState({
-          status: 'ready',
-          data: response,
-          error: null,
-        });
-      } catch (error) {
-        if (!mounted) {
-          return;
-        }
-
-        setDashboardState({
-          status: 'error',
-          data: null,
-          error: error instanceof Error ? error.message : 'Error desconocido',
-        });
-      }
-    }
-
-    void loadDashboard();
-
-    return () => {
-      mounted = false;
-    };
-  }, [refreshKey, runProtectedRequest, session?.token]);
 
   function bumpRefresh(): void {
     setRefreshKey((current) => current + 1);
@@ -226,14 +154,7 @@ function App() {
     return <LoginPage loading={authLoading} error={authMessage} onSubmit={login} />;
   }
 
-  const apiStatusLabel =
-    dashboardState.status === 'ready'
-      ? 'En linea'
-      : dashboardState.status === 'loading'
-        ? 'Consultando'
-        : dashboardState.status === 'error'
-          ? 'Error'
-          : 'Inactivo';
+  const apiStatusLabel = 'En linea';
 
   return (
     <AppLayout
@@ -279,9 +200,8 @@ function App() {
       {currentPage === 'dashboard' ? (
         <DashboardPage
           catalogs={catalogs}
-          infraccionesMeta={dashboardState.data?.meta ?? null}
           apiStatusLabel={apiStatusLabel}
-          notice={dashboardState.error}
+          notice={null}
           refreshKey={refreshKey}
           runProtectedRequest={runProtectedRequest}
         />
