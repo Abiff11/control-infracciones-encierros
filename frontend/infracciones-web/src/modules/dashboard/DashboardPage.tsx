@@ -35,7 +35,7 @@ interface DashboardFilters {
   idEstatusInfraccion: string;
   idEncierro: string;
   estadoOperativo: string;
-  periodo: '7' | '30' | '90' | 'custom';
+  periodo: 'all' | '7' | '30' | '90' | 'custom';
 }
 
 interface DashboardState {
@@ -52,6 +52,8 @@ interface ChartDatum {
   value: number;
   hint?: string;
 }
+
+const DASHBOARD_SAMPLE_LIMIT = 100;
 
 const QUICK_ACTIONS: Array<{ key: PageKey; label: string; description: string }> = [
   {
@@ -97,19 +99,15 @@ function formatInputDate(date: Date): string {
 }
 
 function createDefaultFilters(): DashboardFilters {
-  const today = new Date();
-  const start = new Date(today);
-  start.setDate(today.getDate() - 7);
-
   return {
-    fechaDesde: formatInputDate(start),
-    fechaHasta: formatInputDate(today),
+    fechaDesde: '',
+    fechaHasta: '',
     idRegion: '',
     idDelegacion: '',
     idEstatusInfraccion: '',
     idEncierro: '',
     estadoOperativo: '',
-    periodo: '7',
+    periodo: 'all',
   };
 }
 
@@ -118,6 +116,15 @@ function applyPeriod(filters: DashboardFilters, period: DashboardFilters['period
     return {
       ...filters,
       periodo: period,
+    };
+  }
+
+  if (period === 'all') {
+    return {
+      ...filters,
+      periodo: period,
+      fechaDesde: '',
+      fechaHasta: '',
     };
   }
 
@@ -142,7 +149,7 @@ function toOptionalNumber(value: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function buildInfraccionesQuery(filters: DashboardFilters, limit = 200): InfraccionesQuery {
+function buildInfraccionesQuery(filters: DashboardFilters, limit = DASHBOARD_SAMPLE_LIMIT): InfraccionesQuery {
   return {
     fechaDesde: filters.fechaDesde || undefined,
     fechaHasta: filters.fechaHasta || undefined,
@@ -286,13 +293,11 @@ function DashboardPage({
       }));
 
       try {
-        const query = buildInfraccionesQuery(appliedFilters, 200);
+        const query = buildInfraccionesQuery(appliedFilters, DASHBOARD_SAMPLE_LIMIT);
         const [infracciones, encierrosResumen] = await Promise.all([
           runProtectedRequest((token) => getInfracciones(token, query)),
           runProtectedRequest((token) =>
             getVehiculosEnEncierroResumen(token, {
-              fechaInfraccionDesde: appliedFilters.fechaDesde || undefined,
-              fechaInfraccionHasta: appliedFilters.fechaHasta || undefined,
               idRegion: toOptionalNumber(appliedFilters.idRegion),
               idDelegacion: toOptionalNumber(appliedFilters.idDelegacion),
               idEncierro: toOptionalNumber(appliedFilters.idEncierro),
@@ -569,6 +574,7 @@ function DashboardPage({
               )
             }
           >
+            <option value="all">Todo el historico</option>
             <option value="7">Ultimos 7 dias</option>
             <option value="30">Ultimos 30 dias</option>
             <option value="90">Ultimos 90 dias</option>
