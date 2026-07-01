@@ -4,6 +4,9 @@ import {
   InjectThrottlerOptions,
   InjectThrottlerStorage,
   ThrottlerGuard,
+  type ThrottlerGenerateKeyFunction,
+  type ThrottlerGetTrackerFunction,
+  type Resolvable,
 } from '@nestjs/throttler';
 import type { ThrottlerModuleOptions } from '@nestjs/throttler/dist/throttler-module-options.interface';
 import type { ThrottlerStorage } from '@nestjs/throttler/dist/throttler-storage.interface';
@@ -15,6 +18,16 @@ import {
   THROTTLER_TRACKER,
   THROTTLER_TTL,
 } from '@nestjs/throttler/dist/throttler.constants';
+
+interface GuardThrottler {
+  name?: string;
+  limit: Resolvable<number>;
+  ttl: Resolvable<number>;
+  blockDuration?: Resolvable<number>;
+  skipIf?: (context: ExecutionContext) => boolean;
+  getTracker?: ThrottlerGetTrackerFunction;
+  generateKey?: ThrottlerGenerateKeyFunction;
+}
 
 @Injectable()
 export class SelectiveThrottlerGuard extends ThrottlerGuard {
@@ -36,7 +49,9 @@ export class SelectiveThrottlerGuard extends ThrottlerGuard {
 
     const results: boolean[] = [];
 
-    for (const namedThrottler of this.throttlers) {
+    const throttlers = this.throttlers as GuardThrottler[];
+
+    for (const namedThrottler of throttlers) {
       const name = namedThrottler.name ?? 'default';
       const skip = this.reflector.getAllAndOverride<boolean>(
         THROTTLER_SKIP + name,
@@ -64,35 +79,30 @@ export class SelectiveThrottlerGuard extends ThrottlerGuard {
       const routeOrClassBlockDuration = this.reflector.getAllAndOverride<
         number | ((context: ExecutionContext) => number)
       >(THROTTLER_BLOCK_DURATION + name, [handler, classRef]);
-      const routeOrClassGetTracker = this.reflector.getAllAndOverride(
-        THROTTLER_TRACKER + name,
-        [handler, classRef],
-      );
-      const routeOrClassGetKeyGenerator = this.reflector.getAllAndOverride(
-        THROTTLER_KEY_GENERATOR + name,
-        [handler, classRef],
-      );
-
+      const routeOrClassGetTracker = this.reflector.getAllAndOverride<
+        ThrottlerGetTrackerFunction | undefined
+      >(THROTTLER_TRACKER + name, [handler, classRef]);
+      const routeOrClassGetKeyGenerator = this.reflector.getAllAndOverride<
+        ThrottlerGenerateKeyFunction | undefined
+      >(THROTTLER_KEY_GENERATOR + name, [handler, classRef]);
       const limit = await this.resolveThrottlerValue(
         context,
-        routeOrClassLimit || namedThrottler.limit,
+        routeOrClassLimit ?? namedThrottler.limit,
       );
       const ttl = await this.resolveThrottlerValue(
         context,
-        routeOrClassTtl || namedThrottler.ttl,
+        routeOrClassTtl ?? namedThrottler.ttl,
       );
       const blockDuration = await this.resolveThrottlerValue(
         context,
-        routeOrClassBlockDuration || namedThrottler.blockDuration || ttl,
+        routeOrClassBlockDuration ?? namedThrottler.blockDuration ?? ttl,
       );
-      const getTracker =
-        routeOrClassGetTracker ||
-        namedThrottler.getTracker ||
-        this.commonOptions.getTracker;
-      const generateKey =
-        routeOrClassGetKeyGenerator ||
-        namedThrottler.generateKey ||
-        this.commonOptions.generateKey;
+      const getTracker = (routeOrClassGetTracker ??
+        namedThrottler.getTracker ??
+        this.getTracker.bind(this)) as ThrottlerGetTrackerFunction;
+      const generateKey = (routeOrClassGetKeyGenerator ??
+        namedThrottler.generateKey ??
+        this.generateKey.bind(this)) as ThrottlerGenerateKeyFunction;
 
       results.push(
         await this.handleRequest({
@@ -110,12 +120,12 @@ export class SelectiveThrottlerGuard extends ThrottlerGuard {
     return results.every(Boolean);
   }
 
-  private async resolveThrottlerValue<T>(
+  private resolveThrottlerValue<T extends number | string | boolean>(
     context: ExecutionContext,
-    value: T | ((context: ExecutionContext) => T),
-  ) {
+    value: Resolvable<T>,
+  ): Promise<T> {
     return typeof value === 'function'
-      ? (value as (context: ExecutionContext) => T)(context)
-      : value;
+      ? Promise.resolve(value(context))
+      : Promise.resolve(value);
   }
 }
