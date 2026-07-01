@@ -29,8 +29,27 @@ interface DashboardFilters {
   periodo: 'all' | '7' | '30' | '90' | 'custom';
 }
 
+interface DashboardRevenueSeriesItem {
+  periodo: string;
+  total: number;
+}
+
+interface DashboardRevenue {
+  totalIngresos: number;
+  ingresosHoy: number;
+  ingresosMesActual: number;
+  ingresosAnioActual: number;
+  porDia: DashboardRevenueSeriesItem[];
+  porMes: DashboardRevenueSeriesItem[];
+  porAnio: DashboardRevenueSeriesItem[];
+}
+
+type DashboardResponseWithRevenue = DashboardResumenResponse & {
+  ingresos?: DashboardRevenue;
+};
+
 interface DashboardState {
-  data: DashboardResumenResponse | null;
+  data: DashboardResponseWithRevenue | null;
   loading: boolean;
   error: string | null;
 }
@@ -38,6 +57,7 @@ interface DashboardState {
 interface ChartDatum {
   label: string;
   value: number;
+  displayValue?: string;
   hint?: string;
 }
 
@@ -130,6 +150,15 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat('es-MX').format(value);
 }
 
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('es-MX', {
+    currency: 'MXN',
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+    style: 'currency',
+  }).format(value);
+}
+
 function formatDateLabel(value: string): string {
   const date = new Date(`${value}T00:00:00`);
 
@@ -140,6 +169,31 @@ function formatDateLabel(value: string): string {
   return new Intl.DateTimeFormat('es-MX', {
     day: '2-digit',
     month: 'short',
+  }).format(date);
+}
+
+function formatMonthLabel(value: string): string {
+  const date = new Date(`${value.slice(0, 10)}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('es-MX', {
+    month: 'short',
+    year: '2-digit',
+  }).format(date);
+}
+
+function formatYearLabel(value: string): string {
+  const date = new Date(`${value.slice(0, 10)}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return value.slice(0, 4);
+  }
+
+  return new Intl.DateTimeFormat('es-MX', {
+    year: 'numeric',
   }).format(date);
 }
 
@@ -197,7 +251,7 @@ function BarChart({ data }: { data: ChartDatum[] }) {
           <div className="dashboard-bar-track">
             <span style={{ width: `${Math.max((item.value / maxValue) * 100, 4)}%` }} />
           </div>
-          <strong>{formatNumber(item.value)}</strong>
+          <strong>{item.displayValue ?? formatNumber(item.value)}</strong>
         </div>
       ))}
     </div>
@@ -211,7 +265,7 @@ function ColumnChart({ data }: { data: ChartDatum[] }) {
     <div className="dashboard-column-chart">
       {data.map((item) => (
         <div className="dashboard-column-item" key={item.label}>
-          <div className="dashboard-column-value">{formatNumber(item.value)}</div>
+          <div className="dashboard-column-value">{item.displayValue ?? formatNumber(item.value)}</div>
           <div className="dashboard-column-track">
             <span style={{ height: `${Math.max((item.value / maxValue) * 100, 8)}%` }} />
           </div>
@@ -262,7 +316,7 @@ function DashboardPage({
         }
 
         setDashboardState({
-          data: response,
+          data: response as DashboardResponseWithRevenue,
           loading: false,
           error: null,
         });
@@ -297,12 +351,17 @@ function DashboardPage({
 
   const data = dashboardState.data;
   const resumen = data?.resumen;
+  const ingresos = data?.ingresos;
   const totalInfracciones = resumen?.totalInfracciones ?? 0;
   const vehiculosRetenidos = resumen?.totalVehiculosRetenidos ?? 0;
   const pendientesPago = resumen?.totalSinPago ?? 0;
   const pagadosPorLiberar = resumen?.totalPagadosPendienteLiberacion ?? 0;
   const liberadosPorEntregar = resumen?.totalLiberadosPendienteSalida ?? 0;
   const entregados = resumen?.totalEntregados ?? 0;
+  const totalIngresos = ingresos?.totalIngresos ?? 0;
+  const ingresosHoy = ingresos?.ingresosHoy ?? 0;
+  const ingresosMesActual = ingresos?.ingresosMesActual ?? 0;
+  const ingresosAnioActual = ingresos?.ingresosAnioActual ?? 0;
 
   const estadoChartData: ChartDatum[] = ESTADOS_OPERATIVOS.map((estadoOperativo) => {
     const item = data?.flujoOperativo.find((current) => current.estado === estadoOperativo);
@@ -330,6 +389,27 @@ function DashboardPage({
       label: item.nombreEncierro,
       value: item.total,
       hint: `${formatNumber(item.sinPago)} sin pago`,
+    })) ?? [];
+
+  const ingresosPorDiaChartData: ChartDatum[] =
+    ingresos?.porDia.map((item) => ({
+      displayValue: formatCurrency(item.total),
+      label: formatDateLabel(item.periodo),
+      value: item.total,
+    })) ?? [];
+
+  const ingresosPorMesChartData: ChartDatum[] =
+    ingresos?.porMes.map((item) => ({
+      displayValue: formatCurrency(item.total),
+      label: formatMonthLabel(item.periodo),
+      value: item.total,
+    })) ?? [];
+
+  const ingresosPorAnioChartData: ChartDatum[] =
+    ingresos?.porAnio.map((item) => ({
+      displayValue: formatCurrency(item.total),
+      label: formatYearLabel(item.periodo),
+      value: item.total,
     })) ?? [];
 
   function updateFilter<K extends keyof DashboardFilters>(key: K, value: DashboardFilters[K]): void {
@@ -364,7 +444,7 @@ function DashboardPage({
           <p className="eyebrow">Dashboard</p>
           <h1>Resumen general del sistema</h1>
           <p className="page-description">
-            Indicadores principales de infracciones, encierros, pago, liberacion y salida de vehiculos.
+            Indicadores principales de infracciones, encierros, pago, liberacion, salida de vehiculos e ingresos.
           </p>
         </div>
         <div className="dashboard-refresh-box">
@@ -512,6 +592,21 @@ function DashboardPage({
         <MetricCard accent="teal" label="Entregados" value={formatNumber(entregados)} helper="Flujo concluido" />
       </section>
 
+      <section className="dashboard-section-heading">
+        <div>
+          <p className="section-label">Ingresos</p>
+          <h2>Recaudacion por pagos registrados</h2>
+        </div>
+        <span>Segmentado por dia, mes y anio</span>
+      </section>
+
+      <section className="dashboard-revenue-grid" aria-label="Indicadores de ingresos">
+        <MetricCard accent="green" label="Ingresos totales" value={formatCurrency(totalIngresos)} helper="Pagos segun filtros" />
+        <MetricCard accent="teal" label="Ingresos de hoy" value={formatCurrency(ingresosHoy)} helper="Fecha de pago del dia" />
+        <MetricCard accent="blue" label="Ingresos del mes" value={formatCurrency(ingresosMesActual)} helper="Mes calendario actual" />
+        <MetricCard accent="purple" label="Ingresos del anio" value={formatCurrency(ingresosAnioActual)} helper="Anio calendario actual" />
+      </section>
+
       {dashboardState.loading ? <p className="notice">Actualizando indicadores del dashboard...</p> : null}
       {dashboardState.error || notice ? (
         <div className="notice notice-error">{dashboardState.error ?? notice}</div>
@@ -565,6 +660,51 @@ function DashboardPage({
             <BarChart data={delegacionChartData} />
           ) : (
             <EmptyChart message="Sin delegaciones para mostrar." />
+          )}
+        </article>
+
+        <article className="dashboard-panel">
+          <div className="dashboard-panel-header">
+            <div>
+              <p className="section-label">Ingresos</p>
+              <h2>Ingresos por dia</h2>
+            </div>
+            <span>Fecha de pago</span>
+          </div>
+          {ingresosPorDiaChartData.length ? (
+            <ColumnChart data={ingresosPorDiaChartData} />
+          ) : (
+            <EmptyChart message="Sin pagos registrados para graficar." />
+          )}
+        </article>
+
+        <article className="dashboard-panel">
+          <div className="dashboard-panel-header">
+            <div>
+              <p className="section-label">Ingresos</p>
+              <h2>Ingresos por mes</h2>
+            </div>
+            <span>Fecha de pago</span>
+          </div>
+          {ingresosPorMesChartData.length ? (
+            <BarChart data={ingresosPorMesChartData} />
+          ) : (
+            <EmptyChart message="Sin pagos mensuales para graficar." />
+          )}
+        </article>
+
+        <article className="dashboard-panel">
+          <div className="dashboard-panel-header">
+            <div>
+              <p className="section-label">Ingresos</p>
+              <h2>Ingresos por anio</h2>
+            </div>
+            <span>Fecha de pago</span>
+          </div>
+          {ingresosPorAnioChartData.length ? (
+            <BarChart data={ingresosPorAnioChartData} />
+          ) : (
+            <EmptyChart message="Sin pagos anuales para graficar." />
           )}
         </article>
       </section>
