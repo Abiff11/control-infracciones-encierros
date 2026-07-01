@@ -282,6 +282,8 @@ function App() {
           infraccionesMeta={dashboardState.data?.meta ?? null}
           apiStatusLabel={apiStatusLabel}
           notice={dashboardState.error}
+          refreshKey={refreshKey}
+          runProtectedRequest={runProtectedRequest}
           user={session.user}
           onNavigate={handleNavigate}
         />
