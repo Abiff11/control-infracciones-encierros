@@ -18,7 +18,7 @@ interface GenerarLiberacionParams {
   idUsuarioLibera: number;
   folioLiberacion: string;
   liberadoPor: string;
-  nombreRecibeLiberacion: string;
+  nombreRecibeLiberacion?: string | null;
   fechaLiberacion?: string | Date;
   observacion?: string | null;
 }
@@ -76,7 +76,7 @@ export class LiberacionesService {
       folioLiberacion: params.folioLiberacion,
       fechaLiberacion: normalizeDate(params.fechaLiberacion),
       liberadoPor: params.liberadoPor,
-      nombreRecibeLiberacion: params.nombreRecibeLiberacion,
+      nombreRecibeLiberacion: params.nombreRecibeLiberacion ?? null,
       observacion: params.observacion ?? null,
     });
 
@@ -101,6 +101,7 @@ export class LiberacionesService {
         idInfraccion: params.idInfraccion,
         idPagoInfraccion: params.idPagoInfraccion,
         folioLiberacion: params.folioLiberacion,
+        responsableLibera: params.liberadoPor,
         fechaLiberacion: params.fechaLiberacion,
       },
     });
