@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 
 import { OperationResultCard } from "../../components/operation/OperationResultCard";
 import type { RegistrarPagoPayload } from "../../types/operaciones.types";
@@ -20,6 +20,16 @@ function isFilled(value: string): boolean {
   return value.trim() !== "";
 }
 
+function toMoney(value: string): string {
+  const numericValue = Number(value || "0");
+
+  if (!Number.isFinite(numericValue) || numericValue < 0) {
+    return "0.00";
+  }
+
+  return numericValue.toFixed(2);
+}
+
 interface PagoCreatePageProps {
   onCompleted: () => void;
   onSubmit: (payload: RegistrarPagoPayload) => Promise<unknown>;
@@ -30,7 +40,9 @@ function createInitialForm(initialIdInfraccion?: number | null) {
   return {
     idInfraccion: initialIdInfraccion ? String(initialIdInfraccion) : "",
     folioPago: "",
-    monto: "",
+    montoInfraccion: "0.00",
+    diasPisoCobrados: "0",
+    montoDiasPiso: "0.00",
     fechaPago: getCurrentDateTimeLocal(),
     observaciones: "",
   };
@@ -49,6 +61,11 @@ function PagoCreatePage({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<unknown>(null);
+
+  const montoTotal = useMemo(
+    () => toMoney(String(Number(form.montoInfraccion || "0") + Number(form.montoDiasPiso || "0"))),
+    [form.montoDiasPiso, form.montoInfraccion],
+  );
 
   function updateField(field: keyof PagoFormState, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -70,8 +87,20 @@ function PagoCreatePage({
       return "Ingresa el folio del pago.";
     }
 
-    if (!isFilled(form.monto)) {
-      return "Ingresa el monto del pago.";
+    if (Number(form.montoInfraccion || "0") < 0) {
+      return "El monto de la infraccion no puede ser negativo.";
+    }
+
+    if (Number(form.diasPisoCobrados || "0") < 0) {
+      return "Los dias de piso no pueden ser negativos.";
+    }
+
+    if (Number(form.montoDiasPiso || "0") < 0) {
+      return "El monto de dias de piso no puede ser negativo.";
+    }
+
+    if (Number(montoTotal) <= 0) {
+      return "Captura al menos un importe mayor a cero.";
     }
 
     return null;
@@ -92,7 +121,10 @@ function PagoCreatePage({
       const response = await onSubmit({
         idInfraccion: Number(form.idInfraccion),
         folioPago: form.folioPago.trim(),
-        monto: form.monto.trim(),
+        monto: montoTotal,
+        montoInfraccion: toMoney(form.montoInfraccion),
+        diasPisoCobrados: Number(form.diasPisoCobrados || "0"),
+        montoDiasPiso: toMoney(form.montoDiasPiso),
         fechaPago: form.fechaPago
           ? new Date(form.fechaPago).toISOString()
           : undefined,
@@ -122,15 +154,12 @@ function PagoCreatePage({
           value: getResponseText(result, "folioPago") ?? "Sin folio",
         },
         {
-          label: "Monto",
-          value: getResponseText(result, "monto") ?? "Sin monto",
+          label: "Total",
+          value: getResponseText(result, "monto") ?? montoTotal,
         },
       ]
     : [];
-  const canSubmit =
-    isFilled(form.idInfraccion) &&
-    isFilled(form.folioPago) &&
-    isFilled(form.monto);
+  const canSubmit = getValidationError() === null;
 
   return (
     <section className="page-stack">
@@ -139,8 +168,8 @@ function PagoCreatePage({
           <p className="eyebrow">Operacion</p>
           <h1>Pago</h1>
           <p className="page-description">
-            Registra un pago y deja que el backend tome el usuario autenticado
-            desde el JWT.
+            Registra por separado el monto de la infraccion y los dias de piso
+            cobrados.
           </p>
         </div>
       </header>
@@ -172,14 +201,51 @@ function PagoCreatePage({
           </div>
 
           <div className="field">
-            <label htmlFor="pago-monto">Monto</label>
+            <label htmlFor="pago-monto-infraccion">Monto infraccion</label>
             <input
-              id="pago-monto"
-              value={form.monto}
-              onChange={(event) => updateField("monto", event.target.value)}
+              id="pago-monto-infraccion"
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.montoInfraccion}
+              onChange={(event) =>
+                updateField("montoInfraccion", event.target.value)
+              }
               placeholder="0.00"
-              required
             />
+          </div>
+
+          <div className="field">
+            <label htmlFor="pago-dias-piso">Dias de piso cobrados</label>
+            <input
+              id="pago-dias-piso"
+              type="number"
+              min="0"
+              value={form.diasPisoCobrados}
+              onChange={(event) =>
+                updateField("diasPisoCobrados", event.target.value)
+              }
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="pago-monto-piso">Monto dias de piso</label>
+            <input
+              id="pago-monto-piso"
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.montoDiasPiso}
+              onChange={(event) =>
+                updateField("montoDiasPiso", event.target.value)
+              }
+              placeholder="0.00"
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="pago-total">Total calculado</label>
+            <input id="pago-total" value={montoTotal} readOnly />
           </div>
 
           <div className="field">
