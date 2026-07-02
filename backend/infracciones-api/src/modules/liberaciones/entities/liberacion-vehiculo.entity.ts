@@ -36,8 +36,13 @@ export class LiberacionVehiculo {
   @Column({ name: 'liberado_por', type: 'varchar', length: 100 })
   liberadoPor!: string;
 
-  @Column({ name: 'nombre_recibe_liberacion', type: 'varchar', length: 100 })
-  nombreRecibeLiberacion!: string;
+  @Column({
+    name: 'nombre_recibe_liberacion',
+    type: 'varchar',
+    length: 100,
+    nullable: true,
+  })
+  nombreRecibeLiberacion!: string | null;
 
   @Column({ name: 'observacion', type: 'text', nullable: true })
   observacion!: string | null;
