@@ -27,9 +27,9 @@ export class GenerarLiberacionDto {
   @IsNotEmpty()
   liberadoPor!: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  nombreRecibeLiberacion!: string;
+  nombreRecibeLiberacion?: string | null;
 
   @IsOptional()
   @IsDateString()
