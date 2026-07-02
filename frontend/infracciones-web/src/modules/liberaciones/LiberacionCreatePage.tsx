@@ -32,7 +32,6 @@ function createInitialForm(initialIdInfraccion?: number | null) {
     idPagoInfraccion: "",
     folioLiberacion: "",
     liberadoPor: "",
-    nombreRecibeLiberacion: "",
     fechaLiberacion: getCurrentDateTimeLocal(),
     observacion: "",
   };
@@ -76,8 +75,8 @@ function LiberacionCreatePage({
       return "Ingresa el folio de liberacion.";
     }
 
-    if (!isFilled(form.liberadoPor) || !isFilled(form.nombreRecibeLiberacion)) {
-      return "Completa los nombres requeridos para la liberacion.";
+    if (!isFilled(form.liberadoPor)) {
+      return "Captura el responsable que libera.";
     }
 
     return null;
@@ -100,7 +99,7 @@ function LiberacionCreatePage({
         idPagoInfraccion: Number(form.idPagoInfraccion),
         folioLiberacion: form.folioLiberacion.trim(),
         liberadoPor: form.liberadoPor.trim(),
-        nombreRecibeLiberacion: form.nombreRecibeLiberacion.trim(),
+        nombreRecibeLiberacion: null,
         fechaLiberacion: form.fechaLiberacion
           ? new Date(form.fechaLiberacion).toISOString()
           : undefined,
@@ -130,9 +129,8 @@ function LiberacionCreatePage({
           value: getResponseText(result, "folioLiberacion") ?? "Sin folio",
         },
         {
-          label: "Recibe",
-          value:
-            getResponseText(result, "nombreRecibeLiberacion") ?? "Sin dato",
+          label: "Responsable que libera",
+          value: getResponseText(result, "liberadoPor") ?? "Sin dato",
         },
       ]
     : [];
@@ -140,8 +138,7 @@ function LiberacionCreatePage({
     isFilled(form.idInfraccion) &&
     isFilled(form.idPagoInfraccion) &&
     isFilled(form.folioLiberacion) &&
-    isFilled(form.liberadoPor) &&
-    isFilled(form.nombreRecibeLiberacion);
+    isFilled(form.liberadoPor);
 
   return (
     <section className="page-stack">
@@ -199,24 +196,14 @@ function LiberacionCreatePage({
           </div>
 
           <div className="field">
-            <label htmlFor="liberacion-liberado-por">Liberado por</label>
+            <label htmlFor="liberacion-liberado-por">
+              Responsable que libera
+            </label>
             <input
               id="liberacion-liberado-por"
               value={form.liberadoPor}
               onChange={(event) =>
                 updateField("liberadoPor", event.target.value)
-              }
-              required
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="liberacion-recibe">Nombre recibe</label>
-            <input
-              id="liberacion-recibe"
-              value={form.nombreRecibeLiberacion}
-              onChange={(event) =>
-                updateField("nombreRecibeLiberacion", event.target.value)
               }
               required
             />
