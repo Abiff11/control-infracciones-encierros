@@ -1,6 +1,5 @@
 import { Transform, Type } from 'class-transformer';
 import {
-  ArrayNotEmpty,
   ArrayUnique,
   IsArray,
   IsDateString,
@@ -162,13 +161,13 @@ export class CreateInfraccionCapturaDto {
   @IsString()
   numParteInformativo?: string | null;
 
+  @IsOptional()
   @IsArray()
-  @ArrayNotEmpty()
   @ArrayUnique()
   @Type(() => Number)
   @IsInt({ each: true })
   @Min(1, { each: true })
-  motivos!: number[];
+  motivos: number[] = [];
 }
 
 export class CreateInfraccionCompletaDto {
