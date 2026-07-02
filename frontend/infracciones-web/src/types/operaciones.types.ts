@@ -1,7 +1,10 @@
 export interface RegistrarPagoPayload {
   idInfraccion: number;
   folioPago: string;
-  monto: string;
+  monto?: string;
+  montoInfraccion: string;
+  diasPisoCobrados: number;
+  montoDiasPiso: string;
   fechaPago?: string;
   observaciones?: string | null;
 }
@@ -11,7 +14,7 @@ export interface GenerarLiberacionPayload {
   idPagoInfraccion: number;
   folioLiberacion: string;
   liberadoPor: string;
-  nombreRecibeLiberacion: string;
+  nombreRecibeLiberacion?: string | null;
   fechaLiberacion?: string;
   observacion?: string | null;
 }
