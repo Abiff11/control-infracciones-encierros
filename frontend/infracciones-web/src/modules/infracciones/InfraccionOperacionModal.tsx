@@ -64,12 +64,13 @@ interface OperationFormState {
   estadoIngreso: string;
   observacionesIngreso: string;
   folioPago: string;
-  monto: string;
+  montoInfraccion: string;
+  diasPisoCobrados: string;
+  montoDiasPiso: string;
   fechaPago: string;
   observacionesPago: string;
   folioLiberacion: string;
   liberadoPor: string;
-  nombreRecibeLiberacion: string;
   fechaLiberacion: string;
   observacionLiberacion: string;
   validadoPor: string;
@@ -92,6 +93,16 @@ function toIsoDateTime(value: string): string | undefined {
   return value ? new Date(value).toISOString() : undefined;
 }
 
+function toMoney(value: string): string {
+  const numericValue = Number(value || "0");
+
+  if (!Number.isFinite(numericValue) || numericValue < 0) {
+    return "0.00";
+  }
+
+  return numericValue.toFixed(2);
+}
+
 function createInitialForm(
   type: InfraccionOperacionTipo | null,
 ): OperationFormState {
@@ -105,12 +116,13 @@ function createInitialForm(
     estadoIngreso: "CAPTURADO",
     observacionesIngreso: "",
     folioPago: "",
-    monto: "",
+    montoInfraccion: "0.00",
+    diasPisoCobrados: "0",
+    montoDiasPiso: "0.00",
     fechaPago: now,
     observacionesPago: "",
     folioLiberacion: "",
     liberadoPor: "",
-    nombreRecibeLiberacion: "",
     fechaLiberacion: now,
     observacionLiberacion: "",
     validadoPor: "",
@@ -132,7 +144,8 @@ function getOperationCopy(type: InfraccionOperacionTipo | null): OperationCopy {
     case "pago":
       return {
         title: "Registrar pago",
-        description: "Registra el pago asociado a la infraccion.",
+        description:
+          "Registra el pago separado por infraccion y dias de piso.",
         submitLabel: "Guardar pago",
       };
     case "liberacion":
@@ -234,6 +247,17 @@ export function InfraccionOperacionModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const montoTotalPago = useMemo(
+    () =>
+      toMoney(
+        String(
+          Number(form.montoInfraccion || "0") +
+            Number(form.montoDiasPiso || "0"),
+        ),
+      ),
+    [form.montoDiasPiso, form.montoInfraccion],
+  );
+
   useEffect(() => {
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -272,8 +296,20 @@ export function InfraccionOperacionModal({
         return "Captura el folio de pago.";
       }
 
-      if (!form.monto.trim()) {
-        return "Captura el monto pagado.";
+      if (Number(form.montoInfraccion || "0") < 0) {
+        return "El monto de infraccion no puede ser negativo.";
+      }
+
+      if (Number(form.diasPisoCobrados || "0") < 0) {
+        return "Los dias de piso no pueden ser negativos.";
+      }
+
+      if (Number(form.montoDiasPiso || "0") < 0) {
+        return "El monto de dias de piso no puede ser negativo.";
+      }
+
+      if (Number(montoTotalPago) <= 0) {
+        return "Captura al menos un importe mayor a cero.";
       }
     }
 
@@ -286,8 +322,8 @@ export function InfraccionOperacionModal({
         return "Captura el folio de liberacion.";
       }
 
-      if (!form.liberadoPor.trim() || !form.nombreRecibeLiberacion.trim()) {
-        return "Captura quien libera y quien recibe la liberacion.";
+      if (!form.liberadoPor.trim()) {
+        return "Captura el responsable que libera.";
       }
     }
 
@@ -343,7 +379,10 @@ export function InfraccionOperacionModal({
         const payload: RegistrarPagoPayload = {
           idInfraccion: item.idInfraccion,
           folioPago: form.folioPago.trim(),
-          monto: form.monto.trim(),
+          monto: montoTotalPago,
+          montoInfraccion: toMoney(form.montoInfraccion),
+          diasPisoCobrados: Number(form.diasPisoCobrados || "0"),
+          montoDiasPiso: toMoney(form.montoDiasPiso),
           fechaPago: toIsoDateTime(form.fechaPago),
           observaciones: toNullableString(form.observacionesPago),
         };
@@ -356,7 +395,7 @@ export function InfraccionOperacionModal({
           idPagoInfraccion: item.pago.idPagoInfraccion,
           folioLiberacion: form.folioLiberacion.trim(),
           liberadoPor: form.liberadoPor.trim(),
-          nombreRecibeLiberacion: form.nombreRecibeLiberacion.trim(),
+          nombreRecibeLiberacion: null,
           fechaLiberacion: toIsoDateTime(form.fechaLiberacion),
           observacion: toNullableString(form.observacionLiberacion),
         };
@@ -491,14 +530,48 @@ export function InfraccionOperacionModal({
               />
             </Field>
 
-            <Field htmlFor="operacion-pago-monto" label="Monto">
+            <Field htmlFor="operacion-pago-monto-inf" label="Monto infraccion">
               <TextInput
-                id="operacion-pago-monto"
-                value={form.monto}
-                onChange={(event) => updateField("monto", event.target.value)}
+                id="operacion-pago-monto-inf"
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.montoInfraccion}
+                onChange={(event) =>
+                  updateField("montoInfraccion", event.target.value)
+                }
                 placeholder="0.00"
-                required
               />
+            </Field>
+
+            <Field htmlFor="operacion-pago-dias-piso" label="Dias de piso cobrados">
+              <TextInput
+                id="operacion-pago-dias-piso"
+                type="number"
+                min="0"
+                value={form.diasPisoCobrados}
+                onChange={(event) =>
+                  updateField("diasPisoCobrados", event.target.value)
+                }
+              />
+            </Field>
+
+            <Field htmlFor="operacion-pago-monto-piso" label="Monto dias de piso">
+              <TextInput
+                id="operacion-pago-monto-piso"
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.montoDiasPiso}
+                onChange={(event) =>
+                  updateField("montoDiasPiso", event.target.value)
+                }
+                placeholder="0.00"
+              />
+            </Field>
+
+            <Field htmlFor="operacion-pago-total" label="Total calculado">
+              <TextInput id="operacion-pago-total" value={montoTotalPago} readOnly />
             </Field>
 
             <Field htmlFor="operacion-pago-fecha" label="Fecha pago">
@@ -549,23 +622,15 @@ export function InfraccionOperacionModal({
               />
             </Field>
 
-            <Field htmlFor="operacion-liberacion-por" label="Liberado por">
+            <Field
+              htmlFor="operacion-liberacion-por"
+              label="Responsable que libera"
+            >
               <TextInput
                 id="operacion-liberacion-por"
                 value={form.liberadoPor}
                 onChange={(event) =>
                   updateField("liberadoPor", event.target.value)
-                }
-                required
-              />
-            </Field>
-
-            <Field htmlFor="operacion-liberacion-recibe" label="Nombre recibe">
-              <TextInput
-                id="operacion-liberacion-recibe"
-                value={form.nombreRecibeLiberacion}
-                onChange={(event) =>
-                  updateField("nombreRecibeLiberacion", event.target.value)
                 }
                 required
               />
