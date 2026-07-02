@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -15,7 +15,10 @@ interface RegistrarPagoParams {
   idInfraccion: number;
   idUsuarioRegistraPago: number;
   folioPago: string;
-  monto: string;
+  monto?: string;
+  montoInfraccion?: string;
+  diasPisoCobrados?: number;
+  montoDiasPiso?: string;
   fechaPago?: string | Date;
   observaciones?: string | null;
 }
@@ -59,13 +62,32 @@ export class PagosService {
   }
 
   async registrarPago(params: RegistrarPagoParams): Promise<PagoInfraccion> {
+    const montoInfraccion = this.normalizeMoney(
+      params.montoInfraccion ?? params.monto ?? '0',
+      'monto de infraccion',
+    );
+    const montoDiasPiso = this.normalizeMoney(
+      params.montoDiasPiso ?? '0',
+      'monto de dias de piso',
+    );
+    const diasPisoCobrados = params.diasPisoCobrados ?? 0;
+
+    if (diasPisoCobrados < 0) {
+      throw new BadRequestException('Los dias de piso no pueden ser negativos');
+    }
+
+    const monto = this.sumMoney(montoInfraccion, montoDiasPiso);
+
     const pago = this.pagosRepository.create({
       infraccion: { idInfraccion: params.idInfraccion } as Infraccion,
       usuarioRegistraPago: {
         idUsuario: params.idUsuarioRegistraPago,
       } as Usuario,
       folioPago: params.folioPago,
-      monto: params.monto,
+      monto,
+      montoInfraccion,
+      diasPisoCobrados,
+      montoDiasPiso,
       fechaPago: normalizeDate(params.fechaPago),
       observaciones: params.observaciones ?? null,
     });
@@ -90,11 +112,30 @@ export class PagosService {
         idPagoInfraccion: savedPago.idPagoInfraccion,
         idInfraccion: params.idInfraccion,
         folioPago: params.folioPago,
-        monto: params.monto,
+        monto,
+        montoInfraccion,
+        diasPisoCobrados,
+        montoDiasPiso,
         fechaPago: params.fechaPago,
       },
     });
 
     return savedPago;
+  }
+
+  private normalizeMoney(value: string, label: string): string {
+    const normalizedValue = value.trim();
+
+    if (!/^\d+(\.\d{1,2})?$/.test(normalizedValue)) {
+      throw new BadRequestException(`El ${label} no tiene formato valido`);
+    }
+
+    return Number(normalizedValue).toFixed(2);
+  }
+
+  private sumMoney(firstValue: string, secondValue: string): string {
+    const cents = Math.round(Number(firstValue) * 100) + Math.round(Number(secondValue) * 100);
+
+    return (cents / 100).toFixed(2);
   }
 }
