@@ -17,9 +17,14 @@ const DEFAULT_WINDOW_MS = 60_000;
 const DEFAULT_MAX_ATTEMPTS = 10;
 const buckets = new Map<string, AttemptBucket>();
 
-function parsePositiveInteger(value: string | undefined, fallback: number): number {
+function parsePositiveInteger(
+  value: string | undefined,
+  fallback: number,
+): number {
   const parsedValue = Number(value);
-  return Number.isInteger(parsedValue) && parsedValue > 0 ? parsedValue : fallback;
+  return Number.isInteger(parsedValue) && parsedValue > 0
+    ? parsedValue
+    : fallback;
 }
 
 function getClientKey(request: Request): string {

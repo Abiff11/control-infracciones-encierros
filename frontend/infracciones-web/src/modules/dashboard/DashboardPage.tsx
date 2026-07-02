@@ -598,14 +598,14 @@ function DashboardPage({
           <p className="section-label">Ingresos</p>
           <h2>Recaudacion por pagos registrados</h2>
         </div>
-        <span>Segmentado por dia, mes y anio</span>
+        <span>Segmentado por día, mes y año</span>
       </section>
 
       <section className="dashboard-revenue-grid" aria-label="Indicadores de ingresos">
         <MetricCard accent="green" label="Ingresos totales" value={formatCurrency(totalIngresos)} helper="Pagos segun filtros" />
         <MetricCard accent="teal" label="Ingresos de hoy" value={formatCurrency(ingresosHoy)} helper="Fecha de pago del dia" />
         <MetricCard accent="blue" label="Ingresos del mes" value={formatCurrency(ingresosMesActual)} helper="Mes calendario actual" />
-        <MetricCard accent="purple" label="Ingresos del anio" value={formatCurrency(ingresosAnioActual)} helper="Anio calendario actual" />
+        <MetricCard accent="purple" label="Ingresos del año" value={formatCurrency(ingresosAnioActual)} helper="Año calendario actual" />
       </section>
 
       {dashboardState.loading ? <p className="notice">Actualizando indicadores del dashboard...</p> : null}
@@ -698,7 +698,7 @@ function DashboardPage({
           <div className="dashboard-panel-header">
             <div>
               <p className="section-label">Ingresos</p>
-              <h2>Ingresos por anio</h2>
+              <h2>Ingresos por año</h2>
             </div>
             <span>Fecha de pago</span>
           </div>

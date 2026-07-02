@@ -37,11 +37,15 @@ function getMaxHeavyConcurrency(): number {
 }
 
 function isHeavyRequest(request: Request): boolean {
-  const path = (request.originalUrl || request.url).split('?')[0]?.toLowerCase() ?? '';
+  const path =
+    (request.originalUrl || request.url).split('?')[0]?.toLowerCase() ?? '';
   return HEAVY_PATH_PATTERNS.some((pattern) => path.includes(pattern));
 }
 
-function rejectOversizedPagination(request: Request, response: Response): boolean {
+function rejectOversizedPagination(
+  request: Request,
+  response: Response,
+): boolean {
   const maxPageSize = getMaxPageSize();
 
   for (const key of PAGE_SIZE_KEYS) {
@@ -81,7 +85,8 @@ export function performanceGuardMiddleware(
   if (activeHeavyRequests >= maxHeavyConcurrency) {
     response.status(429).json({
       statusCode: 429,
-      message: 'Hay demasiados reportes o exportaciones en proceso. Intenta nuevamente en unos segundos.',
+      message:
+        'Hay demasiados reportes o exportaciones en proceso. Intenta nuevamente en unos segundos.',
       error: 'Too Many Requests',
     });
     return;
