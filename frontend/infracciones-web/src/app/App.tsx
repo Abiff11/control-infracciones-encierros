@@ -55,13 +55,21 @@ function App() {
   const [liberacionInitialId, setLiberacionInitialId] = useState<number | null>(null);
   const [salidaInitialId, setSalidaInitialId] = useState<number | null>(null);
   const [operationReturnPage, setOperationReturnPage] = useState<PageKey>('infracciones');
-  const isAdmin = session?.user.rol?.nombreRol === 'ADMIN';
+  const roleName = session?.user.rol?.nombreRol?.toUpperCase();
+  const isAdmin = roleName === 'ADMIN';
 
   function bumpRefresh(): void {
     setRefreshKey((current) => current + 1);
   }
 
   function handleNavigate(page: PageKey): void {
+    if (
+      roleName === 'INFRACCIONES' &&
+      ['encierros-vehiculos', 'importaciones', 'catalogos'].includes(page)
+    ) {
+      return;
+    }
+
     setCurrentPage(page);
   }
 
@@ -197,6 +205,7 @@ function App() {
       {catalogsLoading ? <p className="notice">Cargando catalogos operativos...</p> : null}
       <ErrorMessage message={catalogsError} />
 
+
       {currentPage === 'dashboard' ? (
         <DashboardPage
           catalogs={catalogs}
@@ -317,3 +326,4 @@ function App() {
 }
 
 export default App;
+

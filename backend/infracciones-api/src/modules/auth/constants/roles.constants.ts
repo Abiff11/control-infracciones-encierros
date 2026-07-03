@@ -34,6 +34,7 @@ export const PAYMENT_ROLES: RoleName[] = [
 
 export const RELEASE_ROLES: RoleName[] = [
   ROLES.ADMIN,
+  ROLES.INFRACCIONES,
   ROLES.LIBERACIONES,
   ROLES.OPERADOR,
 ];
