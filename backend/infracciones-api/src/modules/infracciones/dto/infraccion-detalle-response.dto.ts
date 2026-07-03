@@ -32,7 +32,7 @@ export interface InfraccionDetalleLiberacionDto {
   folioLiberacion: string;
   fechaLiberacion: string;
   liberadoPor: string;
-  nombreRecibeLiberacion: string;
+  nombreRecibeLiberacion: string | null;
   observacion: string | null;
 }
 
