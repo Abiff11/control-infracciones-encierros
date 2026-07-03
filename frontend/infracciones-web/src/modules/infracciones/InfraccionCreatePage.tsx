@@ -5,6 +5,7 @@ import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { Field, TextInput } from "../../components/ui/Field";
 import { SelectField } from "../../components/ui/SelectField";
+import { confirmAction } from "../../utils/sweetAlert";
 import type { CatalogosBundle, Motivo } from "../../types/catalogos.types";
 import type {
   CreateInfraccionCompletaPayload,
@@ -315,6 +316,21 @@ function InfraccionCreatePage({
     setResult(null);
   }
 
+  async function handleReset(): Promise<void> {
+    const confirmed = await confirmAction({
+      title: "Limpiar expediente",
+      text: `Se perderán los datos capturados del expediente ${folioExpediente}.`,
+      confirmButtonText: "Limpiar expediente",
+      cancelButtonText: "Seguir capturando",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    resetForm();
+  }
+
   function getValidationError(): string | null {
     if (!catalogs) {
       return "Los catalogos todavia no estan disponibles.";
@@ -423,6 +439,17 @@ function InfraccionCreatePage({
         validationError ??
           "No se pudieron resolver los valores iniciales del sistema.",
       );
+      return;
+    }
+
+    const confirmed = await confirmAction({
+      title: "Guardar expediente",
+      text: `Vas a guardar el expediente ${folioExpediente}.`,
+      confirmButtonText: "Guardar expediente",
+      cancelButtonText: "Seguir editando",
+    });
+
+    if (!confirmed) {
       return;
     }
 
@@ -606,7 +633,7 @@ function InfraccionCreatePage({
 
         {error ? <div className="notice notice-error">{error}</div> : null}
 
-        <div className="create-sticky-actions"><div><p className="section-label">Guardar captura</p><FieldValue>{canSubmit ? "El expediente tiene los datos obligatorios completos." : "Completa los campos obligatorios para guardar."}</FieldValue></div><div className="button-row button-row-end"><Button type="button" variant="secondary" onClick={resetForm}>Limpiar</Button><Button type="submit" variant="primary" disabled={saving || loading || !canSubmit}>{saving ? "Guardando..." : "Guardar expediente"}</Button></div></div>
+        <div className="create-sticky-actions"><div><p className="section-label">Guardar captura</p><FieldValue>{canSubmit ? "El expediente tiene los datos obligatorios completos." : "Completa los campos obligatorios para guardar."}</FieldValue></div><div className="button-row button-row-end"><Button type="button" variant="secondary" onClick={() => void handleReset()}>Limpiar</Button><Button type="submit" variant="primary" disabled={saving || loading || !canSubmit}>{saving ? "Guardando..." : "Guardar expediente"}</Button></div></div>
       </form>
 
       <OperationResultCard title="Expediente creado" description="El expediente quedo registrado y listo para continuar el flujo operativo." result={resultPreview} emptyLabel="Aun no se ha guardado un expediente." copyLabel="Copiar folio" copyValue={folioCreado} summary={infraccionSummary} />

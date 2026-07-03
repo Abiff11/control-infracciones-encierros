@@ -29,8 +29,8 @@ function getNativeMessage(title: string, text?: string): string {
 export async function confirmAction(options: {
   title: string;
   text?: string;
-  confirmButtonText?: string;
-  cancelButtonText?: string;
+  confirmButtonText: string;
+  cancelButtonText: string;
 }): Promise<boolean> {
   if (window.Swal) {
     const result = await window.Swal.fire({
@@ -39,8 +39,8 @@ export async function confirmAction(options: {
       icon: 'question',
       showCancelButton: true,
       reverseButtons: true,
-      confirmButtonText: options.confirmButtonText ?? 'Confirmar',
-      cancelButtonText: options.cancelButtonText ?? 'Cancelar',
+      confirmButtonText: options.confirmButtonText,
+      cancelButtonText: options.cancelButtonText,
     });
 
     return Boolean(result.isConfirmed);

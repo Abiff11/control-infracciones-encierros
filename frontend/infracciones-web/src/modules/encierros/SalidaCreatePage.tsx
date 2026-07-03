@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { OperationResultCard } from "../../components/operation/OperationResultCard";
 import type { RegistrarSalidaPayload } from "../../types/operaciones.types";
 import { getResponseText } from "../../utils/response";
+import { confirmAction } from "../../utils/sweetAlert";
 
 function getCurrentDateTimeLocal(): string {
   return new Date().toISOString().slice(0, 16);
@@ -65,6 +66,21 @@ function SalidaCreatePage({
     setResult(null);
   }
 
+  async function handleReset(): Promise<void> {
+    const confirmed = await confirmAction({
+      title: "Limpiar salida",
+      text: `Se perderán los datos capturados de la salida de la retención ${form.idRetencionVehiculo || "sin ID"}.`,
+      confirmButtonText: "Limpiar salida",
+      cancelButtonText: "Seguir editando",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    resetForm();
+  }
+
   function getValidationError(): string | null {
     if (!isFilled(form.idRetencionVehiculo)) {
       return "Ingresa el ID de la retencion.";
@@ -91,6 +107,17 @@ function SalidaCreatePage({
     const validationError = getValidationError();
     if (validationError) {
       setError(validationError);
+      return;
+    }
+
+    const confirmed = await confirmAction({
+      title: "Registrar salida",
+      text: `Vas a registrar la salida del vehículo para la retención ${form.idRetencionVehiculo} y la liberación ${form.idLiberacionVehiculo}.`,
+      confirmButtonText: "Registrar salida",
+      cancelButtonText: "Seguir editando",
+    });
+
+    if (!confirmed) {
       return;
     }
 
@@ -260,7 +287,7 @@ function SalidaCreatePage({
           <button
             className="button-secondary"
             type="button"
-            onClick={resetForm}
+            onClick={() => void handleReset()}
           >
             Limpiar
           </button>

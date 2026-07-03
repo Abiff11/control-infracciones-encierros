@@ -356,10 +356,12 @@ export function UsuariosPage({
       ? `${usuario.nombreUsuario} fue desactivado.`
       : `${usuario.nombreUsuario} fue activado.`;
     const confirmed = await confirmAction({
-      title: `${usuario.activo ? 'Desactivar' : 'Activar'} usuario`,
+      title: usuario.activo ? 'Desactivar usuario' : 'Activar usuario',
       text: `¿Deseas ${actionLabel} a ${usuario.nombreUsuario}?`,
-      confirmButtonText: usuario.activo ? 'Desactivar' : 'Activar',
-      cancelButtonText: 'Cancelar',
+      confirmButtonText: usuario.activo ? 'Desactivar usuario' : 'Activar usuario',
+      cancelButtonText: usuario.activo
+        ? 'Conservar usuario activo'
+        : 'Conservar usuario inactivo',
     });
 
     if (!confirmed) {

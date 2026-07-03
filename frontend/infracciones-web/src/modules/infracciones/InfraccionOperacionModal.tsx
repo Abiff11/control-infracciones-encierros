@@ -24,6 +24,7 @@ import {
   formatFullName,
   formatTimeOfDay,
 } from "../../utils/formatters";
+import { confirmAction } from "../../utils/sweetAlert";
 import type { CatalogosBundle } from "../../types/catalogos.types";
 import type { InfraccionListItem } from "../../types/infracciones.types";
 import type {
@@ -358,11 +359,22 @@ export function InfraccionOperacionModal({
       return;
     }
 
-    setSaving(true);
-    setError(null);
-
     try {
       if (type === "retencion") {
+        const confirmed = await confirmAction({
+          title: "Registrar retención",
+          text: `Vas a registrar la retención del expediente ${item.folioInfraccion}.`,
+          confirmButtonText: "Registrar retención",
+          cancelButtonText: "Seguir editando",
+        });
+
+        if (!confirmed) {
+          return;
+        }
+
+        setSaving(true);
+        setError(null);
+
         const payload: RegistrarRetencionPayload = {
           idInfraccion: item.idInfraccion,
           idEncierro: Number(form.idEncierro),
@@ -376,6 +388,20 @@ export function InfraccionOperacionModal({
       }
 
       if (type === "pago") {
+        const confirmed = await confirmAction({
+          title: "Registrar pago",
+          text: `Vas a registrar el pago del expediente ${item.folioInfraccion} por ${montoTotalPago}.`,
+          confirmButtonText: "Registrar pago",
+          cancelButtonText: "Seguir editando",
+        });
+
+        if (!confirmed) {
+          return;
+        }
+
+        setSaving(true);
+        setError(null);
+
         const payload: RegistrarPagoPayload = {
           idInfraccion: item.idInfraccion,
           folioPago: form.folioPago.trim(),
@@ -390,6 +416,20 @@ export function InfraccionOperacionModal({
       }
 
       if (type === "liberacion" && item.pago?.idPagoInfraccion) {
+        const confirmed = await confirmAction({
+          title: "Generar liberación",
+          text: `Vas a generar la liberación del expediente ${item.folioInfraccion} usando el pago ${item.pago.idPagoInfraccion}.`,
+          confirmButtonText: "Generar liberación",
+          cancelButtonText: "Seguir editando",
+        });
+
+        if (!confirmed) {
+          return;
+        }
+
+        setSaving(true);
+        setError(null);
+
         const payload: GenerarLiberacionPayload = {
           idInfraccion: item.idInfraccion,
           idPagoInfraccion: item.pago.idPagoInfraccion,
@@ -407,6 +447,20 @@ export function InfraccionOperacionModal({
         item.retencion?.idRetencionVehiculo &&
         item.liberacion?.idLiberacionVehiculo
       ) {
+        const confirmed = await confirmAction({
+          title: "Registrar salida",
+          text: `Vas a registrar la salida del expediente ${item.folioInfraccion} con la retención ${item.retencion.idRetencionVehiculo} y la liberación ${item.liberacion.idLiberacionVehiculo}.`,
+          confirmButtonText: "Registrar salida",
+          cancelButtonText: "Seguir editando",
+        });
+
+        if (!confirmed) {
+          return;
+        }
+
+        setSaving(true);
+        setError(null);
+
         const payload: RegistrarSalidaPayload = {
           idRetencionVehiculo: item.retencion.idRetencionVehiculo,
           idLiberacionVehiculo: item.liberacion.idLiberacionVehiculo,

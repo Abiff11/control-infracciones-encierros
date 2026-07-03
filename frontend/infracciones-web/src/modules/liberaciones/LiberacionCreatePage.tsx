@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { OperationResultCard } from "../../components/operation/OperationResultCard";
 import type { GenerarLiberacionPayload } from "../../types/operaciones.types";
 import { getResponseText } from "../../utils/response";
+import { confirmAction } from "../../utils/sweetAlert";
 
 function getCurrentDateTimeLocal(): string {
   return new Date().toISOString().slice(0, 16);
@@ -62,6 +63,21 @@ function LiberacionCreatePage({
     setResult(null);
   }
 
+  async function handleReset(): Promise<void> {
+    const confirmed = await confirmAction({
+      title: "Limpiar liberación",
+      text: `Se perderán los datos capturados de la liberación de la infracción ${form.idInfraccion || "sin ID"}.`,
+      confirmButtonText: "Limpiar liberación",
+      cancelButtonText: "Seguir editando",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    resetForm();
+  }
+
   function getValidationError(): string | null {
     if (!isFilled(form.idInfraccion)) {
       return "Ingresa el ID de infraccion.";
@@ -88,6 +104,17 @@ function LiberacionCreatePage({
     const validationError = getValidationError();
     if (validationError) {
       setError(validationError);
+      return;
+    }
+
+    const confirmed = await confirmAction({
+      title: "Generar liberación",
+      text: `Vas a generar la liberación de la infracción ${form.idInfraccion} usando el pago ${form.idPagoInfraccion}.`,
+      confirmButtonText: "Generar liberación",
+      cancelButtonText: "Seguir editando",
+    });
+
+    if (!confirmed) {
       return;
     }
 
@@ -247,7 +274,7 @@ function LiberacionCreatePage({
           <button
             className="button-secondary"
             type="button"
-            onClick={resetForm}
+            onClick={() => void handleReset()}
           >
             Limpiar
           </button>

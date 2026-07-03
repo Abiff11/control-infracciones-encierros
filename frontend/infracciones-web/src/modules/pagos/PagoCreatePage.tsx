@@ -3,6 +3,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { OperationResultCard } from "../../components/operation/OperationResultCard";
 import type { RegistrarPagoPayload } from "../../types/operaciones.types";
 import { getResponseText } from "../../utils/response";
+import { confirmAction } from "../../utils/sweetAlert";
 
 function getCurrentDateTimeLocal(): string {
   return new Date().toISOString().slice(0, 16);
@@ -78,6 +79,21 @@ function PagoCreatePage({
     setResult(null);
   }
 
+  async function handleReset(): Promise<void> {
+    const confirmed = await confirmAction({
+      title: "Limpiar pago",
+      text: `Se perderán los datos capturados del pago de la infracción ${form.idInfraccion || "sin ID"}.`,
+      confirmButtonText: "Limpiar pago",
+      cancelButtonText: "Seguir editando",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    resetForm();
+  }
+
   function getValidationError(): string | null {
     if (!isFilled(form.idInfraccion)) {
       return "Ingresa el ID de infraccion.";
@@ -112,6 +128,17 @@ function PagoCreatePage({
     const validationError = getValidationError();
     if (validationError) {
       setError(validationError);
+      return;
+    }
+
+    const confirmed = await confirmAction({
+      title: "Registrar pago",
+      text: `Vas a registrar el pago de la infracción ${form.idInfraccion} por ${montoTotal}.`,
+      confirmButtonText: "Registrar pago",
+      cancelButtonText: "Seguir editando",
+    });
+
+    if (!confirmed) {
       return;
     }
 
@@ -284,7 +311,7 @@ function PagoCreatePage({
           <button
             className="button-secondary"
             type="button"
-            onClick={resetForm}
+            onClick={() => void handleReset()}
           >
             Limpiar
           </button>

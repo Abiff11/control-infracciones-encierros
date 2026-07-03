@@ -4,6 +4,7 @@ import { OperationResultCard } from "../../components/operation/OperationResultC
 import type { CatalogosBundle } from "../../types/catalogos.types";
 import type { RegistrarRetencionPayload } from "../../types/operaciones.types";
 import { getResponseText } from "../../utils/response";
+import { confirmAction } from "../../utils/sweetAlert";
 
 function getCurrentDateTimeLocal(): string {
   return new Date().toISOString().slice(0, 16);
@@ -66,6 +67,21 @@ function RetencionCreatePage({
     setResult(null);
   }
 
+  async function handleReset(): Promise<void> {
+    const confirmed = await confirmAction({
+      title: "Limpiar retención",
+      text: `Se perderán los datos capturados de la retención de la infracción ${form.idInfraccion || "sin ID"}.`,
+      confirmButtonText: "Limpiar retención",
+      cancelButtonText: "Seguir editando",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    resetForm();
+  }
+
   function getValidationError(): string | null {
     if (!catalogs) {
       return "Los catalogos todavia no estan disponibles.";
@@ -92,6 +108,17 @@ function RetencionCreatePage({
     const validationError = getValidationError();
     if (validationError) {
       setError(validationError);
+      return;
+    }
+
+    const confirmed = await confirmAction({
+      title: "Registrar retención",
+      text: `Vas a registrar la retención de la infracción ${form.idInfraccion} en el encierro seleccionado.`,
+      confirmButtonText: "Registrar retención",
+      cancelButtonText: "Seguir editando",
+    });
+
+    if (!confirmed) {
       return;
     }
 
@@ -266,7 +293,7 @@ function RetencionCreatePage({
           <button
             className="button-secondary"
             type="button"
-            onClick={resetForm}
+            onClick={() => void handleReset()}
           >
             Limpiar
           </button>
