@@ -42,7 +42,14 @@ export interface LineaVehiculo {
 
 export interface TipoProcedimiento {
   idTipoProcedimiento: number;
+  claveTipoProcedimiento: string;
   nombreTipoProcedimiento: string;
+  esTipoExpediente: boolean;
+  requiereFolioInfraccion: boolean;
+  requiereNumParteInformativo: boolean;
+  requiereMotivos: boolean;
+  permiteRetencion: boolean;
+  activo: boolean;
 }
 
 export interface Operativo {
@@ -113,7 +120,24 @@ export interface CreateLineaVehiculoPayload {
 }
 
 export interface CreateTipoProcedimientoPayload {
-  procedimiento: string;
+  claveTipoProcedimiento: string;
+  nombreTipoProcedimiento: string;
+  esTipoExpediente: boolean;
+  requiereFolioInfraccion: boolean;
+  requiereNumParteInformativo: boolean;
+  requiereMotivos: boolean;
+  permiteRetencion: boolean;
+  activo: boolean;
+}
+
+export interface UpdateTipoProcedimientoPayload {
+  nombreTipoProcedimiento?: string;
+  esTipoExpediente?: boolean;
+  requiereFolioInfraccion?: boolean;
+  requiereNumParteInformativo?: boolean;
+  requiereMotivos?: boolean;
+  permiteRetencion?: boolean;
+  activo?: boolean;
 }
 
 export interface CreateOperativoPayload {

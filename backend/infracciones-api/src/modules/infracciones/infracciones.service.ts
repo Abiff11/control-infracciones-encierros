@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -20,7 +21,8 @@ import { type LineaVehiculo } from '../catalogos/entities/linea-vehiculo.entity'
 import { LugarInfraccion } from '../catalogos/entities/lugar-infraccion.entity';
 import { Operativo } from '../catalogos/entities/operativo.entity';
 import { type Servicio } from '../catalogos/entities/servicio.entity';
-import { type TipoProcedimiento } from '../catalogos/entities/tipo-procedimiento.entity';
+import { TipoProcedimiento } from '../catalogos/entities/tipo-procedimiento.entity';
+import { normalizeParteInformativoFolio } from '../catalogos/utils/tipo-procedimiento-rules';
 import { normalizeDate } from '../../common/utils/normalize-date';
 import { Infractor } from '../infractores/entities/infractor.entity';
 import { type Sexo } from '../catalogos/entities/sexo.entity';
@@ -44,6 +46,7 @@ import {
   type EstadoOperativoVehiculo,
 } from './constants/estado-operativo-vehiculo.constants';
 import type { InfraccionDetalleResponseDto } from './dto/infraccion-detalle-response.dto';
+import { resolveEstadoOperativoVehiculo } from './utils/estado-operativo.util';
 
 interface RegistrarMovimientoParams {
   idInfraccion: number;
@@ -189,13 +192,23 @@ export class InfraccionesService {
         },
         tipoProcedimiento: {
           idTipoProcedimiento: item.tipoProcedimiento.idTipoProcedimiento,
+          claveTipoProcedimiento: item.tipoProcedimiento.claveTipoProcedimiento,
           nombreTipoProcedimiento:
             item.tipoProcedimiento.nombreTipoProcedimiento,
+          esTipoExpediente: item.tipoProcedimiento.esTipoExpediente,
+          requiereFolioInfraccion:
+            item.tipoProcedimiento.requiereFolioInfraccion,
+          requiereNumParteInformativo:
+            item.tipoProcedimiento.requiereNumParteInformativo,
+          requiereMotivos: item.tipoProcedimiento.requiereMotivos,
+          permiteRetencion: item.tipoProcedimiento.permiteRetencion,
+          activo: item.tipoProcedimiento.activo,
         },
         motivos: motivosMap.get(item.idInfraccion) ?? [],
         estadoOperativoCalculado:
           estadoOperativoMap.get(item.idInfraccion) ??
-          this.resolveEstadoOperativo({
+          resolveEstadoOperativoVehiculo({
+            permiteRetencion: item.tipoProcedimiento.permiteRetencion,
             hasRetencion: false,
             hasPago: false,
             hasLiberacion: false,
@@ -386,8 +399,18 @@ export class InfraccionesService {
       },
       tipoProcedimiento: {
         idTipoProcedimiento: infraccion.tipoProcedimiento.idTipoProcedimiento,
+        claveTipoProcedimiento:
+          infraccion.tipoProcedimiento.claveTipoProcedimiento,
         nombreTipoProcedimiento:
           infraccion.tipoProcedimiento.nombreTipoProcedimiento,
+        esTipoExpediente: infraccion.tipoProcedimiento.esTipoExpediente,
+        requiereFolioInfraccion:
+          infraccion.tipoProcedimiento.requiereFolioInfraccion,
+        requiereNumParteInformativo:
+          infraccion.tipoProcedimiento.requiereNumParteInformativo,
+        requiereMotivos: infraccion.tipoProcedimiento.requiereMotivos,
+        permiteRetencion: infraccion.tipoProcedimiento.permiteRetencion,
+        activo: infraccion.tipoProcedimiento.activo,
       },
       region: {
         idRegion: infraccion.delegacion.region.idRegion,
@@ -496,7 +519,8 @@ export class InfraccionesService {
         observaciones: movimiento.observaciones,
         accion: movimiento.accion,
       })),
-      estadoOperativoCalculado: this.resolveEstadoOperativo({
+      estadoOperativoCalculado: resolveEstadoOperativoVehiculo({
+        permiteRetencion: infraccion.tipoProcedimiento.permiteRetencion,
         hasRetencion: retenciones.length > 0,
         hasPago: pagos.length > 0,
         hasLiberacion: liberaciones.length > 0,
@@ -557,6 +581,8 @@ export class InfraccionesService {
     dto: CreateInfraccionCompletaDto,
     idUsuarioCaptura: number,
   ): Promise<InfraccionFlujoResponseDto> {
+    let finalFolioInfraccion = '';
+
     await this.dataSource.transaction(async (manager) => {
       const infraccionRepo = manager.getRepository(Infraccion);
       const infractorRepo = manager.getRepository(Infractor);
@@ -564,9 +590,69 @@ export class InfraccionesService {
       const lugarRepo = manager.getRepository(LugarInfraccion);
       const infraccionMotivoRepo = manager.getRepository(InfraccionMotivo);
       const movimientoRepo = manager.getRepository(InfraccionMovimiento);
+      const tipoProcedimiento = await this.findTipoProcedimientoByIdOrFail(
+        manager,
+        dto.infraccion.idTipoProcedimiento,
+      );
+
+      if (!tipoProcedimiento.activo) {
+        throw new BadRequestException(
+          `El tipo de expediente ${tipoProcedimiento.nombreTipoProcedimiento} esta inactivo`,
+        );
+      }
+
+      if (!tipoProcedimiento.esTipoExpediente) {
+        throw new BadRequestException(
+          `El tipo de procedimiento ${tipoProcedimiento.nombreTipoProcedimiento} no puede registrarse como expediente`,
+        );
+      }
+
+      const normalizedFolioInfraccion =
+        dto.infraccion.folioInfraccion?.trim() ?? '';
+      const normalizedNumParteInformativo =
+        dto.infraccion.numParteInformativo?.trim() ?? '';
+
+      if (
+        tipoProcedimiento.requiereFolioInfraccion &&
+        normalizedFolioInfraccion.length === 0
+      ) {
+        throw new BadRequestException(
+          'El folio de infraccion es obligatorio para el tipo seleccionado',
+        );
+      }
+
+      if (
+        tipoProcedimiento.requiereNumParteInformativo &&
+        normalizedNumParteInformativo.length === 0
+      ) {
+        throw new BadRequestException(
+          'El numero de parte informativo es obligatorio para el tipo seleccionado',
+        );
+      }
+
+      if (
+        tipoProcedimiento.requiereMotivos &&
+        dto.infraccion.motivos.length === 0
+      ) {
+        throw new BadRequestException(
+          'Debes capturar al menos un motivo para el tipo seleccionado',
+        );
+      }
+
+      finalFolioInfraccion =
+        !tipoProcedimiento.requiereFolioInfraccion &&
+        tipoProcedimiento.requiereNumParteInformativo
+          ? `PI-${normalizeParteInformativoFolio(normalizedNumParteInformativo)}`
+          : normalizedFolioInfraccion;
+
+      if (finalFolioInfraccion.length === 0) {
+        throw new BadRequestException(
+          'No se pudo determinar un folio valido para la infraccion',
+        );
+      }
 
       const existingFolio = await infraccionRepo.findOneBy({
-        folioInfraccion: dto.infraccion.folioInfraccion,
+        folioInfraccion: finalFolioInfraccion,
       });
 
       if (existingFolio) {
@@ -645,18 +731,16 @@ export class InfraccionesService {
           delegacion: {
             idDelegacion: dto.infraccion.idDelegacion,
           } as Delegacion,
-          tipoProcedimiento: {
-            idTipoProcedimiento: dto.infraccion.idTipoProcedimiento,
-          } as TipoProcedimiento,
+          tipoProcedimiento,
           estatusInfraccion,
           usuarioCaptura,
           operativo,
-          folioInfraccion: dto.infraccion.folioInfraccion,
+          folioInfraccion: finalFolioInfraccion,
           fechaInfraccion: dto.infraccion.fechaInfraccion,
           horaInfraccion: dto.infraccion.horaInfraccion,
           observaciones: dto.infraccion.observaciones ?? null,
           clavePolicia: dto.infraccion.clavePolicia ?? null,
-          numParteInformativo: dto.infraccion.numParteInformativo ?? null,
+          numParteInformativo: normalizedNumParteInformativo || null,
         }),
       );
 
@@ -683,7 +767,7 @@ export class InfraccionesService {
       return savedInfraccion.idInfraccion;
     });
 
-    return this.findFlujoByInfraccion(dto.infraccion.folioInfraccion);
+    return this.findFlujoByInfraccion(finalFolioInfraccion);
   }
 
   async actualizarEstatusYRegistrarMovimiento(
@@ -933,6 +1017,12 @@ export class InfraccionesService {
       case ESTADO_OPERATIVO_VEHICULO.VEHICULO_ENTREGADO:
         queryBuilder.andWhere(delivered);
         return;
+      case ESTADO_OPERATIVO_VEHICULO.PAGADA_SIN_RETENCION:
+        queryBuilder
+          .andWhere('tipoProcedimiento.permiteRetencion = false')
+          .andWhere(pagado)
+          .andWhere(`NOT ${delivered}`);
+        return;
       case ESTADO_OPERATIVO_VEHICULO.LIBERADO_PENDIENTE_SALIDA:
         queryBuilder.andWhere(liberado).andWhere(`NOT ${delivered}`);
         return;
@@ -944,13 +1034,16 @@ export class InfraccionesService {
         return;
       case ESTADO_OPERATIVO_VEHICULO.EN_ENCIERRO_SIN_PAGO:
         queryBuilder
+          .andWhere('tipoProcedimiento.permiteRetencion = true')
           .andWhere(retenido)
           .andWhere(`NOT ${pagado}`)
           .andWhere(`NOT ${liberado}`)
           .andWhere(`NOT ${delivered}`);
         return;
       case ESTADO_OPERATIVO_VEHICULO.SIN_RETENCION:
-        queryBuilder.andWhere(`NOT ${retenido}`);
+        queryBuilder.andWhere(
+          `(tipoProcedimiento.permiteRetencion = true AND NOT ${retenido}) OR (tipoProcedimiento.permiteRetencion = false AND NOT ${pagado})`,
+        );
         return;
       default:
         return;
@@ -988,21 +1081,26 @@ export class InfraccionesService {
               ON retencion_sort.id_retencion_vehiculo = salida_sort.id_retencion_vehiculo
             WHERE retencion_sort.id_infraccion = infraccion.id_infraccion
           ) THEN 5
+          WHEN tipoProcedimiento.permiteRetencion = false AND EXISTS (
+            SELECT 1
+            FROM pago_infraccion pago_sort
+            WHERE pago_sort.id_infraccion = infraccion.id_infraccion
+          ) THEN 2
           WHEN EXISTS (
             SELECT 1
             FROM liberacion_vehiculo liberacion_sort
             WHERE liberacion_sort.id_infraccion = infraccion.id_infraccion
-          ) THEN 4
+          ) THEN 5
           WHEN EXISTS (
             SELECT 1
             FROM pago_infraccion pago_sort
             WHERE pago_sort.id_infraccion = infraccion.id_infraccion
-          ) THEN 3
+          ) THEN 4
           WHEN EXISTS (
             SELECT 1
             FROM retencion_vehiculo retencion_sort
             WHERE retencion_sort.id_infraccion = infraccion.id_infraccion
-          ) THEN 2
+          ) THEN 3
           ELSE 1
         END`;
       default:
@@ -1062,6 +1160,25 @@ export class InfraccionesService {
     return usuario;
   }
 
+  private async findTipoProcedimientoByIdOrFail(
+    manager: EntityManager,
+    idTipoProcedimiento: number,
+  ): Promise<TipoProcedimiento> {
+    const tipoProcedimiento = await manager
+      .getRepository(TipoProcedimiento)
+      .findOneBy({
+        idTipoProcedimiento,
+      });
+
+    if (!tipoProcedimiento) {
+      throw new NotFoundException(
+        `Tipo de procedimiento ${idTipoProcedimiento} no encontrado`,
+      );
+    }
+
+    return tipoProcedimiento;
+  }
+
   private async findMotivosByIdsOrFail(
     manager: EntityManager,
     motivosIds: number[],
@@ -1094,69 +1211,79 @@ export class InfraccionesService {
       return result;
     }
 
-    const [retenciones, pagos, liberaciones, salidas] = await Promise.all([
-      this.retencionesRepository.find({
-        where: {
-          infraccion: {
-            idInfraccion: In(idInfracciones),
-          },
-        },
-        relations: {
-          infraccion: true,
-        },
-        order: {
-          fechaIngreso: 'DESC',
-        },
-      }),
-      this.pagosRepository.find({
-        where: {
-          infraccion: {
-            idInfraccion: In(idInfracciones),
-          },
-        },
-        relations: {
-          infraccion: true,
-        },
-        order: {
-          fechaPago: 'DESC',
-        },
-      }),
-      this.liberacionesRepository.find({
-        where: {
-          infraccion: {
-            idInfraccion: In(idInfracciones),
-          },
-        },
-        relations: {
-          infraccion: true,
-        },
-        order: {
-          fechaLiberacion: 'DESC',
-        },
-      }),
-      this.salidasRepository.find({
-        where: {
-          retencionVehiculo: {
+    const [retenciones, pagos, liberaciones, salidas, tipos] =
+      await Promise.all([
+        this.retencionesRepository.find({
+          where: {
             infraccion: {
               idInfraccion: In(idInfracciones),
             },
           },
-        },
-        relations: {
-          retencionVehiculo: {
+          relations: {
             infraccion: true,
           },
-        },
-        order: {
-          fechaSalida: 'DESC',
-        },
-      }),
-    ]);
+          order: {
+            fechaIngreso: 'DESC',
+          },
+        }),
+        this.pagosRepository.find({
+          where: {
+            infraccion: {
+              idInfraccion: In(idInfracciones),
+            },
+          },
+          relations: {
+            infraccion: true,
+          },
+          order: {
+            fechaPago: 'DESC',
+          },
+        }),
+        this.liberacionesRepository.find({
+          where: {
+            infraccion: {
+              idInfraccion: In(idInfracciones),
+            },
+          },
+          relations: {
+            infraccion: true,
+          },
+          order: {
+            fechaLiberacion: 'DESC',
+          },
+        }),
+        this.salidasRepository.find({
+          where: {
+            retencionVehiculo: {
+              infraccion: {
+                idInfraccion: In(idInfracciones),
+              },
+            },
+          },
+          relations: {
+            retencionVehiculo: {
+              infraccion: true,
+            },
+          },
+          order: {
+            fechaSalida: 'DESC',
+          },
+        }),
+        this.infraccionesRepository.find({
+          where: {
+            idInfraccion: In(idInfracciones),
+          },
+          relations: {
+            tipoProcedimiento: true,
+          },
+        }),
+      ]);
 
     const hasRetencion = new Set<number>();
     const hasPago = new Set<number>();
     const hasLiberacion = new Set<number>();
     const hasSalida = new Set<number>();
+    const permiteRetencionMap = new Map<number, boolean>();
 
     for (const retencion of retenciones) {
       hasRetencion.add(retencion.infraccion.idInfraccion);
@@ -1174,10 +1301,18 @@ export class InfraccionesService {
       hasSalida.add(salida.retencionVehiculo.infraccion.idInfraccion);
     }
 
+    for (const infraccion of tipos) {
+      permiteRetencionMap.set(
+        infraccion.idInfraccion,
+        infraccion.tipoProcedimiento.permiteRetencion,
+      );
+    }
+
     for (const idInfraccion of idInfracciones) {
       result.set(
         idInfraccion,
-        this.resolveEstadoOperativo({
+        resolveEstadoOperativoVehiculo({
+          permiteRetencion: permiteRetencionMap.get(idInfraccion) ?? true,
           hasRetencion: hasRetencion.has(idInfraccion),
           hasPago: hasPago.has(idInfraccion),
           hasLiberacion: hasLiberacion.has(idInfraccion),
@@ -1238,35 +1373,6 @@ export class InfraccionesService {
     }
 
     return result;
-  }
-
-  private resolveEstadoOperativo(params: {
-    hasRetencion: boolean;
-    hasPago: boolean;
-    hasLiberacion: boolean;
-    hasSalida: boolean;
-  }): EstadoOperativoVehiculo {
-    if (params.hasSalida) {
-      return ESTADO_OPERATIVO_VEHICULO.VEHICULO_ENTREGADO;
-    }
-
-    if (!params.hasRetencion) {
-      return ESTADO_OPERATIVO_VEHICULO.SIN_RETENCION;
-    }
-
-    if (params.hasLiberacion) {
-      return ESTADO_OPERATIVO_VEHICULO.LIBERADO_PENDIENTE_SALIDA;
-    }
-
-    if (params.hasPago) {
-      return ESTADO_OPERATIVO_VEHICULO.PAGADO_PENDIENTE_LIBERACION;
-    }
-
-    if (params.hasRetencion) {
-      return ESTADO_OPERATIVO_VEHICULO.EN_ENCIERRO_SIN_PAGO;
-    }
-
-    return ESTADO_OPERATIVO_VEHICULO.SIN_RETENCION;
   }
 
   private buildLugarInfraccionNombre(dto: {

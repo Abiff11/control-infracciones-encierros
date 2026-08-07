@@ -138,9 +138,10 @@ export class CreateInfraccionCapturaDto {
   @Min(1)
   idOperativo?: number | null;
 
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
-  folioInfraccion!: string;
+  folioInfraccion?: string;
 
   @IsDateString()
   fechaInfraccion!: string;

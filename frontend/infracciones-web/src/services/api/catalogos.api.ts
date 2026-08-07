@@ -1,4 +1,4 @@
-import { buildQuery, request } from './apiClient';
+import { buildQuery, request } from "./apiClient";
 import type {
   CatalogosBundle,
   ClaseVehiculo,
@@ -26,24 +26,29 @@ import type {
   Servicio,
   Sexo,
   TipoProcedimiento,
-} from '../../types/catalogos.types';
+  UpdateTipoProcedimientoPayload,
+} from "../../types/catalogos.types";
 
 export function getRoles(): Promise<RolCatalogo[]> {
-  return request<RolCatalogo[]>('/catalogos/roles');
+  return request<RolCatalogo[]>("/catalogos/roles");
 }
 
 export function getRegiones(): Promise<Region[]> {
-  return request<Region[]>('/catalogos/regiones');
+  return request<Region[]>("/catalogos/regiones");
 }
 
 export function createRegion(
   token: string,
   payload: CreateRegionPayload,
 ): Promise<Region> {
-  return request<Region>('/catalogos/regiones', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }, token);
+  return request<Region>(
+    "/catalogos/regiones",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export function updateRegion(
@@ -54,7 +59,7 @@ export function updateRegion(
   return request<Region>(
     `/catalogos/regiones/${idRegion}`,
     {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(payload),
     },
     token,
@@ -71,10 +76,14 @@ export function createDelegacion(
   token: string,
   payload: CreateDelegacionPayload,
 ): Promise<Delegacion> {
-  return request<Delegacion>('/catalogos/delegaciones', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }, token);
+  return request<Delegacion>(
+    "/catalogos/delegaciones",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export function updateDelegacion(
@@ -85,7 +94,7 @@ export function updateDelegacion(
   return request<Delegacion>(
     `/catalogos/delegaciones/${idDelegacion}`,
     {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(payload),
     },
     token,
@@ -93,17 +102,21 @@ export function updateDelegacion(
 }
 
 export function getSexos(): Promise<Sexo[]> {
-  return request<Sexo[]>('/catalogos/sexos');
+  return request<Sexo[]>("/catalogos/sexos");
 }
 
 export function createSexo(
   token: string,
   payload: CreateSexoPayload,
 ): Promise<Sexo> {
-  return request<Sexo>('/catalogos/sexos', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }, token);
+  return request<Sexo>(
+    "/catalogos/sexos",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export function updateSexo(
@@ -114,7 +127,7 @@ export function updateSexo(
   return request<Sexo>(
     `/catalogos/sexos/${idSexo}`,
     {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(payload),
     },
     token,
@@ -122,17 +135,21 @@ export function updateSexo(
 }
 
 export function getServicios(): Promise<Servicio[]> {
-  return request<Servicio[]>('/catalogos/servicios');
+  return request<Servicio[]>("/catalogos/servicios");
 }
 
 export function createServicio(
   token: string,
   payload: CreateServicioPayload,
 ): Promise<Servicio> {
-  return request<Servicio>('/catalogos/servicios', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }, token);
+  return request<Servicio>(
+    "/catalogos/servicios",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export function updateServicio(
@@ -143,7 +160,7 @@ export function updateServicio(
   return request<Servicio>(
     `/catalogos/servicios/${idServicio}`,
     {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(payload),
     },
     token,
@@ -151,17 +168,21 @@ export function updateServicio(
 }
 
 export function getClasesVehiculo(): Promise<ClaseVehiculo[]> {
-  return request<ClaseVehiculo[]>('/catalogos/clases-vehiculo');
+  return request<ClaseVehiculo[]>("/catalogos/clases-vehiculo");
 }
 
 export function createClaseVehiculo(
   token: string,
   payload: CreateClaseVehiculoPayload,
 ): Promise<ClaseVehiculo> {
-  return request<ClaseVehiculo>('/catalogos/clases-vehiculo', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }, token);
+  return request<ClaseVehiculo>(
+    "/catalogos/clases-vehiculo",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export function updateClaseVehiculo(
@@ -172,7 +193,7 @@ export function updateClaseVehiculo(
   return request<ClaseVehiculo>(
     `/catalogos/clases-vehiculo/${idClaseVehiculo}`,
     {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(payload),
     },
     token,
@@ -180,17 +201,21 @@ export function updateClaseVehiculo(
 }
 
 export function getMarcasVehiculo(): Promise<MarcaVehiculo[]> {
-  return request<MarcaVehiculo[]>('/catalogos/marcas-vehiculo');
+  return request<MarcaVehiculo[]>("/catalogos/marcas-vehiculo");
 }
 
 export function createMarcaVehiculo(
   token: string,
   payload: CreateMarcaVehiculoPayload,
 ): Promise<MarcaVehiculo> {
-  return request<MarcaVehiculo>('/catalogos/marcas-vehiculo', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }, token);
+  return request<MarcaVehiculo>(
+    "/catalogos/marcas-vehiculo",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export function updateMarcaVehiculo(
@@ -201,7 +226,7 @@ export function updateMarcaVehiculo(
   return request<MarcaVehiculo>(
     `/catalogos/marcas-vehiculo/${idMarcaVehiculo}`,
     {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(payload),
     },
     token,
@@ -220,10 +245,14 @@ export function createLineaVehiculo(
   token: string,
   payload: CreateLineaVehiculoPayload,
 ): Promise<LineaVehiculo> {
-  return request<LineaVehiculo>('/catalogos/lineas-vehiculo', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }, token);
+  return request<LineaVehiculo>(
+    "/catalogos/lineas-vehiculo",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export function updateLineaVehiculo(
@@ -234,7 +263,7 @@ export function updateLineaVehiculo(
   return request<LineaVehiculo>(
     `/catalogos/lineas-vehiculo/${idLineaVehiculo}`,
     {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(payload),
     },
     token,
@@ -242,28 +271,32 @@ export function updateLineaVehiculo(
 }
 
 export function getTiposProcedimiento(): Promise<TipoProcedimiento[]> {
-  return request<TipoProcedimiento[]>('/catalogos/tipos-procedimiento');
+  return request<TipoProcedimiento[]>("/catalogos/tipos-procedimiento");
 }
 
 export function createTipoProcedimiento(
   token: string,
   payload: CreateTipoProcedimientoPayload,
 ): Promise<TipoProcedimiento> {
-  return request<TipoProcedimiento>('/catalogos/tipos-procedimiento', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }, token);
+  return request<TipoProcedimiento>(
+    "/catalogos/tipos-procedimiento",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export function updateTipoProcedimiento(
   token: string,
   idTipoProcedimiento: number,
-  payload: CreateTipoProcedimientoPayload,
+  payload: UpdateTipoProcedimientoPayload,
 ): Promise<TipoProcedimiento> {
   return request<TipoProcedimiento>(
     `/catalogos/tipos-procedimiento/${idTipoProcedimiento}`,
     {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(payload),
     },
     token,
@@ -271,17 +304,21 @@ export function updateTipoProcedimiento(
 }
 
 export function getOperativos(): Promise<Operativo[]> {
-  return request<Operativo[]>('/catalogos/operativos');
+  return request<Operativo[]>("/catalogos/operativos");
 }
 
 export function createOperativo(
   token: string,
   payload: CreateOperativoPayload,
 ): Promise<Operativo> {
-  return request<Operativo>('/catalogos/operativos', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }, token);
+  return request<Operativo>(
+    "/catalogos/operativos",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export function updateOperativo(
@@ -292,7 +329,7 @@ export function updateOperativo(
   return request<Operativo>(
     `/catalogos/operativos/${idOperativo}`,
     {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(payload),
     },
     token,
@@ -300,17 +337,21 @@ export function updateOperativo(
 }
 
 export function getEstatusInfraccion(): Promise<EstatusInfraccion[]> {
-  return request<EstatusInfraccion[]>('/catalogos/estatus-infraccion');
+  return request<EstatusInfraccion[]>("/catalogos/estatus-infraccion");
 }
 
 export function createEstatusInfraccion(
   token: string,
   payload: CreateEstatusInfraccionPayload,
 ): Promise<EstatusInfraccion> {
-  return request<EstatusInfraccion>('/catalogos/estatus-infraccion', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }, token);
+  return request<EstatusInfraccion>(
+    "/catalogos/estatus-infraccion",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export function updateEstatusInfraccion(
@@ -321,7 +362,7 @@ export function updateEstatusInfraccion(
   return request<EstatusInfraccion>(
     `/catalogos/estatus-infraccion/${idEstatusInfraccion}`,
     {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(payload),
     },
     token,
@@ -329,17 +370,21 @@ export function updateEstatusInfraccion(
 }
 
 export function getMotivos(): Promise<Motivo[]> {
-  return request<Motivo[]>('/catalogos/motivos');
+  return request<Motivo[]>("/catalogos/motivos");
 }
 
 export function createMotivo(
   token: string,
   payload: CreateMotivoPayload,
 ): Promise<Motivo> {
-  return request<Motivo>('/catalogos/motivos', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }, token);
+  return request<Motivo>(
+    "/catalogos/motivos",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export function updateMotivo(
@@ -350,7 +395,7 @@ export function updateMotivo(
   return request<Motivo>(
     `/catalogos/motivos/${idMotivo}`,
     {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(payload),
     },
     token,
@@ -358,17 +403,21 @@ export function updateMotivo(
 }
 
 export function getEncierros(): Promise<Encierro[]> {
-  return request<Encierro[]>('/catalogos/encierros');
+  return request<Encierro[]>("/catalogos/encierros");
 }
 
 export function createEncierro(
   token: string,
   payload: CreateEncierroPayload,
 ): Promise<Encierro> {
-  return request<Encierro>('/catalogos/encierros', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }, token);
+  return request<Encierro>(
+    "/catalogos/encierros",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export function updateEncierro(
@@ -379,7 +428,7 @@ export function updateEncierro(
   return request<Encierro>(
     `/catalogos/encierros/${idEncierro}`,
     {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(payload),
     },
     token,

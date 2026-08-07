@@ -4,14 +4,15 @@ import type {
   Delegacion,
   TipoProcedimiento,
   Encierro,
-} from './catalogos.types';
+} from "./catalogos.types";
 
 export type EstadoOperativoVehiculo =
-  | 'SIN_RETENCION'
-  | 'EN_ENCIERRO_SIN_PAGO'
-  | 'PAGADO_PENDIENTE_LIBERACION'
-  | 'LIBERADO_PENDIENTE_SALIDA'
-  | 'VEHICULO_ENTREGADO';
+  | "SIN_RETENCION"
+  | "PAGADA_SIN_RETENCION"
+  | "EN_ENCIERRO_SIN_PAGO"
+  | "PAGADO_PENDIENTE_LIBERACION"
+  | "LIBERADO_PENDIENTE_SALIDA"
+  | "VEHICULO_ENTREGADO";
 
 export interface InfractorSummary {
   nombre: string;
@@ -252,7 +253,7 @@ export interface CreateInfraccionCaptura {
   idTipoProcedimiento: number;
   idEstatusInfraccion: number;
   idOperativo?: number | null;
-  folioInfraccion: string;
+  folioInfraccion?: string;
   fechaInfraccion: string;
   horaInfraccion: string;
   observaciones?: string | null;

@@ -5,6 +5,7 @@ import { Brackets, DataSource, SelectQueryBuilder } from 'typeorm';
 import { ESTADO_OPERATIVO_VEHICULO } from './constants/estado-operativo-vehiculo.constants';
 import { FindInfraccionesQueryDto } from './dto/find-infracciones-query.dto';
 import { Infraccion } from './entities/infraccion.entity';
+import { resolveEstadoOperativoVehiculo } from './utils/estado-operativo.util';
 
 interface InfraccionListRow {
   idInfraccion: string | number;
@@ -33,7 +34,14 @@ interface InfraccionListRow {
   idEstatusInfraccion: string | number | null;
   nombreEstatus: string | null;
   idTipoProcedimiento: string | number | null;
+  claveTipoProcedimiento: string | null;
   nombreTipoProcedimiento: string | null;
+  esTipoExpediente: boolean | number | string | null;
+  requiereFolioInfraccion: boolean | number | string | null;
+  requiereNumParteInformativo: boolean | number | string | null;
+  requiereMotivos: boolean | number | string | null;
+  permiteRetencion: boolean | number | string | null;
+  activo: boolean | number | string | null;
   idRetencionVehiculo: string | number | null;
   encierro: string | null;
   fechaIngreso: string | Date | null;
@@ -164,9 +172,25 @@ export class InfraccionesListService {
       .addSelect('estatusInfraccion.nombreEstatus', 'nombreEstatus')
       .addSelect('tipoProcedimiento.idTipoProcedimiento', 'idTipoProcedimiento')
       .addSelect(
+        'tipoProcedimiento.claveTipoProcedimiento',
+        'claveTipoProcedimiento',
+      )
+      .addSelect(
         'tipoProcedimiento.nombreTipoProcedimiento',
         'nombreTipoProcedimiento',
       )
+      .addSelect('tipoProcedimiento.esTipoExpediente', 'esTipoExpediente')
+      .addSelect(
+        'tipoProcedimiento.requiereFolioInfraccion',
+        'requiereFolioInfraccion',
+      )
+      .addSelect(
+        'tipoProcedimiento.requiereNumParteInformativo',
+        'requiereNumParteInformativo',
+      )
+      .addSelect('tipoProcedimiento.requiereMotivos', 'requiereMotivos')
+      .addSelect('tipoProcedimiento.permiteRetencion', 'permiteRetencion')
+      .addSelect('tipoProcedimiento.activo', 'activo')
       .addSelect('retencion.id_retencion_vehiculo', 'idRetencionVehiculo')
       .addSelect('encierro.nombre_encierro', 'encierro')
       .addSelect('retencion.fecha_ingreso', 'fechaIngreso')
@@ -439,6 +463,12 @@ export class InfraccionesListService {
       case ESTADO_OPERATIVO_VEHICULO.VEHICULO_ENTREGADO:
         builder.andWhere(hasSalida);
         return;
+      case ESTADO_OPERATIVO_VEHICULO.PAGADA_SIN_RETENCION:
+        builder
+          .andWhere('tipoProcedimiento.permiteRetencion = false')
+          .andWhere(hasPago)
+          .andWhere(`NOT ${hasSalida}`);
+        return;
       case ESTADO_OPERATIVO_VEHICULO.LIBERADO_PENDIENTE_SALIDA:
         builder.andWhere(hasLiberacion).andWhere(`NOT ${hasSalida}`);
         return;
@@ -450,13 +480,16 @@ export class InfraccionesListService {
         return;
       case ESTADO_OPERATIVO_VEHICULO.EN_ENCIERRO_SIN_PAGO:
         builder
+          .andWhere('tipoProcedimiento.permiteRetencion = true')
           .andWhere(hasRetencion)
           .andWhere(`NOT ${hasPago}`)
           .andWhere(`NOT ${hasLiberacion}`)
           .andWhere(`NOT ${hasSalida}`);
         return;
       case ESTADO_OPERATIVO_VEHICULO.SIN_RETENCION:
-        builder.andWhere(`NOT ${hasRetencion}`);
+        builder.andWhere(
+          `(tipoProcedimiento.permiteRetencion = true AND NOT ${hasRetencion}) OR (tipoProcedimiento.permiteRetencion = false AND NOT ${hasPago})`,
+        );
         return;
       default:
         return;
@@ -488,6 +521,7 @@ export class InfraccionesListService {
       case 'estadoOperativo':
         return `CASE
           WHEN ${this.hasSalidaByInfraccionExpression()} THEN 5
+          WHEN tipoProcedimiento.permiteRetencion = false AND ${this.hasPagoExpression()} THEN 2
           WHEN ${this.hasLiberacionExpression()} THEN 4
           WHEN ${this.hasPagoExpression()} THEN 3
           WHEN ${this.hasRetencionExpression()} THEN 2
@@ -570,6 +604,7 @@ export class InfraccionesListService {
     const hasPago = this.toBoolean(row.tienePago);
     const hasLiberacion = this.toBoolean(row.tieneLiberacion);
     const hasSalida = this.toBoolean(row.tieneSalida);
+    const permiteRetencion = this.toBoolean(row.permiteRetencion);
 
     return {
       idInfraccion,
@@ -609,9 +644,18 @@ export class InfraccionesListService {
       },
       tipoProcedimiento: {
         idTipoProcedimiento: this.toNumber(row.idTipoProcedimiento),
+        claveTipoProcedimiento: this.toStringValue(row.claveTipoProcedimiento),
         nombreTipoProcedimiento: this.toStringValue(
           row.nombreTipoProcedimiento,
         ),
+        esTipoExpediente: this.toBoolean(row.esTipoExpediente),
+        requiereFolioInfraccion: this.toBoolean(row.requiereFolioInfraccion),
+        requiereNumParteInformativo: this.toBoolean(
+          row.requiereNumParteInformativo,
+        ),
+        requiereMotivos: this.toBoolean(row.requiereMotivos),
+        permiteRetencion,
+        activo: this.toBoolean(row.activo),
       },
       motivos: motivosMap.get(idInfraccion) ?? [],
       retencion: hasRetencion
@@ -638,38 +682,14 @@ export class InfraccionesListService {
         tieneSalida: hasSalida,
         fechaSalida: this.toIsoString(row.fechaSalida),
       },
-      estadoOperativoCalculado: this.resolveEstadoOperativo({
+      estadoOperativoCalculado: resolveEstadoOperativoVehiculo({
+        permiteRetencion,
         hasRetencion,
         hasPago,
         hasLiberacion,
         hasSalida,
       }),
     };
-  }
-
-  private resolveEstadoOperativo(params: {
-    hasRetencion: boolean;
-    hasPago: boolean;
-    hasLiberacion: boolean;
-    hasSalida: boolean;
-  }) {
-    if (params.hasSalida) {
-      return ESTADO_OPERATIVO_VEHICULO.VEHICULO_ENTREGADO;
-    }
-
-    if (!params.hasRetencion) {
-      return ESTADO_OPERATIVO_VEHICULO.SIN_RETENCION;
-    }
-
-    if (params.hasLiberacion) {
-      return ESTADO_OPERATIVO_VEHICULO.LIBERADO_PENDIENTE_SALIDA;
-    }
-
-    if (params.hasPago) {
-      return ESTADO_OPERATIVO_VEHICULO.PAGADO_PENDIENTE_LIBERACION;
-    }
-
-    return ESTADO_OPERATIVO_VEHICULO.EN_ENCIERRO_SIN_PAGO;
   }
 
   private hasRetencionExpression(): string {

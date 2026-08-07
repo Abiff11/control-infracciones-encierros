@@ -70,7 +70,14 @@ export interface InfraccionDetalleResponseDto {
   };
   tipoProcedimiento: {
     idTipoProcedimiento: number;
+    claveTipoProcedimiento: string;
     nombreTipoProcedimiento: string;
+    esTipoExpediente: boolean;
+    requiereFolioInfraccion: boolean;
+    requiereNumParteInformativo: boolean;
+    requiereMotivos: boolean;
+    permiteRetencion: boolean;
+    activo: boolean;
   };
   region: {
     idRegion: number;

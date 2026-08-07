@@ -1,15 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from "react";
 
-import { getDashboardResumen } from '../../services/api/dashboard.api';
-import type { CatalogosBundle } from '../../types/catalogos.types';
+import { getDashboardResumen } from "../../services/api/dashboard.api";
+import type { CatalogosBundle } from "../../types/catalogos.types";
 import type {
   DashboardQuery,
   DashboardResumenResponse,
-} from '../../types/dashboard.types';
-import type { EstadoOperativoVehiculo } from '../../types/infracciones.types';
+} from "../../types/dashboard.types";
+import type { EstadoOperativoVehiculo } from "../../types/infracciones.types";
 
-import './DashboardPage.css';
-import './DashboardExtra.css';
+import "./DashboardPage.css";
+import "./DashboardExtra.css";
 
 interface DashboardPageProps {
   catalogs: CatalogosBundle | null;
@@ -27,7 +27,7 @@ interface DashboardFilters {
   idEstatusInfraccion: string;
   idEncierro: string;
   estadoOperativo: string;
-  periodo: 'all' | '7' | '30' | '90' | 'custom';
+  periodo: "all" | "7" | "30" | "90" | "custom";
 }
 
 interface DashboardRevenueSeriesItem {
@@ -63,19 +63,21 @@ interface ChartDatum {
 }
 
 const ESTADO_LABELS: Record<EstadoOperativoVehiculo, string> = {
-  SIN_RETENCION: 'Sin retencion',
-  EN_ENCIERRO_SIN_PAGO: 'En encierro sin pago',
-  PAGADO_PENDIENTE_LIBERACION: 'Pagado por liberar',
-  LIBERADO_PENDIENTE_SALIDA: 'Liberado por entregar',
-  VEHICULO_ENTREGADO: 'Entregado',
+  SIN_RETENCION: "Sin retencion",
+  PAGADA_SIN_RETENCION: "Pagada sin retencion",
+  EN_ENCIERRO_SIN_PAGO: "En encierro sin pago",
+  PAGADO_PENDIENTE_LIBERACION: "Pagado por liberar",
+  LIBERADO_PENDIENTE_SALIDA: "Liberado por entregar",
+  VEHICULO_ENTREGADO: "Entregado",
 };
 
 const ESTADOS_OPERATIVOS: EstadoOperativoVehiculo[] = [
-  'SIN_RETENCION',
-  'EN_ENCIERRO_SIN_PAGO',
-  'PAGADO_PENDIENTE_LIBERACION',
-  'LIBERADO_PENDIENTE_SALIDA',
-  'VEHICULO_ENTREGADO',
+  "SIN_RETENCION",
+  "PAGADA_SIN_RETENCION",
+  "EN_ENCIERRO_SIN_PAGO",
+  "PAGADO_PENDIENTE_LIBERACION",
+  "LIBERADO_PENDIENTE_SALIDA",
+  "VEHICULO_ENTREGADO",
 ];
 
 function formatInputDate(date: Date): string {
@@ -84,31 +86,34 @@ function formatInputDate(date: Date): string {
 
 function createDefaultFilters(): DashboardFilters {
   return {
-    fechaDesde: '',
-    fechaHasta: '',
-    idRegion: '',
-    idDelegacion: '',
-    idEstatusInfraccion: '',
-    idEncierro: '',
-    estadoOperativo: '',
-    periodo: 'all',
+    fechaDesde: "",
+    fechaHasta: "",
+    idRegion: "",
+    idDelegacion: "",
+    idEstatusInfraccion: "",
+    idEncierro: "",
+    estadoOperativo: "",
+    periodo: "all",
   };
 }
 
-function applyPeriod(filters: DashboardFilters, period: DashboardFilters['periodo']): DashboardFilters {
-  if (period === 'custom') {
+function applyPeriod(
+  filters: DashboardFilters,
+  period: DashboardFilters["periodo"],
+): DashboardFilters {
+  if (period === "custom") {
     return {
       ...filters,
       periodo: period,
     };
   }
 
-  if (period === 'all') {
+  if (period === "all") {
     return {
       ...filters,
       periodo: period,
-      fechaDesde: '',
-      fechaHasta: '',
+      fechaDesde: "",
+      fechaHasta: "",
     };
   }
 
@@ -148,15 +153,15 @@ function buildDashboardQuery(filters: DashboardFilters): DashboardQuery {
 }
 
 function formatNumber(value: number): string {
-  return new Intl.NumberFormat('es-MX').format(value);
+  return new Intl.NumberFormat("es-MX").format(value);
 }
 
 function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('es-MX', {
-    currency: 'MXN',
+  return new Intl.NumberFormat("es-MX", {
+    currency: "MXN",
     maximumFractionDigits: 2,
     minimumFractionDigits: 2,
-    style: 'currency',
+    style: "currency",
   }).format(value);
 }
 
@@ -167,9 +172,9 @@ function formatDateLabel(value: string): string {
     return value;
   }
 
-  return new Intl.DateTimeFormat('es-MX', {
-    day: '2-digit',
-    month: 'short',
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "2-digit",
+    month: "short",
   }).format(date);
 }
 
@@ -180,9 +185,9 @@ function formatMonthLabel(value: string): string {
     return value;
   }
 
-  return new Intl.DateTimeFormat('es-MX', {
-    month: 'short',
-    year: '2-digit',
+  return new Intl.DateTimeFormat("es-MX", {
+    month: "short",
+    year: "2-digit",
   }).format(date);
 }
 
@@ -193,8 +198,8 @@ function formatYearLabel(value: string): string {
     return value.slice(0, 4);
   }
 
-  return new Intl.DateTimeFormat('es-MX', {
-    year: 'numeric',
+  return new Intl.DateTimeFormat("es-MX", {
+    year: "numeric",
   }).format(date);
 }
 
@@ -205,9 +210,9 @@ function formatDateTime(value: string): string {
     return value;
   }
 
-  return new Intl.DateTimeFormat('es-MX', {
-    dateStyle: 'short',
-    timeStyle: 'short',
+  return new Intl.DateTimeFormat("es-MX", {
+    dateStyle: "short",
+    timeStyle: "short",
   }).format(date);
 }
 
@@ -221,7 +226,7 @@ function MetricCard({
   value,
   helper,
 }: {
-  accent: 'blue' | 'green' | 'purple' | 'orange' | 'teal' | 'red';
+  accent: "blue" | "green" | "purple" | "orange" | "teal" | "red";
   label: string;
   value: string;
   helper: string;
@@ -250,7 +255,11 @@ function BarChart({ data }: { data: ChartDatum[] }) {
             {item.hint ? <small>{item.hint}</small> : null}
           </div>
           <div className="dashboard-bar-track">
-            <span style={{ width: `${Math.max((item.value / maxValue) * 100, 4)}%` }} />
+            <span
+              style={{
+                width: `${Math.max((item.value / maxValue) * 100, 4)}%`,
+              }}
+            />
           </div>
           <strong>{item.displayValue ?? formatNumber(item.value)}</strong>
         </div>
@@ -266,9 +275,15 @@ function ColumnChart({ data }: { data: ChartDatum[] }) {
     <div className="dashboard-column-chart">
       {data.map((item) => (
         <div className="dashboard-column-item" key={item.label}>
-          <div className="dashboard-column-value">{item.displayValue ?? formatNumber(item.value)}</div>
+          <div className="dashboard-column-value">
+            {item.displayValue ?? formatNumber(item.value)}
+          </div>
           <div className="dashboard-column-track">
-            <span style={{ height: `${Math.max((item.value / maxValue) * 100, 8)}%` }} />
+            <span
+              style={{
+                height: `${Math.max((item.value / maxValue) * 100, 8)}%`,
+              }}
+            />
           </div>
           <small>{item.label}</small>
         </div>
@@ -288,8 +303,12 @@ function DashboardPage({
   refreshKey,
   runProtectedRequest,
 }: DashboardPageProps) {
-  const [filters, setFilters] = useState<DashboardFilters>(() => createDefaultFilters());
-  const [appliedFilters, setAppliedFilters] = useState<DashboardFilters>(() => createDefaultFilters());
+  const [filters, setFilters] = useState<DashboardFilters>(() =>
+    createDefaultFilters(),
+  );
+  const [appliedFilters, setAppliedFilters] = useState<DashboardFilters>(() =>
+    createDefaultFilters(),
+  );
   const [reloadKey, setReloadKey] = useState(0);
   const [dashboardState, setDashboardState] = useState<DashboardState>({
     data: null,
@@ -329,7 +348,10 @@ function DashboardPage({
         setDashboardState((current) => ({
           ...current,
           loading: false,
-          error: error instanceof Error ? error.message : 'No se pudo cargar el dashboard.',
+          error:
+            error instanceof Error
+              ? error.message
+              : "No se pudo cargar el dashboard.",
         }));
       }
     }
@@ -347,7 +369,9 @@ function DashboardPage({
     }
 
     const idRegion = Number(filters.idRegion);
-    return catalogs.delegaciones.filter((delegacion) => delegacion.region?.idRegion === idRegion);
+    return catalogs.delegaciones.filter(
+      (delegacion) => delegacion.region?.idRegion === idRegion,
+    );
   }, [catalogs, filters.idRegion]);
 
   const data = dashboardState.data;
@@ -364,14 +388,18 @@ function DashboardPage({
   const ingresosMesActual = ingresos?.ingresosMesActual ?? 0;
   const ingresosAnioActual = ingresos?.ingresosAnioActual ?? 0;
 
-  const estadoChartData: ChartDatum[] = ESTADOS_OPERATIVOS.map((estadoOperativo) => {
-    const item = data?.flujoOperativo.find((current) => current.estado === estadoOperativo);
+  const estadoChartData: ChartDatum[] = ESTADOS_OPERATIVOS.map(
+    (estadoOperativo) => {
+      const item = data?.flujoOperativo.find(
+        (current) => current.estado === estadoOperativo,
+      );
 
-    return {
-      label: item?.label ?? ESTADO_LABELS[estadoOperativo],
-      value: item?.total ?? 0,
-    };
-  });
+      return {
+        label: item?.label ?? ESTADO_LABELS[estadoOperativo],
+        value: item?.total ?? 0,
+      };
+    },
+  );
 
   const delegacionChartData: ChartDatum[] =
     data?.topDelegaciones.map((item) => ({
@@ -413,19 +441,22 @@ function DashboardPage({
       value: item.total,
     })) ?? [];
 
-  function updateFilter<K extends keyof DashboardFilters>(key: K, value: DashboardFilters[K]): void {
+  function updateFilter<K extends keyof DashboardFilters>(
+    key: K,
+    value: DashboardFilters[K],
+  ): void {
     setFilters((current) => {
       const nextFilters: DashboardFilters = {
         ...current,
         [key]: value,
       };
 
-      if (key === 'idRegion') {
-        nextFilters.idDelegacion = '';
+      if (key === "idRegion") {
+        nextFilters.idDelegacion = "";
       }
 
-      if (key === 'fechaDesde' || key === 'fechaHasta') {
-        nextFilters.periodo = 'custom';
+      if (key === "fechaDesde" || key === "fechaHasta") {
+        nextFilters.periodo = "custom";
       }
 
       return nextFilters;
@@ -445,12 +476,21 @@ function DashboardPage({
           <p className="eyebrow">Dashboard</p>
           <h1>Resumen general del sistema</h1>
           <p className="page-description">
-            Indicadores principales de infracciones, encierros, pago, liberacion, salida de vehiculos e ingresos.
+            Indicadores principales de infracciones, encierros, pago,
+            liberacion, salida de vehiculos e ingresos.
           </p>
         </div>
         <div className="dashboard-refresh-box">
-          <span>{data?.updatedAt ? `Actualizado: ${formatDateTime(data.updatedAt)}` : apiStatusLabel}</span>
-          <button className="button-secondary" type="button" onClick={() => setReloadKey((current) => current + 1)}>
+          <span>
+            {data?.updatedAt
+              ? `Actualizado: ${formatDateTime(data.updatedAt)}`
+              : apiStatusLabel}
+          </span>
+          <button
+            className="button-secondary"
+            type="button"
+            onClick={() => setReloadKey((current) => current + 1)}
+          >
             Actualizar
           </button>
         </div>
@@ -462,7 +502,7 @@ function DashboardPage({
           <input
             type="date"
             value={filters.fechaDesde}
-            onChange={(event) => updateFilter('fechaDesde', event.target.value)}
+            onChange={(event) => updateFilter("fechaDesde", event.target.value)}
           />
         </label>
         <label className="field">
@@ -470,12 +510,15 @@ function DashboardPage({
           <input
             type="date"
             value={filters.fechaHasta}
-            onChange={(event) => updateFilter('fechaHasta', event.target.value)}
+            onChange={(event) => updateFilter("fechaHasta", event.target.value)}
           />
         </label>
         <label className="field">
           <span>Region</span>
-          <select value={filters.idRegion} onChange={(event) => updateFilter('idRegion', event.target.value)}>
+          <select
+            value={filters.idRegion}
+            onChange={(event) => updateFilter("idRegion", event.target.value)}
+          >
             <option value="">Todas</option>
             {catalogs?.regiones.map((region) => (
               <option key={region.idRegion} value={region.idRegion}>
@@ -488,11 +531,16 @@ function DashboardPage({
           <span>Delegacion / unidad</span>
           <select
             value={filters.idDelegacion}
-            onChange={(event) => updateFilter('idDelegacion', event.target.value)}
+            onChange={(event) =>
+              updateFilter("idDelegacion", event.target.value)
+            }
           >
             <option value="">Todas</option>
             {filteredDelegaciones.map((delegacion) => (
-              <option key={delegacion.idDelegacion} value={delegacion.idDelegacion}>
+              <option
+                key={delegacion.idDelegacion}
+                value={delegacion.idDelegacion}
+              >
                 {delegacion.nombreDelegacion}
               </option>
             ))}
@@ -502,11 +550,16 @@ function DashboardPage({
           <span>Estatus</span>
           <select
             value={filters.idEstatusInfraccion}
-            onChange={(event) => updateFilter('idEstatusInfraccion', event.target.value)}
+            onChange={(event) =>
+              updateFilter("idEstatusInfraccion", event.target.value)
+            }
           >
             <option value="">Todos</option>
             {catalogs?.estatusInfraccion.map((estatus) => (
-              <option key={estatus.idEstatusInfraccion} value={estatus.idEstatusInfraccion}>
+              <option
+                key={estatus.idEstatusInfraccion}
+                value={estatus.idEstatusInfraccion}
+              >
                 {estatus.nombreEstatus}
               </option>
             ))}
@@ -514,7 +567,10 @@ function DashboardPage({
         </label>
         <label className="field">
           <span>Encierro</span>
-          <select value={filters.idEncierro} onChange={(event) => updateFilter('idEncierro', event.target.value)}>
+          <select
+            value={filters.idEncierro}
+            onChange={(event) => updateFilter("idEncierro", event.target.value)}
+          >
             <option value="">Todos</option>
             {catalogs?.encierros.map((encierro) => (
               <option key={encierro.idEncierro} value={encierro.idEncierro}>
@@ -527,7 +583,9 @@ function DashboardPage({
           <span>Flujo</span>
           <select
             value={filters.estadoOperativo}
-            onChange={(event) => updateFilter('estadoOperativo', event.target.value)}
+            onChange={(event) =>
+              updateFilter("estadoOperativo", event.target.value)
+            }
           >
             <option value="">Todos</option>
             {ESTADOS_OPERATIVOS.map((estado) => (
@@ -543,7 +601,10 @@ function DashboardPage({
             value={filters.periodo}
             onChange={(event) =>
               setFilters((current) =>
-                applyPeriod(current, event.target.value as DashboardFilters['periodo']),
+                applyPeriod(
+                  current,
+                  event.target.value as DashboardFilters["periodo"],
+                ),
               )
             }
           >
@@ -558,13 +619,20 @@ function DashboardPage({
           <button type="button" onClick={() => setAppliedFilters(filters)}>
             Aplicar filtros
           </button>
-          <button className="button-secondary" type="button" onClick={resetFilters}>
+          <button
+            className="button-secondary"
+            type="button"
+            onClick={resetFilters}
+          >
             Limpiar
           </button>
         </div>
       </section>
 
-      <section className="dashboard-metrics-grid" aria-label="Indicadores principales">
+      <section
+        className="dashboard-metrics-grid"
+        aria-label="Indicadores principales"
+      >
         <MetricCard
           accent="blue"
           label="Total infracciones"
@@ -577,7 +645,12 @@ function DashboardPage({
           value={formatNumber(vehiculosRetenidos)}
           helper="Sin salida registrada"
         />
-        <MetricCard accent="red" label="Sin pago" value={formatNumber(pendientesPago)} helper="Prioridad de seguimiento" />
+        <MetricCard
+          accent="red"
+          label="Sin pago"
+          value={formatNumber(pendientesPago)}
+          helper="Prioridad de seguimiento"
+        />
         <MetricCard
           accent="green"
           label="Pagados por liberar"
@@ -590,7 +663,12 @@ function DashboardPage({
           value={formatNumber(liberadosPorEntregar)}
           helper="Pendientes en encierro"
         />
-        <MetricCard accent="teal" label="Entregados" value={formatNumber(entregados)} helper="Flujo concluido" />
+        <MetricCard
+          accent="teal"
+          label="Entregados"
+          value={formatNumber(entregados)}
+          helper="Flujo concluido"
+        />
       </section>
 
       <section className="dashboard-section-heading">
@@ -601,16 +679,43 @@ function DashboardPage({
         <span>Segmentado por día, mes y año</span>
       </section>
 
-      <section className="dashboard-revenue-grid" aria-label="Indicadores de ingresos">
-        <MetricCard accent="green" label="Ingresos totales" value={formatCurrency(totalIngresos)} helper="Pagos segun filtros" />
-        <MetricCard accent="teal" label="Ingresos de hoy" value={formatCurrency(ingresosHoy)} helper="Fecha de pago del dia" />
-        <MetricCard accent="blue" label="Ingresos del mes" value={formatCurrency(ingresosMesActual)} helper="Mes calendario actual" />
-        <MetricCard accent="purple" label="Ingresos del año" value={formatCurrency(ingresosAnioActual)} helper="Año calendario actual" />
+      <section
+        className="dashboard-revenue-grid"
+        aria-label="Indicadores de ingresos"
+      >
+        <MetricCard
+          accent="green"
+          label="Ingresos totales"
+          value={formatCurrency(totalIngresos)}
+          helper="Pagos segun filtros"
+        />
+        <MetricCard
+          accent="teal"
+          label="Ingresos de hoy"
+          value={formatCurrency(ingresosHoy)}
+          helper="Fecha de pago del dia"
+        />
+        <MetricCard
+          accent="blue"
+          label="Ingresos del mes"
+          value={formatCurrency(ingresosMesActual)}
+          helper="Mes calendario actual"
+        />
+        <MetricCard
+          accent="purple"
+          label="Ingresos del año"
+          value={formatCurrency(ingresosAnioActual)}
+          helper="Año calendario actual"
+        />
       </section>
 
-      {dashboardState.loading ? <p className="notice">Actualizando indicadores del dashboard...</p> : null}
+      {dashboardState.loading ? (
+        <p className="notice">Actualizando indicadores del dashboard...</p>
+      ) : null}
       {dashboardState.error || notice ? (
-        <div className="notice notice-error">{dashboardState.error ?? notice}</div>
+        <div className="notice notice-error">
+          {dashboardState.error ?? notice}
+        </div>
       ) : null}
 
       <section className="dashboard-analytics-grid">
@@ -622,7 +727,11 @@ function DashboardPage({
             </div>
             <span>Agregado real</span>
           </div>
-          {dayChartData.length ? <ColumnChart data={dayChartData} /> : <EmptyChart message="Sin datos para graficar." />}
+          {dayChartData.length ? (
+            <ColumnChart data={dayChartData} />
+          ) : (
+            <EmptyChart message="Sin datos para graficar." />
+          )}
         </article>
 
         <article className="dashboard-panel">

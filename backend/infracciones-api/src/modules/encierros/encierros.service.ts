@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
 
@@ -8,6 +12,7 @@ import { ACCION_MOVIMIENTO } from '../infracciones/constants/accion-movimiento.c
 import { ESTATUS_INFRACCION } from '../infracciones/constants/estatus-infraccion.constants';
 import { ESTADO_OPERATIVO_VEHICULO } from '../infracciones/constants/estado-operativo-vehiculo.constants';
 import { InfraccionesService } from '../infracciones/infracciones.service';
+import { resolveEstadoOperativoVehiculo } from '../infracciones/utils/estado-operativo.util';
 import { LiberacionVehiculo } from '../liberaciones/entities/liberacion-vehiculo.entity';
 import { PagoInfraccion } from '../pagos/entities/pago-infraccion.entity';
 import { Usuario } from '../usuarios/entities/usuario.entity';
@@ -245,6 +250,34 @@ export class EncierrosService {
   async registrarRetencion(
     params: RegistrarRetencionParams,
   ): Promise<RetencionVehiculo> {
+    const infraccion = await this.infraccionesService.findByIdOrFail(
+      params.idInfraccion,
+    );
+
+    if (!infraccion.tipoProcedimiento.permiteRetencion) {
+      throw new BadRequestException(
+        `El tipo de expediente ${infraccion.tipoProcedimiento.nombreTipoProcedimiento} no permite ingreso a encierro.`,
+      );
+    }
+
+    const existingRetencion = await this.retencionesRepository.findOne({
+      where: {
+        infraccion: {
+          idInfraccion: params.idInfraccion,
+        },
+      },
+      order: {
+        fechaIngreso: 'DESC',
+        idRetencionVehiculo: 'DESC',
+      },
+    });
+
+    if (existingRetencion) {
+      throw new BadRequestException(
+        'La infraccion ya cuenta con una retencion vehicular registrada',
+      );
+    }
+
     const retencion = this.retencionesRepository.create({
       infraccion: { idInfraccion: params.idInfraccion },
       encierro: { idEncierro: params.idEncierro },
@@ -261,6 +294,52 @@ export class EncierrosService {
   async registrarSalida(
     params: RegistrarSalidaParams,
   ): Promise<SalidaVehiculo> {
+    const retencion = await this.findRetencionByIdOrFail(
+      params.idRetencionVehiculo,
+    );
+    const existingSalida = await this.salidasRepository.findOne({
+      where: {
+        retencionVehiculo: {
+          idRetencionVehiculo: params.idRetencionVehiculo,
+        },
+      },
+      order: {
+        fechaSalida: 'DESC',
+        idSalidaVehiculo: 'DESC',
+      },
+    });
+
+    if (existingSalida) {
+      throw new BadRequestException(
+        'La retencion vehicular ya cuenta con una salida registrada',
+      );
+    }
+
+    const liberacion = await this.dataSource
+      .getRepository(LiberacionVehiculo)
+      .findOne({
+        where: {
+          idLiberacionVehiculo: params.idLiberacionVehiculo,
+        },
+        relations: {
+          infraccion: true,
+        },
+      });
+
+    if (!liberacion) {
+      throw new NotFoundException(
+        `Liberacion vehicular ${params.idLiberacionVehiculo} no encontrada`,
+      );
+    }
+
+    if (
+      liberacion.infraccion.idInfraccion !== retencion.infraccion.idInfraccion
+    ) {
+      throw new BadRequestException(
+        'La liberacion indicada no corresponde a la retencion vehicular seleccionada',
+      );
+    }
+
     const salida = this.salidasRepository.create({
       retencionVehiculo: {
         idRetencionVehiculo: params.idRetencionVehiculo,
@@ -279,10 +358,6 @@ export class EncierrosService {
     });
 
     const savedSalida = await this.salidasRepository.save(salida);
-
-    const retencion = await this.findRetencionByIdOrFail(
-      params.idRetencionVehiculo,
-    );
 
     await this.infraccionesService.actualizarEstatusYRegistrarMovimiento({
       idInfraccion: retencion.infraccion.idInfraccion,
@@ -658,7 +733,8 @@ export class EncierrosService {
     const hasPago = this.toBoolean(row.tienePago);
     const hasLiberacion = this.toBoolean(row.tieneLiberacion);
     const hasSalida = this.toBoolean(row.tieneSalida);
-    const estadoOperativo = this.resolveEstadoOperativo({
+    const estadoOperativo = resolveEstadoOperativoVehiculo({
+      permiteRetencion: true,
       hasRetencion: true,
       hasPago,
       hasLiberacion,

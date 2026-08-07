@@ -21,6 +21,10 @@ import { TipoProcedimiento } from '../../modules/catalogos/entities/tipo-procedi
 import { Encierro } from '../../modules/encierros/entities/encierro.entity';
 import { Motivo } from '../../modules/motivos/entities/motivo.entity';
 import { Rol } from '../../modules/roles/entities/rol.entity';
+import {
+  normalizeTipoProcedimientoClave,
+  normalizeTipoProcedimientoNombre,
+} from '../../modules/catalogos/utils/tipo-procedimiento-rules';
 
 interface SeedSummary {
   created: number;
@@ -89,9 +93,56 @@ const LINEAS_VEHICULO_SEED = [
 ] as const;
 
 const TIPOS_PROCEDIMIENTO_SEED = [
-  'INFRACCION',
-  'RETENCION',
-  'LIBERACION',
+  {
+    clave: 'INFRACCION',
+    nombre: 'INFRACCION',
+    esTipoExpediente: true,
+    requiereFolioInfraccion: true,
+    requiereNumParteInformativo: false,
+    requiereMotivos: true,
+    permiteRetencion: true,
+    activo: true,
+  },
+  {
+    clave: 'INFRACCION_SIN_RETENCION',
+    nombre: 'INFRACCION SIN RETENCION',
+    esTipoExpediente: true,
+    requiereFolioInfraccion: true,
+    requiereNumParteInformativo: false,
+    requiereMotivos: true,
+    permiteRetencion: false,
+    activo: true,
+  },
+  {
+    clave: 'VEHICULO_SIN_INFRACCION',
+    nombre: 'VEHICULO SIN INFRACCION',
+    esTipoExpediente: true,
+    requiereFolioInfraccion: false,
+    requiereNumParteInformativo: true,
+    requiereMotivos: false,
+    permiteRetencion: true,
+    activo: true,
+  },
+  {
+    clave: 'RETENCION',
+    nombre: 'RETENCION',
+    esTipoExpediente: false,
+    requiereFolioInfraccion: false,
+    requiereNumParteInformativo: false,
+    requiereMotivos: false,
+    permiteRetencion: false,
+    activo: true,
+  },
+  {
+    clave: 'LIBERACION',
+    nombre: 'LIBERACION',
+    esTipoExpediente: false,
+    requiereFolioInfraccion: false,
+    requiereNumParteInformativo: false,
+    requiereMotivos: false,
+    permiteRetencion: false,
+    activo: true,
+  },
 ] as const;
 
 const ENCIERROS_SEED = ['ENCIERRO MUNICIPAL', 'ENCIERRO OFICIAL'] as const;
@@ -405,22 +456,46 @@ async function seedInitialCatalogs(): Promise<void> {
       );
     }
 
-    for (const nombreTipoProcedimiento of TIPOS_PROCEDIMIENTO_SEED) {
-      const normalizedNombreTipoProcedimiento = normalizeValue(
-        nombreTipoProcedimiento,
+    for (const tipoProcedimientoSeed of TIPOS_PROCEDIMIENTO_SEED) {
+      const claveTipoProcedimiento = normalizeTipoProcedimientoClave(
+        tipoProcedimientoSeed.clave,
       );
+      const nombreTipoProcedimiento = normalizeTipoProcedimientoNombre(
+        tipoProcedimientoSeed.nombre,
+      );
+      const existingTipoProcedimiento =
+        (await tiposProcedimientoRepository.findOne({
+          where: {
+            claveTipoProcedimiento,
+          },
+        })) ??
+        (await tiposProcedimientoRepository.findOne({
+          where: {
+            nombreTipoProcedimiento,
+          },
+        }));
 
-      await seedCatalogEntry(
-        tiposProcedimientoRepository,
-        {
-          nombreTipoProcedimiento: normalizedNombreTipoProcedimiento,
-        },
-        {
-          nombreTipoProcedimiento: normalizedNombreTipoProcedimiento,
-        },
-        'Tipo procedimiento',
-        summary,
-      );
+      const entity = tiposProcedimientoRepository.create({
+        ...(existingTipoProcedimiento ?? {}),
+        claveTipoProcedimiento,
+        nombreTipoProcedimiento,
+        esTipoExpediente: tipoProcedimientoSeed.esTipoExpediente,
+        requiereFolioInfraccion: tipoProcedimientoSeed.requiereFolioInfraccion,
+        requiereNumParteInformativo:
+          tipoProcedimientoSeed.requiereNumParteInformativo,
+        requiereMotivos: tipoProcedimientoSeed.requiereMotivos,
+        permiteRetencion: tipoProcedimientoSeed.permiteRetencion,
+        activo: tipoProcedimientoSeed.activo,
+      });
+
+      await tiposProcedimientoRepository.save(entity);
+      summary.processed += 1;
+
+      if (existingTipoProcedimiento) {
+        summary.existing += 1;
+      } else {
+        summary.created += 1;
+      }
     }
 
     for (const nombreEncierro of ENCIERROS_SEED) {

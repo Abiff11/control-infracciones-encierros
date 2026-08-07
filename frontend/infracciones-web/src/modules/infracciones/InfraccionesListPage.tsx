@@ -1,15 +1,18 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 
-import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
-import { ErrorMessage } from '../../components/ui/ErrorMessage';
-import { Field, TextInput } from '../../components/ui/Field';
-import { LoadingMessage } from '../../components/ui/LoadingMessage';
-import { PaginationControls } from '../../components/ui/PaginationControls';
-import { SelectField } from '../../components/ui/SelectField';
-import { StatusBadge } from '../../components/ui/StatusBadge';
-import { getErrorMessage } from '../../services/api/apiClient';
-import { getInfraccionDetalle, getInfracciones } from '../../services/api/infracciones.api';
+import { Button } from "../../components/ui/Button";
+import { Card } from "../../components/ui/Card";
+import { ErrorMessage } from "../../components/ui/ErrorMessage";
+import { Field, TextInput } from "../../components/ui/Field";
+import { LoadingMessage } from "../../components/ui/LoadingMessage";
+import { PaginationControls } from "../../components/ui/PaginationControls";
+import { SelectField } from "../../components/ui/SelectField";
+import { StatusBadge } from "../../components/ui/StatusBadge";
+import { getErrorMessage } from "../../services/api/apiClient";
+import {
+  getInfraccionDetalle,
+  getInfracciones,
+} from "../../services/api/infracciones.api";
 import {
   formatCurrencyMxn,
   formatDate,
@@ -17,8 +20,8 @@ import {
   formatEmptyValue,
   formatFullName,
   formatTimeOfDay,
-} from '../../utils/formatters';
-import type { CatalogosBundle } from '../../types/catalogos.types';
+} from "../../utils/formatters";
+import type { CatalogosBundle } from "../../types/catalogos.types";
 import type {
   EstadoOperativoVehiculo,
   InfraccionDetalleResponse,
@@ -26,14 +29,14 @@ import type {
   InfraccionesResponse,
   InfraccionListItem,
   PaginationMeta,
-} from '../../types/infracciones.types';
-import { InfraccionDetalleModal } from './InfraccionDetalleModal';
+} from "../../types/infracciones.types";
+import { InfraccionDetalleModal } from "./InfraccionDetalleModal";
 import {
   InfraccionOperacionModal,
   type InfraccionOperacionTipo,
-} from './InfraccionOperacionModal';
+} from "./InfraccionOperacionModal";
 
-type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
+type LoadStatus = "idle" | "loading" | "ready" | "error";
 
 interface LoadState<T> {
   status: LoadStatus;
@@ -72,7 +75,7 @@ interface InfraccionesListPageProps {
 
 interface QuickStatusFilter {
   label: string;
-  value: EstadoOperativoVehiculo | '';
+  value: EstadoOperativoVehiculo | "";
 }
 
 interface NextOperation {
@@ -83,40 +86,41 @@ interface NextOperation {
 }
 
 const DEFAULT_FILTERS: FiltersForm = {
-  search: '',
-  anio: '',
-  fechaDesde: '',
-  fechaHasta: '',
-  idDelegacion: '',
-  idEstatusInfraccion: '',
-  idEncierro: '',
-  folioInfraccion: '',
-  placas: '',
-  rfc: '',
-  claveOficial: '',
-  estadoOperativo: '',
-  page: '1',
-  limit: '30',
+  search: "",
+  anio: "",
+  fechaDesde: "",
+  fechaHasta: "",
+  idDelegacion: "",
+  idEstatusInfraccion: "",
+  idEncierro: "",
+  folioInfraccion: "",
+  placas: "",
+  rfc: "",
+  claveOficial: "",
+  estadoOperativo: "",
+  page: "1",
+  limit: "30",
 };
 
 const QUICK_STATUS_FILTERS: QuickStatusFilter[] = [
-  { label: 'Todos', value: '' },
-  { label: 'En encierro sin pago', value: 'EN_ENCIERRO_SIN_PAGO' },
-  { label: 'Pagados por liberar', value: 'PAGADO_PENDIENTE_LIBERACION' },
-  { label: 'Liberados por entregar', value: 'LIBERADO_PENDIENTE_SALIDA' },
-  { label: 'Entregados', value: 'VEHICULO_ENTREGADO' },
+  { label: "Todos", value: "" },
+  { label: "Pagada sin retencion", value: "PAGADA_SIN_RETENCION" },
+  { label: "En encierro sin pago", value: "EN_ENCIERRO_SIN_PAGO" },
+  { label: "Pagados por liberar", value: "PAGADO_PENDIENTE_LIBERACION" },
+  { label: "Liberados por entregar", value: "LIBERADO_PENDIENTE_SALIDA" },
+  { label: "Entregados", value: "VEHICULO_ENTREGADO" },
 ];
 
 function createIdleState<T>(): LoadState<T> {
   return {
-    status: 'idle',
+    status: "idle",
     data: null,
     error: null,
   };
 }
 
 function isFilled(value: string): boolean {
-  return value.trim() !== '';
+  return value.trim() !== "";
 }
 
 function toNumber(value: string): number | undefined {
@@ -141,7 +145,8 @@ function buildQuery(filters: FiltersForm): InfraccionesQuery {
     placas: filters.placas || undefined,
     rfc: filters.rfc || undefined,
     claveOficial: filters.claveOficial || undefined,
-    estadoOperativo: (filters.estadoOperativo || undefined) as EstadoOperativoVehiculo | undefined,
+    estadoOperativo: (filters.estadoOperativo || undefined) as
+      EstadoOperativoVehiculo | undefined,
     page: toNumber(filters.page),
     limit: toNumber(filters.limit),
   };
@@ -156,70 +161,91 @@ function getInfractorLabel(item: InfraccionListItem): string {
 }
 
 function getVehicleLabel(item: InfraccionListItem): string {
-  const parts = [item.vehiculo.marca, item.vehiculo.linea, item.vehiculo.clase].filter(
-    (value): value is string => Boolean(value && value.trim()),
-  );
+  const parts = [
+    item.vehiculo.marca,
+    item.vehiculo.linea,
+    item.vehiculo.clase,
+  ].filter((value): value is string => Boolean(value && value.trim()));
 
-  return parts.length > 0 ? parts.join(' - ') : 'Sin informacion registrada';
+  return parts.length > 0 ? parts.join(" - ") : "Sin informacion registrada";
 }
 
 function getOperationalDetail(item: InfraccionListItem): string {
   switch (item.estadoOperativoCalculado) {
-    case 'SIN_RETENCION':
-      return 'No hay ingreso al encierro';
-    case 'EN_ENCIERRO_SIN_PAGO':
-      return 'Vehiculo en resguardo';
-    case 'PAGADO_PENDIENTE_LIBERACION':
+    case "SIN_RETENCION":
+      return item.tipoProcedimiento.permiteRetencion
+        ? "Ingreso a encierro pendiente"
+        : "Sin retencion por tipo de expediente";
+    case "PAGADA_SIN_RETENCION":
+      return "Flujo completado sin retencion";
+    case "EN_ENCIERRO_SIN_PAGO":
+      return "Vehiculo en resguardo";
+    case "PAGADO_PENDIENTE_LIBERACION":
       return item.pago?.montoPagado
         ? `Pago registrado por ${formatCurrencyMxn(item.pago.montoPagado)}`
-        : 'Pago registrado';
-    case 'LIBERADO_PENDIENTE_SALIDA':
-      return 'Liberacion autorizada';
-    case 'VEHICULO_ENTREGADO':
-      return 'Vehiculo entregado';
+        : "Pago registrado";
+    case "LIBERADO_PENDIENTE_SALIDA":
+      return "Liberacion autorizada";
+    case "VEHICULO_ENTREGADO":
+      return "Vehiculo entregado";
     default:
-      return 'Revisar expediente';
+      return "Revisar expediente";
   }
 }
 
 function getNextOperation(item: InfraccionListItem): NextOperation {
   switch (item.estadoOperativoCalculado) {
-    case 'SIN_RETENCION':
+    case "SIN_RETENCION":
+      if (!item.tipoProcedimiento.permiteRetencion) {
+        return {
+          type: "pago",
+          label: "Registrar pago",
+          helper: "Pago pendiente sin ingreso a encierro",
+        };
+      }
+
       return {
-        type: 'retencion',
-        label: 'Registrar ingreso',
-        helper: 'Encierro debe recibir el vehiculo',
+        type: "retencion",
+        label: "Registrar ingreso",
+        helper: "Encierro debe recibir el vehiculo",
       };
-    case 'EN_ENCIERRO_SIN_PAGO':
-      return {
-        type: 'pago',
-        label: 'Registrar pago',
-        helper: 'Infracciones debe registrar el pago',
-      };
-    case 'PAGADO_PENDIENTE_LIBERACION':
-      return {
-        type: 'liberacion',
-        label: 'Autorizar liberacion',
-        helper: 'Liberaciones debe emitir la autorizacion',
-      };
-    case 'LIBERADO_PENDIENTE_SALIDA':
-      return {
-        type: 'salida',
-        label: 'Registrar salida',
-        helper: 'Encierro debe entregar el vehiculo',
-      };
-    case 'VEHICULO_ENTREGADO':
+    case "PAGADA_SIN_RETENCION":
       return {
         type: null,
-        label: 'Completado',
-        helper: 'Flujo operativo cerrado',
+        label: "Completado",
+        helper: "Flujo completado sin retencion",
+        disabled: true,
+      };
+    case "EN_ENCIERRO_SIN_PAGO":
+      return {
+        type: "pago",
+        label: "Registrar pago",
+        helper: "Infracciones debe registrar el pago",
+      };
+    case "PAGADO_PENDIENTE_LIBERACION":
+      return {
+        type: "liberacion",
+        label: "Autorizar liberacion",
+        helper: "Liberaciones debe emitir la autorizacion",
+      };
+    case "LIBERADO_PENDIENTE_SALIDA":
+      return {
+        type: "salida",
+        label: "Registrar salida",
+        helper: "Encierro debe entregar el vehiculo",
+      };
+    case "VEHICULO_ENTREGADO":
+      return {
+        type: null,
+        label: "Completado",
+        helper: "Flujo operativo cerrado",
         disabled: true,
       };
     default:
       return {
         type: null,
-        label: 'Revisar',
-        helper: 'Abre el expediente para validar datos',
+        label: "Revisar",
+        helper: "Abre el expediente para validar datos",
         disabled: true,
       };
   }
@@ -227,23 +253,36 @@ function getNextOperation(item: InfraccionListItem): NextOperation {
 
 function getIngresoLabel(item: InfraccionListItem): string {
   if (!item.retencion) {
-    return 'Pendiente de ingreso';
+    return "Pendiente de ingreso";
   }
 
   return formatDateTime(item.retencion.fechaIngreso);
 }
 
 function getEncierroLabel(item: InfraccionListItem): string {
-  return item.retencion ? formatEmptyValue(item.retencion.encierro) : 'Sin encierro registrado';
+  return item.retencion
+    ? formatEmptyValue(item.retencion.encierro)
+    : "Sin encierro registrado";
 }
 
 function PendingText({ children }: { children: string }) {
   return <span className="table-operation-pending">{children}</span>;
 }
 
-function OperationButton({ children, onClick }: { children: string; onClick: () => void }) {
+function OperationButton({
+  children,
+  onClick,
+}: {
+  children: string;
+  onClick: () => void;
+}) {
   return (
-    <Button type="button" variant="secondary" className="table-operation-button" onClick={onClick}>
+    <Button
+      type="button"
+      variant="secondary"
+      className="table-operation-button"
+      onClick={onClick}
+    >
       {children}
     </Button>
   );
@@ -255,14 +294,18 @@ function InfraccionesListPage({
   token,
   onNavigateCreate,
 }: InfraccionesListPageProps) {
-  const [draftFilters, setDraftFilters] = useState<FiltersForm>(DEFAULT_FILTERS);
-  const [activeFilters, setActiveFilters] = useState<FiltersForm>(DEFAULT_FILTERS);
-  const [state, setState] = useState<LoadState<InfraccionesResponse>>(createIdleState());
-  const [detailState, setDetailState] = useState<LoadState<InfraccionDetalleResponse>>(
-    createIdleState(),
-  );
+  const [draftFilters, setDraftFilters] =
+    useState<FiltersForm>(DEFAULT_FILTERS);
+  const [activeFilters, setActiveFilters] =
+    useState<FiltersForm>(DEFAULT_FILTERS);
+  const [state, setState] =
+    useState<LoadState<InfraccionesResponse>>(createIdleState());
+  const [detailState, setDetailState] =
+    useState<LoadState<InfraccionDetalleResponse>>(createIdleState());
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [operationState, setOperationState] = useState<OperationState | null>(null);
+  const [operationState, setOperationState] = useState<OperationState | null>(
+    null,
+  );
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
 
   const query = useMemo(() => buildQuery(activeFilters), [activeFilters]);
@@ -275,7 +318,7 @@ function InfraccionesListPage({
     async function loadInfracciones(): Promise<void> {
       setState((current) => ({
         ...current,
-        status: 'loading',
+        status: "loading",
         error: null,
       }));
 
@@ -287,7 +330,7 @@ function InfraccionesListPage({
         }
 
         setState({
-          status: 'ready',
+          status: "ready",
           data: response,
           error: null,
         });
@@ -297,7 +340,7 @@ function InfraccionesListPage({
         }
 
         setState({
-          status: 'error',
+          status: "error",
           data: null,
           error: getErrorMessage(error),
         });
@@ -321,7 +364,7 @@ function InfraccionesListPage({
 
     async function loadDetalle(currentDetailId: number): Promise<void> {
       setDetailState({
-        status: 'loading',
+        status: "loading",
         data: null,
         error: null,
       });
@@ -333,7 +376,7 @@ function InfraccionesListPage({
         }
 
         setDetailState({
-          status: 'ready',
+          status: "ready",
           data: response,
           error: null,
         });
@@ -343,7 +386,7 @@ function InfraccionesListPage({
         }
 
         setDetailState({
-          status: 'error',
+          status: "error",
           data: null,
           error: getErrorMessage(error),
         });
@@ -368,8 +411,8 @@ function InfraccionesListPage({
     event?.preventDefault();
     const nextFilters = {
       ...draftFilters,
-      page: '1',
-      limit: draftFilters.limit || '30',
+      page: "1",
+      limit: draftFilters.limit || "30",
     };
     setDraftFilters(nextFilters);
     setActiveFilters(nextFilters);
@@ -380,12 +423,12 @@ function InfraccionesListPage({
     setActiveFilters(DEFAULT_FILTERS);
   }
 
-  function applyQuickStatusFilter(value: EstadoOperativoVehiculo | ''): void {
+  function applyQuickStatusFilter(value: EstadoOperativoVehiculo | ""): void {
     const nextFilters = {
       ...draftFilters,
       estadoOperativo: value,
-      page: '1',
-      limit: draftFilters.limit || '30',
+      page: "1",
+      limit: draftFilters.limit || "30",
     };
     setDraftFilters(nextFilters);
     setActiveFilters(nextFilters);
@@ -412,7 +455,10 @@ function InfraccionesListPage({
     setDetailState(createIdleState());
   }
 
-  function openOperation(type: InfraccionOperacionTipo, item: InfraccionListItem): void {
+  function openOperation(
+    type: InfraccionOperacionTipo,
+    item: InfraccionListItem,
+  ): void {
     setOperationState({ type, item });
   }
 
@@ -431,7 +477,12 @@ function InfraccionesListPage({
     if (!nextOperation.type || nextOperation.disabled) {
       return (
         <div className="table-cell-stack">
-          <Button type="button" variant="secondary" className="table-operation-button" disabled>
+          <Button
+            type="button"
+            variant="secondary"
+            className="table-operation-button"
+            disabled
+          >
             {nextOperation.label}
           </Button>
           <PendingText>{nextOperation.helper}</PendingText>
@@ -441,7 +492,11 @@ function InfraccionesListPage({
 
     return (
       <div className="table-cell-stack">
-        <OperationButton onClick={() => openOperation(nextOperation.type as InfraccionOperacionTipo, item)}>
+        <OperationButton
+          onClick={() =>
+            openOperation(nextOperation.type as InfraccionOperacionTipo, item)
+          }
+        >
           {nextOperation.label}
         </OperationButton>
         <PendingText>{nextOperation.helper}</PendingText>
@@ -456,8 +511,8 @@ function InfraccionesListPage({
           <p className="eyebrow">Operacion principal</p>
           <h1>Control operativo</h1>
           <p className="page-description">
-            Verifica el ingreso del vehiculo, el pago, la liberacion y la salida desde una sola
-            vista.
+            Verifica el ingreso del vehiculo, el pago, la liberacion y la salida
+            desde una sola vista.
           </p>
         </div>
 
@@ -490,7 +545,9 @@ function InfraccionesListPage({
               <TextInput
                 id="infracciones-search"
                 value={draftFilters.search}
-                onChange={(event) => updateDraftField('search', event.target.value)}
+                onChange={(event) =>
+                  updateDraftField("search", event.target.value)
+                }
                 placeholder="Folio, placas, infractor, licencia, serie o motor"
               />
             </Field>
@@ -501,7 +558,9 @@ function InfraccionesListPage({
                 type="number"
                 min={1900}
                 value={draftFilters.anio}
-                onChange={(event) => updateDraftField('anio', event.target.value)}
+                onChange={(event) =>
+                  updateDraftField("anio", event.target.value)
+                }
                 placeholder="2025"
               />
             </Field>
@@ -510,7 +569,9 @@ function InfraccionesListPage({
               <TextInput
                 id="infracciones-folio"
                 value={draftFilters.folioInfraccion}
-                onChange={(event) => updateDraftField('folioInfraccion', event.target.value)}
+                onChange={(event) =>
+                  updateDraftField("folioInfraccion", event.target.value)
+                }
               />
             </Field>
           </div>
@@ -521,7 +582,9 @@ function InfraccionesListPage({
                 id="infracciones-fecha-desde"
                 type="date"
                 value={draftFilters.fechaDesde}
-                onChange={(event) => updateDraftField('fechaDesde', event.target.value)}
+                onChange={(event) =>
+                  updateDraftField("fechaDesde", event.target.value)
+                }
               />
             </Field>
 
@@ -530,7 +593,9 @@ function InfraccionesListPage({
                 id="infracciones-fecha-hasta"
                 type="date"
                 value={draftFilters.fechaHasta}
-                onChange={(event) => updateDraftField('fechaHasta', event.target.value)}
+                onChange={(event) =>
+                  updateDraftField("fechaHasta", event.target.value)
+                }
               />
             </Field>
 
@@ -538,11 +603,16 @@ function InfraccionesListPage({
               <SelectField
                 id="infracciones-delegacion"
                 value={draftFilters.idDelegacion}
-                onChange={(event) => updateDraftField('idDelegacion', event.target.value)}
+                onChange={(event) =>
+                  updateDraftField("idDelegacion", event.target.value)
+                }
               >
                 <option value="">Todas</option>
                 {(catalogs?.delegaciones ?? []).map((delegacion) => (
-                  <option key={delegacion.idDelegacion} value={delegacion.idDelegacion}>
+                  <option
+                    key={delegacion.idDelegacion}
+                    value={delegacion.idDelegacion}
+                  >
                     {delegacion.nombreDelegacion}
                   </option>
                 ))}
@@ -555,7 +625,9 @@ function InfraccionesListPage({
               <TextInput
                 id="infracciones-placas"
                 value={draftFilters.placas}
-                onChange={(event) => updateDraftField('placas', event.target.value)}
+                onChange={(event) =>
+                  updateDraftField("placas", event.target.value)
+                }
               />
             </Field>
 
@@ -563,7 +635,9 @@ function InfraccionesListPage({
               <TextInput
                 id="infracciones-rfc"
                 value={draftFilters.rfc}
-                onChange={(event) => updateDraftField('rfc', event.target.value)}
+                onChange={(event) =>
+                  updateDraftField("rfc", event.target.value)
+                }
               />
             </Field>
 
@@ -571,38 +645,64 @@ function InfraccionesListPage({
               <TextInput
                 id="infracciones-clave-oficial"
                 value={draftFilters.claveOficial}
-                onChange={(event) => updateDraftField('claveOficial', event.target.value)}
+                onChange={(event) =>
+                  updateDraftField("claveOficial", event.target.value)
+                }
               />
             </Field>
           </div>
 
           <div className="form-grid form-grid-3">
-            <Field htmlFor="infracciones-estatus" label="Estatus administrativo">
+            <Field
+              htmlFor="infracciones-estatus"
+              label="Estatus administrativo"
+            >
               <SelectField
                 id="infracciones-estatus"
                 value={draftFilters.idEstatusInfraccion}
-                onChange={(event) => updateDraftField('idEstatusInfraccion', event.target.value)}
+                onChange={(event) =>
+                  updateDraftField("idEstatusInfraccion", event.target.value)
+                }
               >
                 <option value="">Todos</option>
                 {(catalogs?.estatusInfraccion ?? []).map((estatus) => (
-                  <option key={estatus.idEstatusInfraccion} value={estatus.idEstatusInfraccion}>
+                  <option
+                    key={estatus.idEstatusInfraccion}
+                    value={estatus.idEstatusInfraccion}
+                  >
                     {estatus.nombreEstatus}
                   </option>
                 ))}
               </SelectField>
             </Field>
 
-            <Field htmlFor="infracciones-estado-operativo" label="Estado operativo">
+            <Field
+              htmlFor="infracciones-estado-operativo"
+              label="Estado operativo"
+            >
               <SelectField
                 id="infracciones-estado-operativo"
                 value={draftFilters.estadoOperativo}
-                onChange={(event) => updateDraftField('estadoOperativo', event.target.value)}
+                onChange={(event) =>
+                  updateDraftField("estadoOperativo", event.target.value)
+                }
               >
                 <option value="">Todos</option>
-                <option value="SIN_RETENCION">Sin ingreso a encierro</option>
-                <option value="EN_ENCIERRO_SIN_PAGO">En encierro sin pago</option>
-                <option value="PAGADO_PENDIENTE_LIBERACION">Pagado por liberar</option>
-                <option value="LIBERADO_PENDIENTE_SALIDA">Liberado por entregar</option>
+                <option value="SIN_RETENCION">
+                  Sin retencion / ingreso pendiente
+                </option>
+                <option value="PAGADA_SIN_RETENCION">
+                  Pagada sin retencion
+                </option>
+                <option value="EN_ENCIERRO_SIN_PAGO">
+                  En encierro sin pago
+                </option>
+                <option value="PAGADO_PENDIENTE_LIBERACION">
+                  Pagado por liberar
+                </option>
+                <option value="LIBERADO_PENDIENTE_SALIDA">
+                  Liberado por entregar
+                </option>
                 <option value="VEHICULO_ENTREGADO">Vehiculo entregado</option>
               </SelectField>
             </Field>
@@ -611,7 +711,9 @@ function InfraccionesListPage({
               <SelectField
                 id="infracciones-encierro"
                 value={draftFilters.idEncierro}
-                onChange={(event) => updateDraftField('idEncierro', event.target.value)}
+                onChange={(event) =>
+                  updateDraftField("idEncierro", event.target.value)
+                }
               >
                 <option value="">Todos</option>
                 {(catalogs?.encierros ?? []).map((encierro) => (
@@ -625,7 +727,9 @@ function InfraccionesListPage({
         </form>
       </Card>
 
-      {state.status === 'loading' ? <LoadingMessage message="Cargando infracciones..." /> : null}
+      {state.status === "loading" ? (
+        <LoadingMessage message="Cargando infracciones..." />
+      ) : null}
       <ErrorMessage message={state.error} />
 
       <Card>
@@ -645,9 +749,13 @@ function InfraccionesListPage({
           <div className="button-row">
             {QUICK_STATUS_FILTERS.map((filter) => (
               <Button
-                key={filter.value || 'todos'}
+                key={filter.value || "todos"}
                 type="button"
-                variant={activeFilters.estadoOperativo === filter.value ? 'primary' : 'secondary'}
+                variant={
+                  activeFilters.estadoOperativo === filter.value
+                    ? "primary"
+                    : "secondary"
+                }
                 onClick={() => applyQuickStatusFilter(filter.value)}
               >
                 {filter.label}
@@ -672,9 +780,9 @@ function InfraccionesListPage({
                 {items.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="empty-state">
-                      {state.status === 'loading'
-                        ? 'Cargando infracciones...'
-                        : 'No hay infracciones para mostrar.'}
+                      {state.status === "loading"
+                        ? "Cargando infracciones..."
+                        : "No hay infracciones para mostrar."}
                     </td>
                   </tr>
                 ) : (
@@ -690,21 +798,31 @@ function InfraccionesListPage({
                       <td>
                         <div className="table-cell-stack">
                           <strong>{getVehicleLabel(item)}</strong>
-                          <span>Placas: {formatEmptyValue(item.vehiculo.placas)}</span>
-                          <span>Color: {formatEmptyValue(item.vehiculo.color)}</span>
+                          <span>
+                            Placas: {formatEmptyValue(item.vehiculo.placas)}
+                          </span>
+                          <span>
+                            Color: {formatEmptyValue(item.vehiculo.color)}
+                          </span>
                         </div>
                       </td>
                       <td>
                         <div className="table-cell-stack">
                           <strong>{getInfractorLabel(item)}</strong>
-                          <span>Licencia: {formatEmptyValue(item.infractor.licencia)}</span>
+                          <span>
+                            Licencia:{" "}
+                            {formatEmptyValue(item.infractor.licencia)}
+                          </span>
                         </div>
                       </td>
                       <td>
                         <div className="table-cell-stack">
                           <strong>{getEncierroLabel(item)}</strong>
                           <span>Ingreso: {getIngresoLabel(item)}</span>
-                          <span>Resguardo: {formatEmptyValue(item.retencion?.folioResguardo)}</span>
+                          <span>
+                            Resguardo:{" "}
+                            {formatEmptyValue(item.retencion?.folioResguardo)}
+                          </span>
                         </div>
                       </td>
                       <td>
@@ -715,7 +833,11 @@ function InfraccionesListPage({
                       </td>
                       <td>{renderNextActionCell(item)}</td>
                       <td>
-                        <Button type="button" variant="link" onClick={() => openDetail(item.idInfraccion)}>
+                        <Button
+                          type="button"
+                          variant="link"
+                          onClick={() => openDetail(item.idInfraccion)}
+                        >
                           Ver expediente
                         </Button>
                       </td>
@@ -740,7 +862,7 @@ function InfraccionesListPage({
 
       <InfraccionDetalleModal
         open={selectedId !== null}
-        loading={detailState.status === 'loading'}
+        loading={detailState.status === "loading"}
         error={detailState.error}
         data={detailState.data}
         onClose={closeDetail}

@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from "react";
 
-import { getErrorMessage } from '../services/api/apiClient';
-import { getCatalogosBundle } from '../services/api/catalogos.api';
-import type { CatalogosBundle } from '../types/catalogos.types';
+import { getErrorMessage } from "../services/api/apiClient";
+import { getCatalogosBundle } from "../services/api/catalogos.api";
+import type { CatalogosBundle } from "../types/catalogos.types";
 
-type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
+type LoadStatus = "idle" | "loading" | "ready" | "error";
 
 interface LoadState<T> {
   status: LoadStatus;
@@ -17,7 +17,7 @@ interface CatalogosCache {
   data: CatalogosBundle;
 }
 
-const CATALOGOS_CACHE_KEY = 'cie_catalogos_bundle_v1';
+const CATALOGOS_CACHE_KEY = "cie_catalogos_bundle_v2";
 const CATALOGOS_CACHE_TTL_MS = 10 * 60 * 1000;
 
 function readCatalogosCache(): CatalogosBundle | null {
@@ -62,27 +62,26 @@ function createInitialState<T>(): LoadState<T> {
 
   if (cachedData) {
     return {
-      status: 'ready',
+      status: "ready",
       data: cachedData,
       error: null,
     };
   }
 
   return {
-    status: 'idle',
+    status: "idle",
     data: null,
     error: null,
   };
 }
 
 export function useCatalogos() {
-  const [state, setState] = useState<LoadState<CatalogosBundle>>(
-    createInitialState<CatalogosBundle>(),
-  );
+  const [state, setState] =
+    useState<LoadState<CatalogosBundle>>(createInitialState<CatalogosBundle>());
 
   const refresh = useCallback(async (): Promise<void> => {
     setState((current) => ({
-      status: current.data ? 'ready' : 'loading',
+      status: current.data ? "ready" : "loading",
       data: current.data,
       error: null,
     }));
@@ -91,13 +90,13 @@ export function useCatalogos() {
       const data = await getCatalogosBundle();
       writeCatalogosCache(data);
       setState({
-        status: 'ready',
+        status: "ready",
         data,
         error: null,
       });
     } catch (error) {
       setState((current) => ({
-        status: current.data ? 'ready' : 'error',
+        status: current.data ? "ready" : "error",
         data: current.data,
         error: getErrorMessage(error),
       }));
@@ -115,7 +114,7 @@ export function useCatalogos() {
   return {
     catalogs: state.data,
     error: state.error,
-    loading: state.status === 'loading' || state.status === 'idle',
+    loading: state.status === "loading" || state.status === "idle",
     refresh,
   };
 }

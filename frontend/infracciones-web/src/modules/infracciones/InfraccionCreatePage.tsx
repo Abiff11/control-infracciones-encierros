@@ -14,11 +14,8 @@ import type {
 import "./InfraccionCreatePage.css";
 
 const MAX_MOTIVOS = 5;
-const TIPO_INFRACCION = "INFRACCION";
-const TIPO_VEHICULO_SIN_INFRACCION = "VEHICULO_SIN_INFRACCION";
+const DEFAULT_TIPO_PROCEDIMIENTO_CLAVE = "INFRACCION";
 const DEFAULT_ESTATUS_INFRACCION = "CAPTURADA";
-
-type TipoExpediente = typeof TIPO_INFRACCION | typeof TIPO_VEHICULO_SIN_INFRACCION;
 
 function getTodayDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -70,7 +67,7 @@ interface InfraccionCreatePageProps {
 }
 
 const INITIAL_FORM = {
-  tipoExpediente: TIPO_INFRACCION as TipoExpediente,
+  idTipoProcedimiento: "",
   idSexo: "",
   nombre: "",
   apellidoPaterno: "",
@@ -205,29 +202,38 @@ function InfraccionCreatePage({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<InfraccionFlujoResponse | null>(null);
 
-  const tipoInfraccion = useMemo(
+  const tiposExpediente = useMemo(
     () =>
-      catalogs?.tiposProcedimiento.find(
-        (tipo) =>
-          normalizeCatalogText(tipo.nombreTipoProcedimiento) === TIPO_INFRACCION,
-      ) ?? null,
+      [...(catalogs?.tiposProcedimiento ?? [])]
+        .filter((tipo) => tipo.activo && tipo.esTipoExpediente)
+        .sort((first, second) =>
+          first.nombreTipoProcedimiento.localeCompare(
+            second.nombreTipoProcedimiento,
+          ),
+        ),
     [catalogs?.tiposProcedimiento],
   );
 
-  const tipoVehiculoSinInfraccion = useMemo(
+  const defaultTipoProcedimiento = useMemo(
     () =>
-      catalogs?.tiposProcedimiento.find(
+      tiposExpediente.find(
         (tipo) =>
-          normalizeCatalogText(tipo.nombreTipoProcedimiento) ===
-          TIPO_VEHICULO_SIN_INFRACCION,
-      ) ?? null,
-    [catalogs?.tiposProcedimiento],
+          normalizeCatalogText(tipo.claveTipoProcedimiento) ===
+          DEFAULT_TIPO_PROCEDIMIENTO_CLAVE,
+      ) ??
+      tiposExpediente[0] ??
+      null,
+    [tiposExpediente],
   );
 
-  const selectedTipoProcedimiento =
-    form.tipoExpediente === TIPO_INFRACCION
-      ? tipoInfraccion
-      : tipoVehiculoSinInfraccion;
+  const selectedTipoProcedimiento = useMemo(
+    () =>
+      tiposExpediente.find(
+        (tipo) => String(tipo.idTipoProcedimiento) === form.idTipoProcedimiento,
+      ) ??
+      defaultTipoProcedimiento,
+    [defaultTipoProcedimiento, form.idTipoProcedimiento, tiposExpediente],
+  );
 
   const defaultEstatusInfraccion = useMemo(
     () =>
@@ -266,29 +272,41 @@ function InfraccionCreatePage({
     [selectedMotivos, sortedMotivos],
   );
 
-  const isVehiculoSinInfraccion =
-    form.tipoExpediente === TIPO_VEHICULO_SIN_INFRACCION;
-  const folioExpediente = isVehiculoSinInfraccion
-    ? form.folioInfraccion.trim() ||
-      `PI-${normalizeFolioPart(form.numParteInformativo)}`
-    : form.folioInfraccion.trim();
+  const requiereFolioInfraccion =
+    selectedTipoProcedimiento?.requiereFolioInfraccion ?? false;
+  const requiereNumParteInformativo =
+    selectedTipoProcedimiento?.requiereNumParteInformativo ?? false;
+  const requiereMotivos = selectedTipoProcedimiento?.requiereMotivos ?? false;
+  const permiteRetencion = selectedTipoProcedimiento?.permiteRetencion ?? false;
+  const folioExpediente =
+    !requiereFolioInfraccion && requiereNumParteInformativo
+      ? `PI-${normalizeFolioPart(form.numParteInformativo)}`
+      : form.folioInfraccion.trim();
 
   function updateField(field: keyof FormState, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
     setError(null);
   }
 
-  function updateTipoExpediente(value: string): void {
-    const tipoExpediente = value as TipoExpediente;
+  function updateTipoProcedimiento(value: string): void {
+    const nextTipo =
+      tiposExpediente.find(
+        (tipo) => String(tipo.idTipoProcedimiento) === value,
+      ) ?? null;
+
     setForm((current) => ({
       ...current,
-      tipoExpediente,
-      folioInfraccion:
-        tipoExpediente === TIPO_VEHICULO_SIN_INFRACCION
-          ? ""
-          : current.folioInfraccion,
+      idTipoProcedimiento: value,
+      folioInfraccion: nextTipo?.requiereFolioInfraccion
+        ? current.folioInfraccion
+        : "",
+      numParteInformativo: nextTipo?.requiereNumParteInformativo
+        ? current.numParteInformativo
+        : "",
     }));
-    setMotivoSlots(getEmptyMotivoSlots());
+    if (!nextTipo?.requiereMotivos) {
+      setMotivoSlots(getEmptyMotivoSlots());
+    }
     setError(null);
   }
 
@@ -337,9 +355,9 @@ function InfraccionCreatePage({
     }
 
     if (!selectedTipoProcedimiento) {
-      return isVehiculoSinInfraccion
-        ? "No se encontro el tipo VEHICULO_SIN_INFRACCION en catalogos. Ejecuta migraciones."
-        : "No se encontro el tipo INFRACCION en catalogos.";
+      return tiposExpediente.length === 0
+        ? "No hay tipos de expediente activos disponibles en catalogos."
+        : "Selecciona un tipo de expediente valido.";
     }
 
     if (!defaultEstatusInfraccion) {
@@ -374,15 +392,23 @@ function InfraccionCreatePage({
       return "Completa los datos operativos obligatorios.";
     }
 
-    if (isVehiculoSinInfraccion) {
-      if (!isFilled(form.numParteInformativo)) {
-        return "Captura el numero de parte informativo.";
-      }
-    } else if (!isFilled(form.folioInfraccion)) {
+    if (requiereFolioInfraccion && !isFilled(form.folioInfraccion)) {
       return "Captura el folio de infraccion.";
     }
 
-    if (!isVehiculoSinInfraccion && selectedMotivos.length === 0) {
+    if (requiereNumParteInformativo && !isFilled(form.numParteInformativo)) {
+      return "Captura el numero de parte informativo.";
+    }
+
+    if (
+      selectedTipoProcedimiento.esTipoExpediente &&
+      !requiereFolioInfraccion &&
+      !requiereNumParteInformativo
+    ) {
+      return "El tipo de expediente seleccionado no puede generar folio.";
+    }
+
+    if (requiereMotivos && selectedMotivos.length === 0) {
       return "Selecciona al menos un motivo.";
     }
 
@@ -405,17 +431,19 @@ function InfraccionCreatePage({
   ]);
   const lugarRequiredCompleted = countFilled([form.municipio]);
   const infraccionRequiredCompleted = countFilled([
+    selectedTipoProcedimiento ? "x" : "",
     form.idDelegacion,
     form.fechaInfraccion,
     form.horaInfraccion,
-    isVehiculoSinInfraccion ? form.numParteInformativo : form.folioInfraccion,
+    requiereNumParteInformativo ? form.numParteInformativo : "",
+    requiereFolioInfraccion ? form.folioInfraccion : "",
   ]);
   const systemDefaultsReady = Boolean(
     selectedTipoProcedimiento && defaultEstatusInfraccion,
   );
   const motivoSelectionValid =
     selectedMotivos.length === countFilled(motivoSlots) &&
-    (isVehiculoSinInfraccion || selectedMotivos.length > 0);
+    (!requiereMotivos || selectedMotivos.length > 0);
   const canSubmit =
     Boolean(catalogs) &&
     systemDefaultsReady &&
@@ -423,7 +451,15 @@ function InfraccionCreatePage({
     infractorRequiredCompleted === 3 &&
     vehiculoRequiredCompleted === 3 &&
     lugarRequiredCompleted === 1 &&
-    infraccionRequiredCompleted === 4;
+    infraccionRequiredCompleted ===
+      countFilled([
+        selectedTipoProcedimiento ? "x" : "",
+        form.idDelegacion,
+        form.fechaInfraccion,
+        form.horaInfraccion,
+        requiereNumParteInformativo ? "x" : "",
+        requiereFolioInfraccion ? "x" : "",
+      ]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -486,13 +522,13 @@ function InfraccionCreatePage({
         idTipoProcedimiento: selectedTipoProcedimiento.idTipoProcedimiento,
         idEstatusInfraccion: defaultEstatusInfraccion.idEstatusInfraccion,
         idOperativo: toOptionalNumber(form.idOperativo),
-        folioInfraccion: folioExpediente,
+        folioInfraccion: requiereFolioInfraccion ? folioExpediente : undefined,
         fechaInfraccion: form.fechaInfraccion,
         horaInfraccion: form.horaInfraccion,
         observaciones: toNullableString(form.observaciones) ?? null,
         clavePolicia: toNullableString(form.clavePolicia) ?? null,
         numParteInformativo: toNullableString(form.numParteInformativo) ?? null,
-        motivos: selectedMotivos,
+        motivos: requiereMotivos ? selectedMotivos : [],
       },
     };
 
@@ -518,7 +554,10 @@ function InfraccionCreatePage({
   const infraccionSummary = result
     ? [
         { label: "Folio expediente", value: result.infraccion.folioInfraccion },
-        { label: "Estatus", value: result.infraccion.estatusInfraccion.nombreEstatus },
+        {
+          label: "Estatus",
+          value: result.infraccion.estatusInfraccion.nombreEstatus,
+        },
         { label: "Motivos", value: String(selectedMotivos.length) },
       ]
     : [];
@@ -542,7 +581,9 @@ function InfraccionCreatePage({
           </p>
         </div>
         <div className="create-required-summary">
-          <span>{selectedMotivos.length}/{MAX_MOTIVOS} motivos</span>
+          <span>
+            {selectedMotivos.length}/{MAX_MOTIVOS} motivos
+          </span>
           <span>{canSubmit ? "Lista para guardar" : "Captura pendiente"}</span>
         </div>
       </header>
@@ -550,93 +591,542 @@ function InfraccionCreatePage({
       {!catalogs ? <div className="notice">Cargando catalogos...</div> : null}
 
       <form className="create-form-layout" onSubmit={handleSubmit}>
-        <SectionCard eyebrow="Expediente" title="Tipo de captura" completed={selectedTipoProcedimiento ? 1 : 0} total={1}>
+        <SectionCard
+          eyebrow="Expediente"
+          title="Tipo de captura"
+          completed={selectedTipoProcedimiento ? 1 : 0}
+          total={1}
+        >
           <div className="create-system-defaults">
-            <SystemChip label="Tipo seleccionado" value={selectedTipoProcedimiento?.nombreTipoProcedimiento ?? "Tipo no encontrado"} valid={Boolean(selectedTipoProcedimiento)} />
-            <SystemChip label="Estatus inicial" value={defaultEstatusInfraccion?.nombreEstatus ?? "CAPTURADA no encontrado"} valid={Boolean(defaultEstatusInfraccion)} />
+            <SystemChip
+              label="Tipo seleccionado"
+              value={
+                selectedTipoProcedimiento?.nombreTipoProcedimiento ??
+                "Tipo no encontrado"
+              }
+              valid={Boolean(selectedTipoProcedimiento)}
+            />
+            <SystemChip
+              label="Permite retencion"
+              value={permiteRetencion ? "Si" : "No"}
+              valid={Boolean(selectedTipoProcedimiento)}
+            />
+            <SystemChip
+              label="Estatus inicial"
+              value={
+                defaultEstatusInfraccion?.nombreEstatus ??
+                "CAPTURADA no encontrado"
+              }
+              valid={Boolean(defaultEstatusInfraccion)}
+            />
           </div>
           <div className="form-grid form-grid-2">
             <Field htmlFor="expediente-tipo" label="Tipo de expediente">
-              <SelectField id="expediente-tipo" value={form.tipoExpediente} onChange={(event) => updateTipoExpediente(event.target.value)} required>
-                <option value={TIPO_INFRACCION}>Infraccion</option>
-                <option value={TIPO_VEHICULO_SIN_INFRACCION}>Vehiculo sin infraccion</option>
+              <SelectField
+                id="expediente-tipo"
+                value={
+                  form.idTipoProcedimiento ||
+                  String(defaultTipoProcedimiento?.idTipoProcedimiento ?? "")
+                }
+                onChange={(event) =>
+                  updateTipoProcedimiento(event.target.value)
+                }
+                required
+              >
+                <option value="">Selecciona</option>
+                {tiposExpediente.map((tipo) => (
+                  <option
+                    key={tipo.idTipoProcedimiento}
+                    value={tipo.idTipoProcedimiento}
+                  >
+                    {tipo.nombreTipoProcedimiento}
+                  </option>
+                ))}
               </SelectField>
             </Field>
             <Field htmlFor="expediente-folio-preview" label="Folio expediente">
-              <TextInput id="expediente-folio-preview" value={folioExpediente} readOnly />
+              <TextInput
+                id="expediente-folio-preview"
+                value={folioExpediente}
+                readOnly
+              />
             </Field>
           </div>
         </SectionCard>
 
-        <SectionCard eyebrow="Infractor" title="Datos personales" completed={infractorRequiredCompleted} total={3}>
+        <SectionCard
+          eyebrow="Infractor"
+          title="Datos personales"
+          completed={infractorRequiredCompleted}
+          total={3}
+        >
           <div className="form-grid form-grid-3">
             <Field htmlFor="infractor-sexo" label="Sexo">
-              <SelectField id="infractor-sexo" value={form.idSexo} onChange={(event) => updateField("idSexo", event.target.value)} required>
+              <SelectField
+                id="infractor-sexo"
+                value={form.idSexo}
+                onChange={(event) => updateField("idSexo", event.target.value)}
+                required
+              >
                 <option value="">Selecciona</option>
-                {catalogs?.sexos.map((sexo) => <option key={sexo.idSexo} value={sexo.idSexo}>{sexo.nombreSexo}</option>)}
+                {catalogs?.sexos.map((sexo) => (
+                  <option key={sexo.idSexo} value={sexo.idSexo}>
+                    {sexo.nombreSexo}
+                  </option>
+                ))}
               </SelectField>
             </Field>
-            <Field htmlFor="infractor-nombre" label="Nombre"><TextInput id="infractor-nombre" value={form.nombre} onChange={(event) => updateField("nombre", event.target.value)} required /></Field>
-            <Field htmlFor="infractor-apellido-paterno" label="Apellido paterno"><TextInput id="infractor-apellido-paterno" value={form.apellidoPaterno} onChange={(event) => updateField("apellidoPaterno", event.target.value)} required /></Field>
-            <Field htmlFor="infractor-apellido-materno" label="Apellido materno"><TextInput id="infractor-apellido-materno" value={form.apellidoMaterno} onChange={(event) => updateField("apellidoMaterno", event.target.value)} /></Field>
-            <Field htmlFor="infractor-licencia" label="Licencia"><TextInput id="infractor-licencia" value={form.licencia} onChange={(event) => updateField("licencia", event.target.value)} /></Field>
-            <Field htmlFor="infractor-curp" label="CURP"><TextInput id="infractor-curp" value={form.curp} onChange={(event) => updateField("curp", event.target.value)} /></Field>
+            <Field htmlFor="infractor-nombre" label="Nombre">
+              <TextInput
+                id="infractor-nombre"
+                value={form.nombre}
+                onChange={(event) => updateField("nombre", event.target.value)}
+                required
+              />
+            </Field>
+            <Field
+              htmlFor="infractor-apellido-paterno"
+              label="Apellido paterno"
+            >
+              <TextInput
+                id="infractor-apellido-paterno"
+                value={form.apellidoPaterno}
+                onChange={(event) =>
+                  updateField("apellidoPaterno", event.target.value)
+                }
+                required
+              />
+            </Field>
+            <Field
+              htmlFor="infractor-apellido-materno"
+              label="Apellido materno"
+            >
+              <TextInput
+                id="infractor-apellido-materno"
+                value={form.apellidoMaterno}
+                onChange={(event) =>
+                  updateField("apellidoMaterno", event.target.value)
+                }
+              />
+            </Field>
+            <Field htmlFor="infractor-licencia" label="Licencia">
+              <TextInput
+                id="infractor-licencia"
+                value={form.licencia}
+                onChange={(event) =>
+                  updateField("licencia", event.target.value)
+                }
+              />
+            </Field>
+            <Field htmlFor="infractor-curp" label="CURP">
+              <TextInput
+                id="infractor-curp"
+                value={form.curp}
+                onChange={(event) => updateField("curp", event.target.value)}
+              />
+            </Field>
           </div>
         </SectionCard>
 
-        <SectionCard eyebrow="Vehiculo" title="Caracteristicas" completed={vehiculoRequiredCompleted} total={3}>
+        <SectionCard
+          eyebrow="Vehiculo"
+          title="Caracteristicas"
+          completed={vehiculoRequiredCompleted}
+          total={3}
+        >
           <div className="form-grid form-grid-3">
-            <Field htmlFor="vehiculo-clase" label="Clase"><SelectField id="vehiculo-clase" value={form.idClaseVehiculo} onChange={(event) => updateField("idClaseVehiculo", event.target.value)} required><option value="">Selecciona</option>{catalogs?.clasesVehiculo.map((clase) => <option key={clase.idClaseVehiculo} value={clase.idClaseVehiculo}>{clase.nombreClaseVehiculo}</option>)}</SelectField></Field>
-            <Field htmlFor="vehiculo-linea" label="Linea"><SelectField id="vehiculo-linea" value={form.idLineaVehiculo} onChange={(event) => updateField("idLineaVehiculo", event.target.value)} required><option value="">Selecciona</option>{catalogs?.lineasVehiculo.map((linea) => <option key={linea.idLineaVehiculo} value={linea.idLineaVehiculo}>{linea.marcaVehiculo ? `${linea.marcaVehiculo.nombreMarcaVehiculo} - ${linea.nombreLineaVehiculo}` : linea.nombreLineaVehiculo}</option>)}</SelectField></Field>
-            <Field htmlFor="vehiculo-servicio" label="Servicio"><SelectField id="vehiculo-servicio" value={form.idServicio} onChange={(event) => updateField("idServicio", event.target.value)} required><option value="">Selecciona</option>{catalogs?.servicios.map((servicio) => <option key={servicio.idServicio} value={servicio.idServicio}>{servicio.nombreServicio}</option>)}</SelectField></Field>
-            <Field htmlFor="vehiculo-anio" label="Año modelo"><TextInput id="vehiculo-anio" type="number" min="1" value={form.anioModelo} onChange={(event) => updateField("anioModelo", event.target.value)} /></Field>
-            <Field htmlFor="vehiculo-color" label="Color"><TextInput id="vehiculo-color" value={form.color} onChange={(event) => updateField("color", event.target.value)} /></Field>
-            <Field htmlFor="vehiculo-placas" label="Placas"><TextInput id="vehiculo-placas" value={form.placas} onChange={(event) => updateField("placas", event.target.value)} /></Field>
-            <Field htmlFor="vehiculo-estado-placas" label="Estado placas"><TextInput id="vehiculo-estado-placas" value={form.estadoPlacas} onChange={(event) => updateField("estadoPlacas", event.target.value)} /></Field>
-            <Field htmlFor="vehiculo-serie" label="Serie"><TextInput id="vehiculo-serie" value={form.serie} onChange={(event) => updateField("serie", event.target.value)} /></Field>
-            <Field htmlFor="vehiculo-motor" label="Motor"><TextInput id="vehiculo-motor" value={form.motor} onChange={(event) => updateField("motor", event.target.value)} /></Field>
-            <Field htmlFor="vehiculo-sitio" label="Sitio servicio publico"><TextInput id="vehiculo-sitio" value={form.sitioServicioPublico} onChange={(event) => updateField("sitioServicioPublico", event.target.value)} /></Field>
+            <Field htmlFor="vehiculo-clase" label="Clase">
+              <SelectField
+                id="vehiculo-clase"
+                value={form.idClaseVehiculo}
+                onChange={(event) =>
+                  updateField("idClaseVehiculo", event.target.value)
+                }
+                required
+              >
+                <option value="">Selecciona</option>
+                {catalogs?.clasesVehiculo.map((clase) => (
+                  <option
+                    key={clase.idClaseVehiculo}
+                    value={clase.idClaseVehiculo}
+                  >
+                    {clase.nombreClaseVehiculo}
+                  </option>
+                ))}
+              </SelectField>
+            </Field>
+            <Field htmlFor="vehiculo-linea" label="Linea">
+              <SelectField
+                id="vehiculo-linea"
+                value={form.idLineaVehiculo}
+                onChange={(event) =>
+                  updateField("idLineaVehiculo", event.target.value)
+                }
+                required
+              >
+                <option value="">Selecciona</option>
+                {catalogs?.lineasVehiculo.map((linea) => (
+                  <option
+                    key={linea.idLineaVehiculo}
+                    value={linea.idLineaVehiculo}
+                  >
+                    {linea.marcaVehiculo
+                      ? `${linea.marcaVehiculo.nombreMarcaVehiculo} - ${linea.nombreLineaVehiculo}`
+                      : linea.nombreLineaVehiculo}
+                  </option>
+                ))}
+              </SelectField>
+            </Field>
+            <Field htmlFor="vehiculo-servicio" label="Servicio">
+              <SelectField
+                id="vehiculo-servicio"
+                value={form.idServicio}
+                onChange={(event) =>
+                  updateField("idServicio", event.target.value)
+                }
+                required
+              >
+                <option value="">Selecciona</option>
+                {catalogs?.servicios.map((servicio) => (
+                  <option key={servicio.idServicio} value={servicio.idServicio}>
+                    {servicio.nombreServicio}
+                  </option>
+                ))}
+              </SelectField>
+            </Field>
+            <Field htmlFor="vehiculo-anio" label="Año modelo">
+              <TextInput
+                id="vehiculo-anio"
+                type="number"
+                min="1"
+                value={form.anioModelo}
+                onChange={(event) =>
+                  updateField("anioModelo", event.target.value)
+                }
+              />
+            </Field>
+            <Field htmlFor="vehiculo-color" label="Color">
+              <TextInput
+                id="vehiculo-color"
+                value={form.color}
+                onChange={(event) => updateField("color", event.target.value)}
+              />
+            </Field>
+            <Field htmlFor="vehiculo-placas" label="Placas">
+              <TextInput
+                id="vehiculo-placas"
+                value={form.placas}
+                onChange={(event) => updateField("placas", event.target.value)}
+              />
+            </Field>
+            <Field htmlFor="vehiculo-estado-placas" label="Estado placas">
+              <TextInput
+                id="vehiculo-estado-placas"
+                value={form.estadoPlacas}
+                onChange={(event) =>
+                  updateField("estadoPlacas", event.target.value)
+                }
+              />
+            </Field>
+            <Field htmlFor="vehiculo-serie" label="Serie">
+              <TextInput
+                id="vehiculo-serie"
+                value={form.serie}
+                onChange={(event) => updateField("serie", event.target.value)}
+              />
+            </Field>
+            <Field htmlFor="vehiculo-motor" label="Motor">
+              <TextInput
+                id="vehiculo-motor"
+                value={form.motor}
+                onChange={(event) => updateField("motor", event.target.value)}
+              />
+            </Field>
+            <Field htmlFor="vehiculo-sitio" label="Sitio servicio publico">
+              <TextInput
+                id="vehiculo-sitio"
+                value={form.sitioServicioPublico}
+                onChange={(event) =>
+                  updateField("sitioServicioPublico", event.target.value)
+                }
+              />
+            </Field>
           </div>
         </SectionCard>
 
-        <SectionCard eyebrow="Lugar" title="Ubicacion" completed={lugarRequiredCompleted} total={1}>
+        <SectionCard
+          eyebrow="Lugar"
+          title="Ubicacion"
+          completed={lugarRequiredCompleted}
+          total={1}
+        >
           <div className="form-grid form-grid-4">
-            <Field htmlFor="lugar-municipio" label="Municipio"><TextInput id="lugar-municipio" value={form.municipio} onChange={(event) => updateField("municipio", event.target.value)} required /></Field>
-            <Field htmlFor="lugar-colonia" label="Colonia"><TextInput id="lugar-colonia" value={form.colonia} onChange={(event) => updateField("colonia", event.target.value)} /></Field>
-            <Field htmlFor="lugar-calle" label="Calle"><TextInput id="lugar-calle" value={form.calle} onChange={(event) => updateField("calle", event.target.value)} /></Field>
-            <Field htmlFor="lugar-numero" label="Numero"><TextInput id="lugar-numero" value={form.numero} onChange={(event) => updateField("numero", event.target.value)} /></Field>
+            <Field htmlFor="lugar-municipio" label="Municipio">
+              <TextInput
+                id="lugar-municipio"
+                value={form.municipio}
+                onChange={(event) =>
+                  updateField("municipio", event.target.value)
+                }
+                required
+              />
+            </Field>
+            <Field htmlFor="lugar-colonia" label="Colonia">
+              <TextInput
+                id="lugar-colonia"
+                value={form.colonia}
+                onChange={(event) => updateField("colonia", event.target.value)}
+              />
+            </Field>
+            <Field htmlFor="lugar-calle" label="Calle">
+              <TextInput
+                id="lugar-calle"
+                value={form.calle}
+                onChange={(event) => updateField("calle", event.target.value)}
+              />
+            </Field>
+            <Field htmlFor="lugar-numero" label="Numero">
+              <TextInput
+                id="lugar-numero"
+                value={form.numero}
+                onChange={(event) => updateField("numero", event.target.value)}
+              />
+            </Field>
           </div>
         </SectionCard>
 
-        <SectionCard eyebrow="Operacion" title="Datos operativos" completed={infraccionRequiredCompleted} total={4}>
+        <SectionCard
+          eyebrow="Operacion"
+          title="Datos operativos"
+          completed={infraccionRequiredCompleted}
+          total={4}
+        >
           <div className="form-grid form-grid-3">
-            <Field htmlFor="infraccion-delegacion" label="Delegacion"><SelectField id="infraccion-delegacion" value={form.idDelegacion} onChange={(event) => updateField("idDelegacion", event.target.value)} required><option value="">Selecciona</option>{catalogs?.delegaciones.map((delegacion) => <option key={delegacion.idDelegacion} value={delegacion.idDelegacion}>{delegacion.nombreDelegacion}</option>)}</SelectField></Field>
-            <Field htmlFor="infraccion-operativo" label="Operativo opcional"><SelectField id="infraccion-operativo" value={form.idOperativo} onChange={(event) => updateField("idOperativo", event.target.value)}><option value="">Sin operativo</option>{catalogs?.operativos.map((operativo) => <option key={operativo.idOperativo} value={operativo.idOperativo}>{operativo.nombreOperativo}</option>)}</SelectField></Field>
-            {!isVehiculoSinInfraccion ? <Field htmlFor="infraccion-folio" label="Folio infraccion"><TextInput id="infraccion-folio" value={form.folioInfraccion} onChange={(event) => updateField("folioInfraccion", event.target.value)} required /></Field> : <Field htmlFor="infraccion-folio-opcional" label="Folio expediente opcional"><TextInput id="infraccion-folio-opcional" value={form.folioInfraccion} onChange={(event) => updateField("folioInfraccion", event.target.value)} placeholder="Se genera con PI-NoParte si se deja vacio" /></Field>}
-            <Field htmlFor="infraccion-fecha" label="Fecha"><TextInput id="infraccion-fecha" type="date" value={form.fechaInfraccion} onChange={(event) => updateField("fechaInfraccion", event.target.value)} required /></Field>
-            <Field htmlFor="infraccion-hora" label="Hora"><TextInput id="infraccion-hora" type="time" value={form.horaInfraccion} onChange={(event) => updateField("horaInfraccion", event.target.value)} required /></Field>
-            <Field htmlFor="infraccion-clave-policia" label="Clave policia"><TextInput id="infraccion-clave-policia" value={form.clavePolicia} onChange={(event) => updateField("clavePolicia", event.target.value)} /></Field>
-            <Field htmlFor="infraccion-num-parte" label={isVehiculoSinInfraccion ? "Numero parte informativo" : "Numero parte informativo opcional"}><TextInput id="infraccion-num-parte" value={form.numParteInformativo} onChange={(event) => updateField("numParteInformativo", event.target.value)} required={isVehiculoSinInfraccion} /></Field>
-            <div className="field field-span-3"><label htmlFor="infraccion-observaciones">Observaciones</label><textarea id="infraccion-observaciones" value={form.observaciones} onChange={(event) => updateField("observaciones", event.target.value)} rows={4} /></div>
+            <Field htmlFor="infraccion-delegacion" label="Delegacion">
+              <SelectField
+                id="infraccion-delegacion"
+                value={form.idDelegacion}
+                onChange={(event) =>
+                  updateField("idDelegacion", event.target.value)
+                }
+                required
+              >
+                <option value="">Selecciona</option>
+                {catalogs?.delegaciones.map((delegacion) => (
+                  <option
+                    key={delegacion.idDelegacion}
+                    value={delegacion.idDelegacion}
+                  >
+                    {delegacion.nombreDelegacion}
+                  </option>
+                ))}
+              </SelectField>
+            </Field>
+            <Field htmlFor="infraccion-operativo" label="Operativo opcional">
+              <SelectField
+                id="infraccion-operativo"
+                value={form.idOperativo}
+                onChange={(event) =>
+                  updateField("idOperativo", event.target.value)
+                }
+              >
+                <option value="">Sin operativo</option>
+                {catalogs?.operativos.map((operativo) => (
+                  <option
+                    key={operativo.idOperativo}
+                    value={operativo.idOperativo}
+                  >
+                    {operativo.nombreOperativo}
+                  </option>
+                ))}
+              </SelectField>
+            </Field>
+            {requiereFolioInfraccion ? (
+              <Field htmlFor="infraccion-folio" label="Folio infraccion">
+                <TextInput
+                  id="infraccion-folio"
+                  value={form.folioInfraccion}
+                  onChange={(event) =>
+                    updateField("folioInfraccion", event.target.value)
+                  }
+                  required
+                />
+              </Field>
+            ) : null}
+            <Field htmlFor="infraccion-fecha" label="Fecha">
+              <TextInput
+                id="infraccion-fecha"
+                type="date"
+                value={form.fechaInfraccion}
+                onChange={(event) =>
+                  updateField("fechaInfraccion", event.target.value)
+                }
+                required
+              />
+            </Field>
+            <Field htmlFor="infraccion-hora" label="Hora">
+              <TextInput
+                id="infraccion-hora"
+                type="time"
+                value={form.horaInfraccion}
+                onChange={(event) =>
+                  updateField("horaInfraccion", event.target.value)
+                }
+                required
+              />
+            </Field>
+            <Field htmlFor="infraccion-clave-policia" label="Clave policia">
+              <TextInput
+                id="infraccion-clave-policia"
+                value={form.clavePolicia}
+                onChange={(event) =>
+                  updateField("clavePolicia", event.target.value)
+                }
+              />
+            </Field>
+            {requiereNumParteInformativo ? (
+              <Field
+                htmlFor="infraccion-num-parte"
+                label="Numero parte informativo"
+              >
+                <TextInput
+                  id="infraccion-num-parte"
+                  value={form.numParteInformativo}
+                  onChange={(event) =>
+                    updateField("numParteInformativo", event.target.value)
+                  }
+                  required
+                />
+              </Field>
+            ) : null}
+            <div className="field field-span-3">
+              <label htmlFor="infraccion-observaciones">Observaciones</label>
+              <textarea
+                id="infraccion-observaciones"
+                value={form.observaciones}
+                onChange={(event) =>
+                  updateField("observaciones", event.target.value)
+                }
+                rows={4}
+              />
+            </div>
           </div>
         </SectionCard>
 
-        {!isVehiculoSinInfraccion ? (
+        {requiereMotivos ? (
           <Card className="create-form-card create-motivos-card">
-            <div className="create-section-header"><div><p className="section-label">Motivos</p><h2>Selecciona hasta {MAX_MOTIVOS}</h2><p className="page-description">Usa un selector por motivo. No se permiten motivos repetidos.</p></div><span className="create-section-counter">{selectedMotivos.length}/{MAX_MOTIVOS}</span></div>
-            <div className="create-motivo-select-grid">
-              {motivoSlots.map((motivoValue, index) => <div key={`motivo-slot-${index}`} className="create-motivo-slot"><Field htmlFor={`motivo-${index}`} label={`Motivo ${index + 1}`}><SelectField id={`motivo-${index}`} value={motivoValue} onChange={(event) => updateMotivoSlot(index, event.target.value)}><option value="">Sin motivo</option>{sortedMotivos.map((motivo) => { const value = String(motivo.idMotivo); const alreadySelected = selectedMotivoSet.has(motivo.idMotivo) && value !== motivoValue; return <option key={motivo.idMotivo} value={value} disabled={alreadySelected}>{getMotivoLabel(motivo)}</option>; })}</SelectField></Field>{motivoValue ? <Button type="button" variant="secondary" onClick={() => clearMotivoSlot(index)}>Quitar</Button> : null}</div>)}
+            <div className="create-section-header">
+              <div>
+                <p className="section-label">Motivos</p>
+                <h2>Selecciona hasta {MAX_MOTIVOS}</h2>
+                <p className="page-description">
+                  Usa un selector por motivo. No se permiten motivos repetidos.
+                </p>
+              </div>
+              <span className="create-section-counter">
+                {selectedMotivos.length}/{MAX_MOTIVOS}
+              </span>
             </div>
-            <div className="create-selected-motivos">{selectedMotivoLabels.length === 0 ? <FieldValue>Sin motivos seleccionados.</FieldValue> : selectedMotivoLabels.map((label) => <span key={label} className="motivo-chip">{label}</span>)}</div>
+            <div className="create-motivo-select-grid">
+              {motivoSlots.map((motivoValue, index) => (
+                <div
+                  key={`motivo-slot-${index}`}
+                  className="create-motivo-slot"
+                >
+                  <Field
+                    htmlFor={`motivo-${index}`}
+                    label={`Motivo ${index + 1}`}
+                  >
+                    <SelectField
+                      id={`motivo-${index}`}
+                      value={motivoValue}
+                      onChange={(event) =>
+                        updateMotivoSlot(index, event.target.value)
+                      }
+                    >
+                      <option value="">Sin motivo</option>
+                      {sortedMotivos.map((motivo) => {
+                        const value = String(motivo.idMotivo);
+                        const alreadySelected =
+                          selectedMotivoSet.has(motivo.idMotivo) &&
+                          value !== motivoValue;
+                        return (
+                          <option
+                            key={motivo.idMotivo}
+                            value={value}
+                            disabled={alreadySelected}
+                          >
+                            {getMotivoLabel(motivo)}
+                          </option>
+                        );
+                      })}
+                    </SelectField>
+                  </Field>
+                  {motivoValue ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => clearMotivoSlot(index)}
+                    >
+                      Quitar
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            <div className="create-selected-motivos">
+              {selectedMotivoLabels.length === 0 ? (
+                <FieldValue>Sin motivos seleccionados.</FieldValue>
+              ) : (
+                selectedMotivoLabels.map((label) => (
+                  <span key={label} className="motivo-chip">
+                    {label}
+                  </span>
+                ))
+              )}
+            </div>
           </Card>
         ) : null}
 
         {error ? <div className="notice notice-error">{error}</div> : null}
 
-        <div className="create-sticky-actions"><div><p className="section-label">Guardar captura</p><FieldValue>{canSubmit ? "El expediente tiene los datos obligatorios completos." : "Completa los campos obligatorios para guardar."}</FieldValue></div><div className="button-row button-row-end"><Button type="button" variant="secondary" onClick={() => void handleReset()}>Limpiar</Button><Button type="submit" variant="primary" disabled={saving || loading || !canSubmit}>{saving ? "Guardando..." : "Guardar expediente"}</Button></div></div>
+        <div className="create-sticky-actions">
+          <div>
+            <p className="section-label">Guardar captura</p>
+            <FieldValue>
+              {canSubmit
+                ? "El expediente tiene los datos obligatorios completos."
+                : "Completa los campos obligatorios para guardar."}
+            </FieldValue>
+          </div>
+          <div className="button-row button-row-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void handleReset()}
+            >
+              Limpiar
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={saving || loading || !canSubmit}
+            >
+              {saving ? "Guardando..." : "Guardar expediente"}
+            </Button>
+          </div>
+        </div>
       </form>
 
-      <OperationResultCard title="Expediente creado" description="El expediente quedo registrado y listo para continuar el flujo operativo." result={resultPreview} emptyLabel="Aun no se ha guardado un expediente." copyLabel="Copiar folio" copyValue={folioCreado} summary={infraccionSummary} />
+      <OperationResultCard
+        title="Expediente creado"
+        description="El expediente quedo registrado y listo para continuar el flujo operativo."
+        result={resultPreview}
+        emptyLabel="Aun no se ha guardado un expediente."
+        copyLabel="Copiar folio"
+        copyValue={folioCreado}
+        summary={infraccionSummary}
+      />
     </section>
   );
 }

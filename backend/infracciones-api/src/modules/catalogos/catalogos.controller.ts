@@ -29,6 +29,7 @@ import { CreateSexoDto } from './dto/create-sexo.dto';
 import { CreateTipoProcedimientoDto } from './dto/create-tipo-procedimiento.dto';
 import { FindDelegacionesQueryDto } from './dto/find-delegaciones-query.dto';
 import { FindLineasVehiculoQueryDto } from './dto/find-lineas-vehiculo-query.dto';
+import { UpdateTipoProcedimientoDto } from './dto/update-tipo-procedimiento.dto';
 import { CatalogosService } from './catalogos.service';
 
 @ApiTags('catalogos')
@@ -247,7 +248,7 @@ export class CatalogosController {
   @ApiOperation({ summary: 'Actualizar tipo de procedimiento' })
   updateTipoProcedimiento(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: CreateTipoProcedimientoDto,
+    @Body() dto: UpdateTipoProcedimientoDto,
   ) {
     return this.catalogosService.updateTipoProcedimiento(id, dto);
   }

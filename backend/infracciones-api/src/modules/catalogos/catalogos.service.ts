@@ -20,6 +20,7 @@ import { CreateSexoDto } from './dto/create-sexo.dto';
 import { CreateTipoProcedimientoDto } from './dto/create-tipo-procedimiento.dto';
 import { FindDelegacionesQueryDto } from './dto/find-delegaciones-query.dto';
 import { FindLineasVehiculoQueryDto } from './dto/find-lineas-vehiculo-query.dto';
+import { UpdateTipoProcedimientoDto } from './dto/update-tipo-procedimiento.dto';
 import { ClaseVehiculo } from './entities/clase-vehiculo.entity';
 import { Delegacion } from './entities/delegacion.entity';
 import { EstatusInfraccion } from './entities/estatus-infraccion.entity';
@@ -33,6 +34,11 @@ import { TipoProcedimiento } from './entities/tipo-procedimiento.entity';
 import { Encierro } from '../encierros/entities/encierro.entity';
 import { Motivo } from '../motivos/entities/motivo.entity';
 import { Rol } from '../roles/entities/rol.entity';
+import {
+  ensureTipoProcedimientoRuleConsistency,
+  normalizeTipoProcedimientoClave,
+  normalizeTipoProcedimientoNombre,
+} from './utils/tipo-procedimiento-rules';
 
 @Injectable()
 export class CatalogosService {
@@ -261,6 +267,8 @@ export class CatalogosService {
   findTiposProcedimiento(): Promise<TipoProcedimiento[]> {
     return this.tiposProcedimientoRepository.find({
       order: {
+        activo: 'DESC',
+        esTipoExpediente: 'DESC',
         nombreTipoProcedimiento: 'ASC',
       },
     });
@@ -269,7 +277,21 @@ export class CatalogosService {
   async createTipoProcedimiento(
     dto: CreateTipoProcedimientoDto,
   ): Promise<TipoProcedimiento> {
-    const nombreTipoProcedimiento = dto.procedimiento.trim();
+    const claveTipoProcedimiento = normalizeTipoProcedimientoClave(
+      dto.claveTipoProcedimiento,
+    );
+    const nombreTipoProcedimiento = normalizeTipoProcedimientoNombre(
+      dto.nombreTipoProcedimiento,
+    );
+
+    ensureTipoProcedimientoRuleConsistency(dto);
+
+    await this.throwIfExists(
+      this.tiposProcedimientoRepository,
+      { claveTipoProcedimiento },
+      'Tipo procedimiento',
+    );
+
     await this.throwIfExists(
       this.tiposProcedimientoRepository,
       { nombreTipoProcedimiento },
@@ -277,7 +299,16 @@ export class CatalogosService {
     );
 
     return this.tiposProcedimientoRepository.save(
-      this.tiposProcedimientoRepository.create({ nombreTipoProcedimiento }),
+      this.tiposProcedimientoRepository.create({
+        claveTipoProcedimiento,
+        nombreTipoProcedimiento,
+        esTipoExpediente: dto.esTipoExpediente,
+        requiereFolioInfraccion: dto.requiereFolioInfraccion,
+        requiereNumParteInformativo: dto.requiereNumParteInformativo,
+        requiereMotivos: dto.requiereMotivos,
+        permiteRetencion: dto.permiteRetencion,
+        activo: dto.activo,
+      }),
     );
   }
 
@@ -547,25 +578,56 @@ export class CatalogosService {
 
   async updateTipoProcedimiento(
     idTipoProcedimiento: number,
-    dto: CreateTipoProcedimientoDto,
+    dto: UpdateTipoProcedimientoDto,
   ): Promise<TipoProcedimiento> {
-    const nombreTipoProcedimiento = dto.procedimiento.trim();
-    await this.throwIfExists(
-      this.tiposProcedimientoRepository,
-      {
-        idTipoProcedimiento: Not(idTipoProcedimiento),
-        nombreTipoProcedimiento,
-      },
-      'Tipo procedimiento',
-    );
-
     const tipoProcedimiento = await this.findEntityByIdOrFail(
       this.tiposProcedimientoRepository,
       { idTipoProcedimiento },
       'Tipo procedimiento',
     );
 
-    tipoProcedimiento.nombreTipoProcedimiento = nombreTipoProcedimiento;
+    const nextTipoProcedimiento = {
+      esTipoExpediente:
+        dto.esTipoExpediente ?? tipoProcedimiento.esTipoExpediente,
+      requiereFolioInfraccion:
+        dto.requiereFolioInfraccion ??
+        tipoProcedimiento.requiereFolioInfraccion,
+      requiereNumParteInformativo:
+        dto.requiereNumParteInformativo ??
+        tipoProcedimiento.requiereNumParteInformativo,
+      requiereMotivos: dto.requiereMotivos ?? tipoProcedimiento.requiereMotivos,
+      permiteRetencion:
+        dto.permiteRetencion ?? tipoProcedimiento.permiteRetencion,
+    };
+
+    ensureTipoProcedimientoRuleConsistency(nextTipoProcedimiento);
+
+    if (dto.nombreTipoProcedimiento !== undefined) {
+      const nombreTipoProcedimiento = normalizeTipoProcedimientoNombre(
+        dto.nombreTipoProcedimiento,
+      );
+
+      await this.throwIfExists(
+        this.tiposProcedimientoRepository,
+        {
+          idTipoProcedimiento: Not(idTipoProcedimiento),
+          nombreTipoProcedimiento,
+        },
+        'Tipo procedimiento',
+      );
+
+      tipoProcedimiento.nombreTipoProcedimiento = nombreTipoProcedimiento;
+    }
+
+    tipoProcedimiento.esTipoExpediente = nextTipoProcedimiento.esTipoExpediente;
+    tipoProcedimiento.requiereFolioInfraccion =
+      nextTipoProcedimiento.requiereFolioInfraccion;
+    tipoProcedimiento.requiereNumParteInformativo =
+      nextTipoProcedimiento.requiereNumParteInformativo;
+    tipoProcedimiento.requiereMotivos = nextTipoProcedimiento.requiereMotivos;
+    tipoProcedimiento.permiteRetencion = nextTipoProcedimiento.permiteRetencion;
+    tipoProcedimiento.activo = dto.activo ?? tipoProcedimiento.activo;
+
     return this.tiposProcedimientoRepository.save(tipoProcedimiento);
   }
 

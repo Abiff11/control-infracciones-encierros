@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -8,6 +12,7 @@ import { ACCION_MOVIMIENTO } from '../infracciones/constants/accion-movimiento.c
 import { ESTATUS_INFRACCION } from '../infracciones/constants/estatus-infraccion.constants';
 import { InfraccionesService } from '../infracciones/infracciones.service';
 import { Infraccion } from '../infracciones/entities/infraccion.entity';
+import { RetencionVehiculo } from '../encierros/entities/retencion-vehiculo.entity';
 import { PagoInfraccion } from '../pagos/entities/pago-infraccion.entity';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { LiberacionVehiculo } from './entities/liberacion-vehiculo.entity';
@@ -28,6 +33,8 @@ export class LiberacionesService {
   constructor(
     @InjectRepository(LiberacionVehiculo)
     private readonly liberacionesRepository: Repository<LiberacionVehiculo>,
+    @InjectRepository(RetencionVehiculo)
+    private readonly retencionesRepository: Repository<RetencionVehiculo>,
     private readonly infraccionesService: InfraccionesService,
     private readonly auditoriaService: AuditoriaService,
   ) {}
@@ -67,6 +74,30 @@ export class LiberacionesService {
   async generarLiberacion(
     params: GenerarLiberacionParams,
   ): Promise<LiberacionVehiculo> {
+    const infraccion = await this.infraccionesService.findByIdOrFail(
+      params.idInfraccion,
+    );
+    const hasRetencion =
+      (await this.retencionesRepository.count({
+        where: {
+          infraccion: {
+            idInfraccion: params.idInfraccion,
+          },
+        },
+      })) > 0;
+
+    if (!infraccion.tipoProcedimiento.permiteRetencion) {
+      throw new BadRequestException(
+        `El tipo de expediente ${infraccion.tipoProcedimiento.nombreTipoProcedimiento} no permite generar liberacion vehicular`,
+      );
+    }
+
+    if (!hasRetencion) {
+      throw new BadRequestException(
+        'No existe una retencion vehicular asociada para generar la liberacion',
+      );
+    }
+
     const liberacion = this.liberacionesRepository.create({
       infraccion: { idInfraccion: params.idInfraccion } as Infraccion,
       pagoInfraccion: {

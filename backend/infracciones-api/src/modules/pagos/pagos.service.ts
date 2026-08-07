@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -8,6 +12,7 @@ import { ACCION_MOVIMIENTO } from '../infracciones/constants/accion-movimiento.c
 import { ESTATUS_INFRACCION } from '../infracciones/constants/estatus-infraccion.constants';
 import { InfraccionesService } from '../infracciones/infracciones.service';
 import { Infraccion } from '../infracciones/entities/infraccion.entity';
+import { RetencionVehiculo } from '../encierros/entities/retencion-vehiculo.entity';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { PagoInfraccion } from './entities/pago-infraccion.entity';
 
@@ -28,6 +33,8 @@ export class PagosService {
   constructor(
     @InjectRepository(PagoInfraccion)
     private readonly pagosRepository: Repository<PagoInfraccion>,
+    @InjectRepository(RetencionVehiculo)
+    private readonly retencionesRepository: Repository<RetencionVehiculo>,
     private readonly infraccionesService: InfraccionesService,
     private readonly auditoriaService: AuditoriaService,
   ) {}
@@ -62,6 +69,9 @@ export class PagosService {
   }
 
   async registrarPago(params: RegistrarPagoParams): Promise<PagoInfraccion> {
+    const infraccion = await this.infraccionesService.findByIdOrFail(
+      params.idInfraccion,
+    );
     const montoInfraccion = this.normalizeMoney(
       params.montoInfraccion ?? params.monto ?? '0',
       'monto de infraccion',
@@ -74,6 +84,30 @@ export class PagosService {
 
     if (diasPisoCobrados < 0) {
       throw new BadRequestException('Los dias de piso no pueden ser negativos');
+    }
+
+    const hasRetencion =
+      (await this.retencionesRepository.count({
+        where: {
+          infraccion: {
+            idInfraccion: params.idInfraccion,
+          },
+        },
+      })) > 0;
+
+    if (!infraccion.tipoProcedimiento.permiteRetencion) {
+      if (diasPisoCobrados !== 0 || montoDiasPiso !== '0.00') {
+        throw new BadRequestException(
+          'El tipo de expediente no permite cobrar dias de piso',
+        );
+      }
+    } else if (
+      !hasRetencion &&
+      (diasPisoCobrados > 0 || montoDiasPiso !== '0.00')
+    ) {
+      throw new BadRequestException(
+        'No se pueden cobrar dias de piso sin una retencion vehicular registrada',
+      );
     }
 
     const monto = this.sumMoney(montoInfraccion, montoDiasPiso);
@@ -134,7 +168,9 @@ export class PagosService {
   }
 
   private sumMoney(firstValue: string, secondValue: string): string {
-    const cents = Math.round(Number(firstValue) * 100) + Math.round(Number(secondValue) * 100);
+    const cents =
+      Math.round(Number(firstValue) * 100) +
+      Math.round(Number(secondValue) * 100);
 
     return (cents / 100).toFixed(2);
   }

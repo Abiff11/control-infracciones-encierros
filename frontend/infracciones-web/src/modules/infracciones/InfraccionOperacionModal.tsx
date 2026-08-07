@@ -36,10 +36,7 @@ import type {
 import "./InfraccionOperacionModal.css";
 
 export type InfraccionOperacionTipo =
-  | "retencion"
-  | "pago"
-  | "liberacion"
-  | "salida";
+  "retencion" | "pago" | "liberacion" | "salida";
 
 interface InfraccionOperacionModalProps {
   catalogs: CatalogosBundle | null;
@@ -145,8 +142,7 @@ function getOperationCopy(type: InfraccionOperacionTipo | null): OperationCopy {
     case "pago":
       return {
         title: "Registrar pago",
-        description:
-          "Registra el pago separado por infraccion y dias de piso.",
+        description: "Registra el pago separado por infraccion y dias de piso.",
         submitLabel: "Guardar pago",
       };
     case "liberacion":
@@ -258,6 +254,7 @@ export function InfraccionOperacionModal({
       ),
     [form.montoDiasPiso, form.montoInfraccion],
   );
+  const permiteRetencion = item?.tipoProcedimiento.permiteRetencion ?? true;
 
   useEffect(() => {
     if (open) {
@@ -279,6 +276,10 @@ export function InfraccionOperacionModal({
     }
 
     if (type === "retencion") {
+      if (!permiteRetencion) {
+        return "El tipo de expediente seleccionado no permite ingreso a encierro.";
+      }
+
       if (!catalogs) {
         return "Los catalogos aun no estan disponibles.";
       }
@@ -311,6 +312,14 @@ export function InfraccionOperacionModal({
 
       if (Number(montoTotalPago) <= 0) {
         return "Captura al menos un importe mayor a cero.";
+      }
+
+      if (
+        !permiteRetencion &&
+        (Number(form.diasPisoCobrados || "0") !== 0 ||
+          Number(form.montoDiasPiso || "0") !== 0)
+      ) {
+        return "Un expediente sin retencion debe registrar dias y monto de piso en cero.";
       }
     }
 
@@ -405,10 +414,16 @@ export function InfraccionOperacionModal({
         const payload: RegistrarPagoPayload = {
           idInfraccion: item.idInfraccion,
           folioPago: form.folioPago.trim(),
-          monto: montoTotalPago,
+          monto: permiteRetencion
+            ? montoTotalPago
+            : toMoney(form.montoInfraccion),
           montoInfraccion: toMoney(form.montoInfraccion),
-          diasPisoCobrados: Number(form.diasPisoCobrados || "0"),
-          montoDiasPiso: toMoney(form.montoDiasPiso),
+          diasPisoCobrados: permiteRetencion
+            ? Number(form.diasPisoCobrados || "0")
+            : 0,
+          montoDiasPiso: permiteRetencion
+            ? toMoney(form.montoDiasPiso)
+            : "0.00",
           fechaPago: toIsoDateTime(form.fechaPago),
           observaciones: toNullableString(form.observacionesPago),
         };
@@ -598,34 +613,46 @@ export function InfraccionOperacionModal({
               />
             </Field>
 
-            <Field htmlFor="operacion-pago-dias-piso" label="Dias de piso cobrados">
+            <Field
+              htmlFor="operacion-pago-dias-piso"
+              label="Dias de piso cobrados"
+            >
               <TextInput
                 id="operacion-pago-dias-piso"
                 type="number"
                 min="0"
-                value={form.diasPisoCobrados}
+                value={permiteRetencion ? form.diasPisoCobrados : "0"}
                 onChange={(event) =>
                   updateField("diasPisoCobrados", event.target.value)
                 }
+                disabled={!permiteRetencion}
               />
             </Field>
 
-            <Field htmlFor="operacion-pago-monto-piso" label="Monto dias de piso">
+            <Field
+              htmlFor="operacion-pago-monto-piso"
+              label="Monto dias de piso"
+            >
               <TextInput
                 id="operacion-pago-monto-piso"
                 type="number"
                 min="0"
                 step="0.01"
-                value={form.montoDiasPiso}
+                value={permiteRetencion ? form.montoDiasPiso : "0.00"}
                 onChange={(event) =>
                   updateField("montoDiasPiso", event.target.value)
                 }
                 placeholder="0.00"
+                disabled={!permiteRetencion}
               />
             </Field>
 
             <Field htmlFor="operacion-pago-total" label="Total calculado">
-              <TextInput id="operacion-pago-total" value={montoTotalPago} readOnly />
+              <TextInput
+                id="operacion-pago-total"
+                value={montoTotalPago}
+                readOnly
+              />
             </Field>
 
             <Field htmlFor="operacion-pago-fecha" label="Fecha pago">
