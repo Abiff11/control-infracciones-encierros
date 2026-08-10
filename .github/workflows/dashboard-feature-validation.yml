@@ -1,0 +1,99 @@
+name: Dashboard feature validation
+
+on:
+  push:
+    branches:
+      - feature/dashboard-analitico
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend build, tests and migrations
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: control_infracciones_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d control_infracciones_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: backend/infracciones-api
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: control_infracciones_db
+      DB_SYNCHRONIZE: "false"
+      NODE_ENV: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/infracciones-api/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Build backend
+        run: npm run build
+
+      - name: Lint dashboard and payment feature without fixes
+        run: >-
+          npx eslint
+          "src/modules/dashboard/**/*.ts"
+          "src/modules/pagos/**/*.ts"
+          "src/database/migrations/1860000000000-CreatePagoConceptos.ts"
+          "src/database/migrations/1870000000000-RenameFolioPagoToLineaCaptura.ts"
+
+      - name: Run backend tests
+        run: npm test -- --runInBand
+
+      - name: Run migrations on disposable PostgreSQL
+        run: npm run migration:run
+
+      - name: Show migration state
+        run: npm run migration:show
+
+  frontend:
+    name: Frontend lint and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/infracciones-web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/infracciones-web/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Lint frontend
+        run: npm run lint
+
+      - name: Build frontend
+        run: npm run build
