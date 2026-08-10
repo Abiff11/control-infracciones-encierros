@@ -135,7 +135,7 @@ export class PagosService {
           usuarioRegistraPago: {
             idUsuario: params.idUsuarioRegistraPago,
           } as Usuario,
-          folioPago: folioLineaCaptura,
+          folioLineaCaptura,
           monto: montoTotal,
           montoInfraccion: montoTotal,
           diasPisoCobrados: 0,
