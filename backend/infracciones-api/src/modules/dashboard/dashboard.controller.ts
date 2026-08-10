@@ -5,10 +5,20 @@ import { READ_ROLES } from '../auth/constants/roles.constants';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
+import type {
+  DashboardAnaliticaResumenResponse,
+  DashboardIngresosPorClaveResponse,
+  DashboardIngresosTendenciaResponse,
+  DashboardInfraccionesTendenciaResponse,
+} from './dashboard-analytics.types';
 import {
   DashboardService,
   type DashboardResumenResponse,
 } from './dashboard.service';
+import {
+  DashboardAnalyticsQueryDto,
+  DashboardTrendQueryDto,
+} from './dto/dashboard-analytics-query.dto';
 import { DashboardQueryDto } from './dto/dashboard-query.dto';
 
 @ApiTags('dashboard')
@@ -25,5 +35,45 @@ export class DashboardController {
     @Query() query: DashboardQueryDto,
   ): Promise<DashboardResumenResponse> {
     return this.dashboardService.getResumen(query);
+  }
+
+  @Get('analitica/resumen')
+  @ApiOperation({
+    summary: 'Obtener indicadores analiticos de expedientes e ingresos',
+  })
+  getAnaliticaResumen(
+    @Query() query: DashboardAnalyticsQueryDto,
+  ): Promise<DashboardAnaliticaResumenResponse> {
+    return this.dashboardService.getAnaliticaResumen(query);
+  }
+
+  @Get('analitica/infracciones/tendencia')
+  @ApiOperation({
+    summary: 'Obtener tendencia de infracciones y variantes por periodo',
+  })
+  getTendenciaInfracciones(
+    @Query() query: DashboardTrendQueryDto,
+  ): Promise<DashboardInfraccionesTendenciaResponse> {
+    return this.dashboardService.getTendenciaInfracciones(query);
+  }
+
+  @Get('analitica/ingresos/tendencia')
+  @ApiOperation({
+    summary: 'Obtener tendencia de ingresos por dia, mes o anio',
+  })
+  getTendenciaIngresos(
+    @Query() query: DashboardTrendQueryDto,
+  ): Promise<DashboardIngresosTendenciaResponse> {
+    return this.dashboardService.getTendenciaIngresos(query);
+  }
+
+  @Get('analitica/ingresos/por-clave')
+  @ApiOperation({
+    summary: 'Obtener monto recaudado agrupado por clave de concepto',
+  })
+  getIngresosPorClave(
+    @Query() query: DashboardAnalyticsQueryDto,
+  ): Promise<DashboardIngresosPorClaveResponse> {
+    return this.dashboardService.getIngresosPorClave(query);
   }
 }
