@@ -37,12 +37,21 @@ export function PagoConceptosEditor({
   const [searchError, setSearchError] = useState(false);
 
   useEffect(() => {
+    const normalizedQuery = query.trim();
+
+    if (!normalizedQuery) {
+      setSuggestions([]);
+      setLoading(false);
+      setSearchError(false);
+      return;
+    }
+
     let cancelled = false;
     const timeoutId = window.setTimeout(() => {
       setLoading(true);
       setSearchError(false);
 
-      void findConceptosPago(token, query, 12)
+      void findConceptosPago(token, normalizedQuery, 12)
         .then((result) => {
           if (!cancelled) {
             setSuggestions(result);
