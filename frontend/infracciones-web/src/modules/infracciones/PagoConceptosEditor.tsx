@@ -10,6 +10,11 @@ import {
 } from "./pago-conceptos-form";
 import "./PagoConceptosEditor.css";
 
+// Compatibilidad temporal para los consumidores existentes del editor.
+// eslint-disable-next-line react-refresh/only-export-components
+export { createEmptyPagoConceptoRow };
+export type { PagoConceptoFormRow };
+
 interface PagoConceptosEditorProps {
   rows: PagoConceptoFormRow[];
   token: string;
