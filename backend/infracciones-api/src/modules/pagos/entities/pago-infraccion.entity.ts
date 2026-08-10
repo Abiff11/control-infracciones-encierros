@@ -24,8 +24,8 @@ export class PagoInfraccion {
   @JoinColumn({ name: 'id_usuario_registra_pago' })
   usuarioRegistraPago!: Usuario;
 
-  @Column({ name: 'folio_pago', type: 'varchar', length: 50 })
-  folioPago!: string;
+  @Column({ name: 'folio_linea_captura', type: 'varchar', length: 50 })
+  folioLineaCaptura!: string;
 
   @Column({ name: 'monto', type: 'decimal', precision: 10, scale: 2 })
   monto!: string;
