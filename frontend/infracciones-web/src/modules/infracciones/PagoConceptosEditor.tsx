@@ -4,26 +4,16 @@ import { Button } from "../../components/ui/Button";
 import { Field, TextInput } from "../../components/ui/Field";
 import { findConceptosPago } from "../../services/api/pagos.api";
 import type { ConceptoPagoOption } from "../../types/operaciones.types";
+import {
+  createEmptyPagoConceptoRow,
+  type PagoConceptoFormRow,
+} from "./pago-conceptos-form";
 import "./PagoConceptosEditor.css";
-
-export interface PagoConceptoFormRow {
-  claveConcepto: string;
-  monto: string;
-}
 
 interface PagoConceptosEditorProps {
   rows: PagoConceptoFormRow[];
   token: string;
   onChange: (rows: PagoConceptoFormRow[]) => void;
-}
-
-const EMPTY_ROW: PagoConceptoFormRow = {
-  claveConcepto: "",
-  monto: "",
-};
-
-export function createEmptyPagoConceptoRow(): PagoConceptoFormRow {
-  return { ...EMPTY_ROW };
 }
 
 export function PagoConceptosEditor({
