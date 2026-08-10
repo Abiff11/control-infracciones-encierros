@@ -6,9 +6,7 @@ const INDEXES = [
   'idx_retencion_dashboard_latest_encierro',
 ] as const;
 
-export class AddDashboardAnalyticsIndexes1880000000000
-  implements MigrationInterface
-{
+export class AddDashboardAnalyticsIndexes1880000000000 implements MigrationInterface {
   name = 'AddDashboardAnalyticsIndexes1880000000000';
   transaction = false;
 
@@ -34,9 +32,7 @@ export class AddDashboardAnalyticsIndexes1880000000000
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     for (const indexName of [...INDEXES].reverse()) {
-      await queryRunner.query(
-        `DROP INDEX CONCURRENTLY IF EXISTS ${indexName}`,
-      );
+      await queryRunner.query(`DROP INDEX CONCURRENTLY IF EXISTS ${indexName}`);
     }
   }
 }
