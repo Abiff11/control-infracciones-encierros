@@ -1,12 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { getDashboardResumen } from "../../services/api/dashboard.api";
+import {
+  getDashboardAnaliticaResumen,
+  getDashboardIngresosPorClave,
+  getDashboardIngresosTendencia,
+  getDashboardInfraccionesTendencia,
+  getDashboardResumen,
+} from "../../services/api/dashboard.api";
+import { findConceptosPago } from "../../services/api/pagos.api";
 import type { CatalogosBundle } from "../../types/catalogos.types";
 import type {
+  DashboardAgrupacion,
+  DashboardAnaliticaResumenResponse,
+  DashboardAnalyticsQuery,
+  DashboardCondicionExpediente,
+  DashboardIngresosPorClaveResponse,
+  DashboardIngresosTendenciaResponse,
+  DashboardInfraccionesTendenciaResponse,
   DashboardQuery,
   DashboardResumenResponse,
+  DashboardTrendQuery,
 } from "../../types/dashboard.types";
 import type { EstadoOperativoVehiculo } from "../../types/infracciones.types";
+import type { ConceptoPagoOption } from "../../types/operaciones.types";
 
 import "./DashboardPage.css";
 import "./DashboardExtra.css";
@@ -25,32 +41,26 @@ interface DashboardFilters {
   idRegion: string;
   idDelegacion: string;
   idEstatusInfraccion: string;
+  idTipoProcedimiento: string;
   idEncierro: string;
   estadoOperativo: string;
+  condicionExpediente: "" | DashboardCondicionExpediente;
+  claveConcepto: string;
+  agrupacion: DashboardAgrupacion;
   periodo: "all" | "7" | "30" | "90" | "custom";
 }
 
-interface DashboardRevenueSeriesItem {
-  periodo: string;
-  total: number;
-}
-
-interface DashboardRevenue {
-  totalIngresos: number;
-  ingresosHoy: number;
-  ingresosMesActual: number;
-  ingresosAnioActual: number;
-  porDia: DashboardRevenueSeriesItem[];
-  porMes: DashboardRevenueSeriesItem[];
-  porAnio: DashboardRevenueSeriesItem[];
-}
-
-type DashboardResponseWithRevenue = DashboardResumenResponse & {
-  ingresos?: DashboardRevenue;
-};
-
 interface DashboardState {
-  data: DashboardResponseWithRevenue | null;
+  data: DashboardResumenResponse | null;
+  loading: boolean;
+  error: string | null;
+}
+
+interface DashboardAnalyticsState {
+  resumen: DashboardAnaliticaResumenResponse | null;
+  infraccionesTendencia: DashboardInfraccionesTendenciaResponse | null;
+  ingresosTendencia: DashboardIngresosTendenciaResponse | null;
+  ingresosPorClave: DashboardIngresosPorClaveResponse | null;
   loading: boolean;
   error: string | null;
 }
@@ -80,6 +90,12 @@ const ESTADOS_OPERATIVOS: EstadoOperativoVehiculo[] = [
   "VEHICULO_ENTREGADO",
 ];
 
+const CONDICION_LABELS: Record<DashboardCondicionExpediente, string> = {
+  CON_RETENCION: "Infraccion con retencion",
+  SIN_RETENCION: "Infraccion sin retencion",
+  VEHICULO_SIN_INFRACCION: "Vehiculo en encierro sin infraccion",
+};
+
 function formatInputDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
@@ -91,8 +107,12 @@ function createDefaultFilters(): DashboardFilters {
     idRegion: "",
     idDelegacion: "",
     idEstatusInfraccion: "",
+    idTipoProcedimiento: "",
     idEncierro: "",
     estadoOperativo: "",
+    condicionExpediente: "",
+    claveConcepto: "",
+    agrupacion: "mes",
     periodo: "all",
   };
 }
@@ -149,6 +169,27 @@ function buildDashboardQuery(filters: DashboardFilters): DashboardQuery {
     estadoOperativo: filters.estadoOperativo
       ? (filters.estadoOperativo as EstadoOperativoVehiculo)
       : undefined,
+  };
+}
+
+function buildAnalyticsQuery(filters: DashboardFilters): DashboardAnalyticsQuery {
+  return {
+    fechaDesde: filters.fechaDesde || undefined,
+    fechaHasta: filters.fechaHasta || undefined,
+    idRegion: toOptionalNumber(filters.idRegion),
+    idDelegacion: toOptionalNumber(filters.idDelegacion),
+    idEstatusInfraccion: toOptionalNumber(filters.idEstatusInfraccion),
+    idTipoProcedimiento: toOptionalNumber(filters.idTipoProcedimiento),
+    idEncierro: toOptionalNumber(filters.idEncierro),
+    claveConcepto: filters.claveConcepto.trim() || undefined,
+    condicionExpediente: filters.condicionExpediente || undefined,
+  };
+}
+
+function buildTrendQuery(filters: DashboardFilters): DashboardTrendQuery {
+  return {
+    ...buildAnalyticsQuery(filters),
+    agrupacion: filters.agrupacion,
   };
 }
 
@@ -315,6 +356,19 @@ function DashboardPage({
     loading: true,
     error: null,
   });
+  const [analyticsState, setAnalyticsState] = useState<DashboardAnalyticsState>({
+    resumen: null,
+    infraccionesTendencia: null,
+    ingresosTendencia: null,
+    ingresosPorClave: null,
+    loading: true,
+    error: null,
+  });
+  const [conceptSuggestions, setConceptSuggestions] = useState<
+    ConceptoPagoOption[]
+  >([]);
+  const [conceptSearchLoading, setConceptSearchLoading] = useState(false);
+  const [conceptSearchError, setConceptSearchError] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -336,7 +390,7 @@ function DashboardPage({
         }
 
         setDashboardState({
-          data: response as DashboardResponseWithRevenue,
+          data: response,
           loading: false,
           error: null,
         });
@@ -363,6 +417,101 @@ function DashboardPage({
     };
   }, [appliedFilters, refreshKey, reloadKey, runProtectedRequest]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadAnalytics(): Promise<void> {
+      setAnalyticsState((current) => ({
+        ...current,
+        loading: true,
+        error: null,
+      }));
+
+      const analyticsQuery = buildAnalyticsQuery(appliedFilters);
+      const trendQuery = buildTrendQuery(appliedFilters);
+
+      try {
+        const [resumen, infraccionesTendencia, ingresosTendencia, ingresosPorClave] =
+          await runProtectedRequest((token) =>
+            Promise.all([
+              getDashboardAnaliticaResumen(token, analyticsQuery),
+              getDashboardInfraccionesTendencia(token, trendQuery),
+              getDashboardIngresosTendencia(token, trendQuery),
+              getDashboardIngresosPorClave(token, analyticsQuery),
+            ]),
+          );
+
+        if (!mounted) {
+          return;
+        }
+
+        setAnalyticsState({
+          resumen,
+          infraccionesTendencia,
+          ingresosTendencia,
+          ingresosPorClave,
+          loading: false,
+          error: null,
+        });
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
+
+        setAnalyticsState((current) => ({
+          ...current,
+          loading: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "No se pudieron cargar las metricas analiticas.",
+        }));
+      }
+    }
+
+    void loadAnalytics();
+
+    return () => {
+      mounted = false;
+    };
+  }, [appliedFilters, refreshKey, reloadKey, runProtectedRequest]);
+
+  useEffect(() => {
+    const query = filters.claveConcepto.trim();
+    if (!query) {
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      setConceptSearchLoading(true);
+      setConceptSearchError(false);
+
+      void runProtectedRequest((token) => findConceptosPago(token, query, 20))
+        .then((result) => {
+          if (!cancelled) {
+            setConceptSuggestions(result);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setConceptSuggestions([]);
+            setConceptSearchError(true);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setConceptSearchLoading(false);
+          }
+        });
+    }, 220);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [filters.claveConcepto, runProtectedRequest]);
+
   const filteredDelegaciones = useMemo(() => {
     if (!catalogs || !filters.idRegion) {
       return catalogs?.delegaciones ?? [];
@@ -373,6 +522,22 @@ function DashboardPage({
       (delegacion) => delegacion.region?.idRegion === idRegion,
     );
   }, [catalogs, filters.idRegion]);
+
+  const expedienteTypes = useMemo(
+    () =>
+      (catalogs?.tiposProcedimiento ?? []).filter(
+        (tipo) => tipo.esTipoExpediente,
+      ),
+    [catalogs],
+  );
+
+  const conceptSuggestionKeys = useMemo(
+    () =>
+      Array.from(
+        new Set(conceptSuggestions.map((concepto) => concepto.claveConcepto)),
+      ),
+    [conceptSuggestions],
+  );
 
   const data = dashboardState.data;
   const resumen = data?.resumen;
@@ -387,6 +552,7 @@ function DashboardPage({
   const ingresosHoy = ingresos?.ingresosHoy ?? 0;
   const ingresosMesActual = ingresos?.ingresosMesActual ?? 0;
   const ingresosAnioActual = ingresos?.ingresosAnioActual ?? 0;
+  const analyticsResumen = analyticsState.resumen;
 
   const estadoChartData: ChartDatum[] = ESTADOS_OPERATIVOS.map(
     (estadoOperativo) => {
@@ -463,10 +629,24 @@ function DashboardPage({
     });
   }
 
+  function updateConceptFilter(value: string): void {
+    const normalized = value.toUpperCase();
+    updateFilter("claveConcepto", normalized);
+
+    if (!normalized.trim()) {
+      setConceptSuggestions([]);
+      setConceptSearchError(false);
+      setConceptSearchLoading(false);
+    }
+  }
+
   function resetFilters(): void {
     const nextFilters = createDefaultFilters();
     setFilters(nextFilters);
     setAppliedFilters(nextFilters);
+    setConceptSuggestions([]);
+    setConceptSearchError(false);
+    setConceptSearchLoading(false);
   }
 
   return (
@@ -476,15 +656,17 @@ function DashboardPage({
           <p className="eyebrow">Dashboard</p>
           <h1>Resumen general del sistema</h1>
           <p className="page-description">
-            Indicadores principales de infracciones, encierros, pago,
-            liberacion, salida de vehiculos e ingresos.
+            Indicadores de infracciones, retenciones, vehiculos sin infraccion,
+            encierros, pagos, claves de concepto e ingresos.
           </p>
         </div>
         <div className="dashboard-refresh-box">
           <span>
-            {data?.updatedAt
-              ? `Actualizado: ${formatDateTime(data.updatedAt)}`
-              : apiStatusLabel}
+            {analyticsResumen?.updatedAt
+              ? `Actualizado: ${formatDateTime(analyticsResumen.updatedAt)}`
+              : data?.updatedAt
+                ? `Actualizado: ${formatDateTime(data.updatedAt)}`
+                : apiStatusLabel}
           </span>
           <button
             className="button-secondary"
@@ -496,7 +678,43 @@ function DashboardPage({
         </div>
       </header>
 
-      <section className="dashboard-filters" aria-label="Filtros de dashboard">
+      <section className="dashboard-filters" aria-label="Filtros globales del dashboard">
+        <label className="field">
+          <span>Periodo</span>
+          <select
+            value={filters.periodo}
+            onChange={(event) =>
+              setFilters((current) =>
+                applyPeriod(
+                  current,
+                  event.target.value as DashboardFilters["periodo"],
+                ),
+              )
+            }
+          >
+            <option value="all">Todo el historico</option>
+            <option value="7">Ultimos 7 dias</option>
+            <option value="30">Ultimos 30 dias</option>
+            <option value="90">Ultimos 90 dias</option>
+            <option value="custom">Personalizado</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>Agrupar tendencia</span>
+          <select
+            value={filters.agrupacion}
+            onChange={(event) =>
+              updateFilter(
+                "agrupacion",
+                event.target.value as DashboardAgrupacion,
+              )
+            }
+          >
+            <option value="dia">Dia</option>
+            <option value="mes">Mes</option>
+            <option value="anio">Año</option>
+          </select>
+        </label>
         <label className="field">
           <span>Desde</span>
           <input
@@ -547,6 +765,70 @@ function DashboardPage({
           </select>
         </label>
         <label className="field">
+          <span>Tipo de expediente</span>
+          <select
+            value={filters.idTipoProcedimiento}
+            onChange={(event) =>
+              updateFilter("idTipoProcedimiento", event.target.value)
+            }
+          >
+            <option value="">Todos</option>
+            {expedienteTypes.map((tipo) => (
+              <option
+                key={tipo.idTipoProcedimiento}
+                value={tipo.idTipoProcedimiento}
+              >
+                {tipo.nombreTipoProcedimiento}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Condicion</span>
+          <select
+            value={filters.condicionExpediente}
+            onChange={(event) =>
+              updateFilter(
+                "condicionExpediente",
+                event.target.value as DashboardFilters["condicionExpediente"],
+              )
+            }
+          >
+            <option value="">Todas</option>
+            {Object.entries(CONDICION_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field dashboard-filter-concept">
+          <span>Clave de concepto</span>
+          <input
+            type="text"
+            list="dashboard-conceptos-sugerencias"
+            value={filters.claveConcepto}
+            onChange={(event) => updateConceptFilter(event.target.value)}
+            placeholder="Todas / buscar clave"
+            maxLength={50}
+            autoComplete="off"
+          />
+          <datalist id="dashboard-conceptos-sugerencias">
+            {conceptSuggestionKeys.map((clave) => (
+              <option key={clave} value={clave} />
+            ))}
+          </datalist>
+          <small>
+            {conceptSearchLoading
+              ? "Buscando claves..."
+              : conceptSearchError
+                ? "No se pudieron consultar coincidencias."
+                : filters.claveConcepto.trim()
+                  ? `${conceptSuggestionKeys.length} coincidencia(s).`
+                  : "Todas las claves"}
+          </small>
+        </label>
+        <label className="field">
           <span>Estatus</span>
           <select
             value={filters.idEstatusInfraccion}
@@ -580,7 +862,7 @@ function DashboardPage({
           </select>
         </label>
         <label className="field">
-          <span>Flujo</span>
+          <span>Estado operativo</span>
           <select
             value={filters.estadoOperativo}
             onChange={(event) =>
@@ -593,26 +875,6 @@ function DashboardPage({
                 {ESTADO_LABELS[estado]}
               </option>
             ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Periodo</span>
-          <select
-            value={filters.periodo}
-            onChange={(event) =>
-              setFilters((current) =>
-                applyPeriod(
-                  current,
-                  event.target.value as DashboardFilters["periodo"],
-                ),
-              )
-            }
-          >
-            <option value="all">Todo el historico</option>
-            <option value="7">Ultimos 7 dias</option>
-            <option value="30">Ultimos 30 dias</option>
-            <option value="90">Ultimos 90 dias</option>
-            <option value="custom">Personalizado</option>
           </select>
         </label>
         <div className="dashboard-filter-actions">
@@ -629,6 +891,41 @@ function DashboardPage({
         </div>
       </section>
 
+      <section className="dashboard-filter-context" aria-label="Contexto analitico aplicado">
+        {analyticsState.loading ? (
+          <span>Actualizando analitica...</span>
+        ) : analyticsResumen ? (
+          <>
+            <span>
+              <strong>{formatNumber(analyticsResumen.expedientes.totalInfracciones)}</strong>
+              {" infracciones"}
+            </span>
+            <span>
+              <strong>{formatNumber(analyticsResumen.expedientes.infraccionesConRetencion)}</strong>
+              {" con retencion"}
+            </span>
+            <span>
+              <strong>{formatNumber(analyticsResumen.expedientes.infraccionesSinRetencion)}</strong>
+              {" sin retencion"}
+            </span>
+            <span>
+              <strong>{formatNumber(analyticsResumen.expedientes.vehiculosSinInfraccion)}</strong>
+              {" vehiculos sin infraccion"}
+            </span>
+            <span>
+              <strong>{formatCurrency(analyticsResumen.ingresos.totalIngresos)}</strong>
+              {" ingresos"}
+            </span>
+            <span>
+              <strong>{analyticsState.ingresosPorClave?.claves.length ?? 0}</strong>
+              {" claves con monto"}
+            </span>
+          </>
+        ) : (
+          <span>Sin metricas analiticas para los filtros aplicados.</span>
+        )}
+      </section>
+
       <section
         className="dashboard-metrics-grid"
         aria-label="Indicadores principales"
@@ -637,7 +934,7 @@ function DashboardPage({
           accent="blue"
           label="Total infracciones"
           value={formatNumber(totalInfracciones)}
-          helper="Total real segun filtros aplicados"
+          helper="Total real segun filtros operativos"
         />
         <MetricCard
           accent="orange"
@@ -687,7 +984,7 @@ function DashboardPage({
           accent="green"
           label="Ingresos totales"
           value={formatCurrency(totalIngresos)}
-          helper="Pagos segun filtros"
+          helper="Pagos segun filtros operativos"
         />
         <MetricCard
           accent="teal"
@@ -709,12 +1006,12 @@ function DashboardPage({
         />
       </section>
 
-      {dashboardState.loading ? (
+      {dashboardState.loading || analyticsState.loading ? (
         <p className="notice">Actualizando indicadores del dashboard...</p>
       ) : null}
-      {dashboardState.error || notice ? (
+      {dashboardState.error || analyticsState.error || notice ? (
         <div className="notice notice-error">
-          {dashboardState.error ?? notice}
+          {dashboardState.error ?? analyticsState.error ?? notice}
         </div>
       ) : null}
 
