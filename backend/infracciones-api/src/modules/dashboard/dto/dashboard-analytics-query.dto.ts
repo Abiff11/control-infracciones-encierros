@@ -12,8 +12,10 @@ import {
 import {
   DASHBOARD_AGRUPACIONES,
   DASHBOARD_CONDICIONES_EXPEDIENTE,
+  DASHBOARD_ESTADOS_OPERATIVOS,
   type DashboardAgrupacion,
   type DashboardCondicionExpediente,
+  type DashboardEstadoOperativo,
 } from '../dashboard-analytics.types';
 
 export class DashboardAnalyticsQueryDto {
@@ -66,6 +68,10 @@ export class DashboardAnalyticsQueryDto {
   @IsOptional()
   @IsIn(DASHBOARD_CONDICIONES_EXPEDIENTE)
   condicionExpediente?: DashboardCondicionExpediente;
+
+  @IsOptional()
+  @IsIn(DASHBOARD_ESTADOS_OPERATIVOS)
+  estadoOperativo?: DashboardEstadoOperativo;
 }
 
 export class DashboardTrendQueryDto extends DashboardAnalyticsQueryDto {
