@@ -1,6 +1,7 @@
 import { request } from './apiClient';
 import type {
   ConceptoPagoOption,
+  PagoRegistradoApi,
   RegistrarPagoPayload,
 } from '../../types/operaciones.types';
 
@@ -33,6 +34,17 @@ export function findConceptosPago(
 
   return request<ConceptoPagoOption[]>(
     `/pagos/conceptos?${params.toString()}`,
+    { method: 'GET' },
+    token,
+  );
+}
+
+export function getPagosByInfraccion(
+  token: string,
+  idInfraccion: number,
+): Promise<PagoRegistradoApi[]> {
+  return request<PagoRegistradoApi[]>(
+    `/pagos/infraccion/${idInfraccion}`,
     { method: 'GET' },
     token,
   );
