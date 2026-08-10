@@ -110,7 +110,7 @@ describe('PagosService registrarPago', () => {
     expect(fixture.pagoConceptoRepository.save).toHaveBeenCalledTimes(2);
     expect(fixture.transactionPagosRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        folioPago: 'LC-123',
+        folioLineaCaptura: 'LC-123',
         monto: '200.00',
         montoInfraccion: '200.00',
         diasPisoCobrados: 0,
