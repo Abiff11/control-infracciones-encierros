@@ -27,6 +27,18 @@ export class PagoInfraccion {
   @Column({ name: 'folio_linea_captura', type: 'varchar', length: 50 })
   folioLineaCaptura!: string;
 
+  /**
+   * Alias temporal de compatibilidad para consumidores internos que todavia
+   * leen `folioPago`. No corresponde a una segunda columna en PostgreSQL.
+   */
+  get folioPago(): string {
+    return this.folioLineaCaptura;
+  }
+
+  set folioPago(value: string) {
+    this.folioLineaCaptura = value;
+  }
+
   @Column({ name: 'monto', type: 'decimal', precision: 10, scale: 2 })
   monto!: string;
 
