@@ -62,11 +62,85 @@ jobs:
           "src/modules/pagos/**/*.ts"
           "src/database/migrations/1860000000000-CreatePagoConceptos.ts"
           "src/database/migrations/1870000000000-RenameFolioPagoToLineaCaptura.ts"
+          "src/database/migrations/1880000000000-AddDashboardAnalyticsIndexes.ts"
 
       - name: Run backend tests
         run: npm test -- --runInBand
 
       - name: Run migrations on disposable PostgreSQL
+        run: npm run migration:run
+
+      - name: Assert payment and dashboard schema
+        run: |
+          node <<'NODE'
+          const { Client } = require('pg');
+
+          async function main() {
+            const client = new Client({
+              host: process.env.DB_HOST,
+              port: Number(process.env.DB_PORT),
+              user: process.env.DB_USERNAME,
+              password: process.env.DB_PASSWORD,
+              database: process.env.DB_DATABASE,
+            });
+
+            await client.connect();
+
+            const requiredTables = ['concepto_pago', 'pago_concepto'];
+            for (const tableName of requiredTables) {
+              const result = await client.query(
+                `SELECT to_regclass($1) AS relation`,
+                [`public.${tableName}`],
+              );
+              if (!result.rows[0]?.relation) {
+                throw new Error(`No existe la tabla ${tableName}`);
+              }
+            }
+
+            const columns = await client.query(`
+              SELECT column_name
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = 'pago_infraccion'
+                AND column_name IN ('folio_pago', 'folio_linea_captura')
+            `);
+            const columnNames = new Set(columns.rows.map((row) => row.column_name));
+            if (!columnNames.has('folio_linea_captura') || columnNames.has('folio_pago')) {
+              throw new Error('La migracion de folio linea de captura no quedo aplicada');
+            }
+
+            const expectedIndexes = [
+              'idx_pago_concepto_concepto_pago_cover',
+              'idx_pago_infraccion_dashboard_fecha_cover',
+              'idx_retencion_dashboard_latest_encierro',
+            ];
+            const indexes = await client.query(
+              `SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = ANY($1)`,
+              [expectedIndexes],
+            );
+            const indexNames = new Set(indexes.rows.map((row) => row.indexname));
+            for (const indexName of expectedIndexes) {
+              if (!indexNames.has(indexName)) {
+                throw new Error(`No existe el indice ${indexName}`);
+              }
+            }
+
+            await client.end();
+          }
+
+          main().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Revert dashboard and payment migrations
+        run: |
+          npm run migration:revert
+          npm run migration:revert
+          npm run migration:revert
+
+      - name: Re-run reverted migrations
         run: npm run migration:run
 
       - name: Show migration state
