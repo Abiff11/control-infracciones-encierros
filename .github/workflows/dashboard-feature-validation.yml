@@ -63,6 +63,7 @@ jobs:
           npx eslint
           "src/modules/dashboard/**/*.ts"
           "src/database/migrations/1880000000000-AddDashboardAnalyticsIndexes.ts"
+          "src/database/migrations/1890000000000-EnsurePagadaSinRetencionStatus.ts"
           --rule 'prettier/prettier: off'
 
       - name: Run backend tests
@@ -126,6 +127,16 @@ jobs:
               }
             }
 
+            const status = await client.query(
+              `SELECT id_estatus_infraccion
+               FROM estatus_infraccion
+               WHERE nombre_estatus = $1`,
+              ['PAGADA_SIN_RETENCION'],
+            );
+            if (status.rowCount !== 1) {
+              throw new Error('No existe el estatus PAGADA_SIN_RETENCION');
+            }
+
             await client.end();
           }
 
@@ -137,6 +148,7 @@ jobs:
 
       - name: Revert dashboard and payment migrations
         run: |
+          npm run migration:revert
           npm run migration:revert
           npm run migration:revert
           npm run migration:revert
