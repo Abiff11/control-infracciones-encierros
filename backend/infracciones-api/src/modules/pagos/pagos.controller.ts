@@ -5,6 +5,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -15,6 +16,7 @@ import { LoginResponseUsuarioDto } from '../auth/dto/login-response.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
+import { FindConceptosPagoQueryDto } from './dto/find-conceptos-pago-query.dto';
 import { RegistrarPagoDto } from './dto/registrar-pago.dto';
 import { PagosService } from './pagos.service';
 
@@ -25,6 +27,12 @@ import { PagosService } from './pagos.service';
 @Controller('pagos')
 export class PagosController {
   constructor(private readonly pagosService: PagosService) {}
+
+  @Get('conceptos')
+  @ApiOperation({ summary: 'Buscar claves de concepto registradas' })
+  findConceptos(@Query() query: FindConceptosPagoQueryDto) {
+    return this.pagosService.findConceptos(query.q, query.limit);
+  }
 
   @Get('infraccion/:idInfraccion')
   @ApiOperation({ summary: 'Listar pagos por infracción' })
@@ -40,7 +48,7 @@ export class PagosController {
 
   @Roles(...PAYMENT_ROLES)
   @Post()
-  @ApiOperation({ summary: 'Registrar pago de infracción' })
+  @ApiOperation({ summary: 'Registrar pago por línea de captura' })
   registrarPago(
     @Body() registrarPagoDto: RegistrarPagoDto,
     @CurrentUser() currentUser: LoginResponseUsuarioDto,

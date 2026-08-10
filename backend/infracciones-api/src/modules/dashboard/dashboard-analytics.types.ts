@@ -1,100 +1,24 @@
-import type { EstadoOperativoVehiculo } from './infracciones.types';
+export const DASHBOARD_AGRUPACIONES = ['dia', 'mes', 'anio'] as const;
+export type DashboardAgrupacion = (typeof DASHBOARD_AGRUPACIONES)[number];
 
-export type DashboardAgrupacion = 'dia' | 'mes' | 'anio';
-
+export const DASHBOARD_CONDICIONES_EXPEDIENTE = [
+  'CON_RETENCION',
+  'SIN_RETENCION',
+  'VEHICULO_SIN_INFRACCION',
+] as const;
 export type DashboardCondicionExpediente =
-  | 'CON_RETENCION'
-  | 'SIN_RETENCION'
-  | 'VEHICULO_SIN_INFRACCION';
+  (typeof DASHBOARD_CONDICIONES_EXPEDIENTE)[number];
 
-export interface DashboardQuery {
-  fechaDesde?: string;
-  fechaHasta?: string;
-  idRegion?: number;
-  idDelegacion?: number;
-  idEstatusInfraccion?: number;
-  idEncierro?: number;
-  estadoOperativo?: EstadoOperativoVehiculo;
-}
-
-export interface DashboardAnalyticsQuery {
-  fechaDesde?: string;
-  fechaHasta?: string;
-  idRegion?: number;
-  idDelegacion?: number;
-  idEstatusInfraccion?: number;
-  idTipoProcedimiento?: number;
-  idEncierro?: number;
-  claveConcepto?: string;
-  condicionExpediente?: DashboardCondicionExpediente;
-  estadoOperativo?: EstadoOperativoVehiculo;
-}
-
-export interface DashboardTrendQuery extends DashboardAnalyticsQuery {
-  agrupacion?: DashboardAgrupacion;
-}
-
-export interface DashboardResumen {
-  totalInfracciones: number;
-  totalSinRetencion: number;
-  totalVehiculosRetenidos: number;
-  totalSinPago: number;
-  totalPagadosPendienteLiberacion: number;
-  totalLiberadosPendienteSalida: number;
-  totalEntregados: number;
-}
-
-export interface DashboardIngresoSerieItem {
-  periodo: string;
-  total: number;
-}
-
-export interface DashboardIngresos {
-  totalIngresos: number;
-  ingresosHoy: number;
-  ingresosMesActual: number;
-  ingresosAnioActual: number;
-  porDia: DashboardIngresoSerieItem[];
-  porMes: DashboardIngresoSerieItem[];
-  porAnio: DashboardIngresoSerieItem[];
-}
-
-export interface DashboardFlujoItem {
-  estado: EstadoOperativoVehiculo;
-  label: string;
-  total: number;
-}
-
-export interface DashboardDiaItem {
-  fecha: string;
-  total: number;
-}
-
-export interface DashboardDelegacionItem {
-  idDelegacion: number | null;
-  nombreDelegacion: string;
-  total: number;
-}
-
-export interface DashboardEncierroItem {
-  idEncierro: number | null;
-  nombreEncierro: string;
-  total: number;
-  sinPago: number;
-  pagadosPendienteLiberacion: number;
-  liberadosPendienteSalida: number;
-  entregados: number;
-}
-
-export interface DashboardResumenResponse {
-  resumen: DashboardResumen;
-  ingresos: DashboardIngresos;
-  flujoOperativo: DashboardFlujoItem[];
-  infraccionesPorDia: DashboardDiaItem[];
-  topDelegaciones: DashboardDelegacionItem[];
-  topEncierros: DashboardEncierroItem[];
-  updatedAt: string;
-}
+export const DASHBOARD_ESTADOS_OPERATIVOS = [
+  'SIN_RETENCION',
+  'PAGADA_SIN_RETENCION',
+  'EN_ENCIERRO_SIN_PAGO',
+  'PAGADO_PENDIENTE_LIBERACION',
+  'LIBERADO_PENDIENTE_SALIDA',
+  'VEHICULO_ENTREGADO',
+] as const;
+export type DashboardEstadoOperativo =
+  (typeof DASHBOARD_ESTADOS_OPERATIVOS)[number];
 
 export interface DashboardAnaliticaResumenResponse {
   expedientes: {
@@ -195,7 +119,7 @@ export interface DashboardDistribucionEncierroItem {
 }
 
 export interface DashboardDistribucionEstadoOperativoItem {
-  estado: EstadoOperativoVehiculo;
+  estado: DashboardEstadoOperativo;
   label: string;
   total: number;
 }

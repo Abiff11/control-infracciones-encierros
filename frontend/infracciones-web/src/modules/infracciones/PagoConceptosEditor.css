@@ -1,0 +1,70 @@
+.payment-concepts {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.payment-concepts-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.payment-concepts-heading strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.payment-concepts-heading p {
+  max-width: 620px;
+  margin: 5px 0 0;
+  color: var(--slate-600);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.payment-concepts-list {
+  display: grid;
+  gap: 10px;
+}
+
+.payment-concept-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(150px, 0.55fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.payment-concept-row .field {
+  min-width: 0;
+}
+
+.payment-concepts-status {
+  margin: 0;
+  color: var(--slate-600);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+@media (max-width: 920px) {
+  .payment-concepts-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 680px) {
+  .payment-concept-row {
+    grid-template-columns: 1fr;
+  }
+}

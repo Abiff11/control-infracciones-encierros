@@ -1,0 +1,82 @@
+.dashboard-revenue-trend-wrapper {
+  display: grid;
+  gap: 14px;
+}
+
+.dashboard-revenue-trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.dashboard-revenue-trend-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--slate-700);
+  font-weight: 800;
+}
+
+.dashboard-revenue-trend-legend i {
+  width: 24px;
+  height: 4px;
+  border-radius: 999px;
+  background: #16a34a;
+}
+
+.dashboard-revenue-trend-scroll {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.dashboard-revenue-trend-chart {
+  width: 100%;
+  min-width: 760px;
+  height: auto;
+  display: block;
+}
+
+.dashboard-revenue-trend-grid-line {
+  stroke: #e2e8f0;
+  stroke-width: 1;
+}
+
+.dashboard-revenue-trend-axis {
+  stroke: #94a3b8;
+  stroke-width: 1.2;
+}
+
+.dashboard-revenue-trend-y-label,
+.dashboard-revenue-trend-x-label {
+  fill: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dashboard-revenue-trend-polyline {
+  stroke: #16a34a;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dashboard-revenue-trend-point {
+  fill: #ffffff;
+  stroke: #16a34a;
+  stroke-width: 3;
+}
+
+.dashboard-revenue-trend-empty {
+  min-height: 240px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--border-strong);
+  border-radius: 14px;
+  color: var(--muted);
+  background: #f8fafc;
+  font-size: 13px;
+}

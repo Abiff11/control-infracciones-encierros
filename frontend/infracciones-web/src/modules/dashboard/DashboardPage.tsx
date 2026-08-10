@@ -1,12 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { getDashboardResumen } from "../../services/api/dashboard.api";
+import {
+  getDashboardAnaliticaResumen,
+  getDashboardDistribuciones,
+  getDashboardIngresosPorClave,
+  getDashboardIngresosTendencia,
+  getDashboardInfraccionesTendencia,
+} from "../../services/api/dashboard.api";
+import { findConceptosPago } from "../../services/api/pagos.api";
 import type { CatalogosBundle } from "../../types/catalogos.types";
 import type {
-  DashboardQuery,
-  DashboardResumenResponse,
+  DashboardAgrupacion,
+  DashboardAnaliticaResumenResponse,
+  DashboardAnalyticsQuery,
+  DashboardCondicionExpediente,
+  DashboardDistribucionesResponse,
+  DashboardIngresosPorClaveResponse,
+  DashboardIngresosTendenciaResponse,
+  DashboardInfraccionesTendenciaResponse,
+  DashboardTrendQuery,
 } from "../../types/dashboard.types";
-import type { EstadoOperativoVehiculo } from "../../types/infracciones.types";
+import type { ConceptoPagoOption } from "../../types/operaciones.types";
+import { DashboardAnalyticsOverview } from "./DashboardAnalyticsOverview";
+import { DashboardDistributionsOverview } from "./DashboardDistributionsOverview";
+import { DashboardRevenueOverview } from "./DashboardRevenueOverview";
 
 import "./DashboardPage.css";
 import "./DashboardExtra.css";
@@ -25,60 +42,29 @@ interface DashboardFilters {
   idRegion: string;
   idDelegacion: string;
   idEstatusInfraccion: string;
+  idTipoProcedimiento: string;
   idEncierro: string;
-  estadoOperativo: string;
+  condicionExpediente: "" | DashboardCondicionExpediente;
+  claveConcepto: string;
+  agrupacion: DashboardAgrupacion;
   periodo: "all" | "7" | "30" | "90" | "custom";
 }
 
-interface DashboardRevenueSeriesItem {
-  periodo: string;
-  total: number;
-}
-
-interface DashboardRevenue {
-  totalIngresos: number;
-  ingresosHoy: number;
-  ingresosMesActual: number;
-  ingresosAnioActual: number;
-  porDia: DashboardRevenueSeriesItem[];
-  porMes: DashboardRevenueSeriesItem[];
-  porAnio: DashboardRevenueSeriesItem[];
-}
-
-type DashboardResponseWithRevenue = DashboardResumenResponse & {
-  ingresos?: DashboardRevenue;
-};
-
-interface DashboardState {
-  data: DashboardResponseWithRevenue | null;
+interface DashboardAnalyticsState {
+  resumen: DashboardAnaliticaResumenResponse | null;
+  infraccionesTendencia: DashboardInfraccionesTendenciaResponse | null;
+  ingresosTendencia: DashboardIngresosTendenciaResponse | null;
+  ingresosPorClave: DashboardIngresosPorClaveResponse | null;
+  distribuciones: DashboardDistribucionesResponse | null;
   loading: boolean;
   error: string | null;
 }
 
-interface ChartDatum {
-  label: string;
-  value: number;
-  displayValue?: string;
-  hint?: string;
-}
-
-const ESTADO_LABELS: Record<EstadoOperativoVehiculo, string> = {
-  SIN_RETENCION: "Sin retencion",
-  PAGADA_SIN_RETENCION: "Pagada sin retencion",
-  EN_ENCIERRO_SIN_PAGO: "En encierro sin pago",
-  PAGADO_PENDIENTE_LIBERACION: "Pagado por liberar",
-  LIBERADO_PENDIENTE_SALIDA: "Liberado por entregar",
-  VEHICULO_ENTREGADO: "Entregado",
+const CONDICION_LABELS: Record<DashboardCondicionExpediente, string> = {
+  CON_RETENCION: "Infracción con retención",
+  SIN_RETENCION: "Infracción sin retención",
+  VEHICULO_SIN_INFRACCION: "Vehículo en encierro sin infracción",
 };
-
-const ESTADOS_OPERATIVOS: EstadoOperativoVehiculo[] = [
-  "SIN_RETENCION",
-  "PAGADA_SIN_RETENCION",
-  "EN_ENCIERRO_SIN_PAGO",
-  "PAGADO_PENDIENTE_LIBERACION",
-  "LIBERADO_PENDIENTE_SALIDA",
-  "VEHICULO_ENTREGADO",
-];
 
 function formatInputDate(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -91,8 +77,11 @@ function createDefaultFilters(): DashboardFilters {
     idRegion: "",
     idDelegacion: "",
     idEstatusInfraccion: "",
+    idTipoProcedimiento: "",
     idEncierro: "",
-    estadoOperativo: "",
+    condicionExpediente: "",
+    claveConcepto: "",
+    agrupacion: "mes",
     periodo: "all",
   };
 }
@@ -102,10 +91,7 @@ function applyPeriod(
   period: DashboardFilters["periodo"],
 ): DashboardFilters {
   if (period === "custom") {
-    return {
-      ...filters,
-      periodo: period,
-    };
+    return { ...filters, periodo: period };
   }
 
   if (period === "all") {
@@ -130,25 +116,29 @@ function applyPeriod(
 }
 
 function toOptionalNumber(value: string): number | undefined {
-  if (!value) {
-    return undefined;
-  }
-
+  if (!value) return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function buildDashboardQuery(filters: DashboardFilters): DashboardQuery {
+function buildAnalyticsQuery(filters: DashboardFilters): DashboardAnalyticsQuery {
   return {
     fechaDesde: filters.fechaDesde || undefined,
     fechaHasta: filters.fechaHasta || undefined,
     idRegion: toOptionalNumber(filters.idRegion),
     idDelegacion: toOptionalNumber(filters.idDelegacion),
     idEstatusInfraccion: toOptionalNumber(filters.idEstatusInfraccion),
+    idTipoProcedimiento: toOptionalNumber(filters.idTipoProcedimiento),
     idEncierro: toOptionalNumber(filters.idEncierro),
-    estadoOperativo: filters.estadoOperativo
-      ? (filters.estadoOperativo as EstadoOperativoVehiculo)
-      : undefined,
+    claveConcepto: filters.claveConcepto.trim() || undefined,
+    condicionExpediente: filters.condicionExpediente || undefined,
+  };
+}
+
+function buildTrendQuery(filters: DashboardFilters): DashboardTrendQuery {
+  return {
+    ...buildAnalyticsQuery(filters),
+    agrupacion: filters.agrupacion,
   };
 }
 
@@ -165,135 +155,14 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-function formatDateLabel(value: string): string {
-  const date = new Date(`${value}T00:00:00`);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("es-MX", {
-    day: "2-digit",
-    month: "short",
-  }).format(date);
-}
-
-function formatMonthLabel(value: string): string {
-  const date = new Date(`${value.slice(0, 10)}T00:00:00`);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("es-MX", {
-    month: "short",
-    year: "2-digit",
-  }).format(date);
-}
-
-function formatYearLabel(value: string): string {
-  const date = new Date(`${value.slice(0, 10)}T00:00:00`);
-
-  if (Number.isNaN(date.getTime())) {
-    return value.slice(0, 4);
-  }
-
-  return new Intl.DateTimeFormat("es-MX", {
-    year: "numeric",
-  }).format(date);
-}
-
 function formatDateTime(value: string): string {
   const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
+  if (Number.isNaN(date.getTime())) return value;
 
   return new Intl.DateTimeFormat("es-MX", {
     dateStyle: "short",
     timeStyle: "short",
   }).format(date);
-}
-
-function getMaxValue(items: ChartDatum[]): number {
-  return Math.max(...items.map((item) => item.value), 1);
-}
-
-function MetricCard({
-  accent,
-  label,
-  value,
-  helper,
-}: {
-  accent: "blue" | "green" | "purple" | "orange" | "teal" | "red";
-  label: string;
-  value: string;
-  helper: string;
-}) {
-  return (
-    <article className={`dashboard-metric dashboard-metric-${accent}`}>
-      <span className="dashboard-metric-icon" aria-hidden="true" />
-      <div>
-        <p>{label}</p>
-        <strong>{value}</strong>
-        <small>{helper}</small>
-      </div>
-    </article>
-  );
-}
-
-function BarChart({ data }: { data: ChartDatum[] }) {
-  const maxValue = getMaxValue(data);
-
-  return (
-    <div className="dashboard-bar-chart">
-      {data.map((item) => (
-        <div className="dashboard-bar-row" key={item.label}>
-          <div className="dashboard-bar-label">
-            <span>{item.label}</span>
-            {item.hint ? <small>{item.hint}</small> : null}
-          </div>
-          <div className="dashboard-bar-track">
-            <span
-              style={{
-                width: `${Math.max((item.value / maxValue) * 100, 4)}%`,
-              }}
-            />
-          </div>
-          <strong>{item.displayValue ?? formatNumber(item.value)}</strong>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ColumnChart({ data }: { data: ChartDatum[] }) {
-  const maxValue = getMaxValue(data);
-
-  return (
-    <div className="dashboard-column-chart">
-      {data.map((item) => (
-        <div className="dashboard-column-item" key={item.label}>
-          <div className="dashboard-column-value">
-            {item.displayValue ?? formatNumber(item.value)}
-          </div>
-          <div className="dashboard-column-track">
-            <span
-              style={{
-                height: `${Math.max((item.value / maxValue) * 100, 8)}%`,
-              }}
-            />
-          </div>
-          <small>{item.label}</small>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function EmptyChart({ message }: { message: string }) {
-  return <div className="dashboard-empty-chart">{message}</div>;
 }
 
 function DashboardPage({
@@ -310,58 +179,112 @@ function DashboardPage({
     createDefaultFilters(),
   );
   const [reloadKey, setReloadKey] = useState(0);
-  const [dashboardState, setDashboardState] = useState<DashboardState>({
-    data: null,
+  const [analyticsState, setAnalyticsState] = useState<DashboardAnalyticsState>({
+    resumen: null,
+    infraccionesTendencia: null,
+    ingresosTendencia: null,
+    ingresosPorClave: null,
+    distribuciones: null,
     loading: true,
     error: null,
   });
+  const [conceptSuggestions, setConceptSuggestions] = useState<
+    ConceptoPagoOption[]
+  >([]);
+  const [conceptSearchLoading, setConceptSearchLoading] = useState(false);
+  const [conceptSearchError, setConceptSearchError] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
-    async function loadDashboard(): Promise<void> {
-      setDashboardState((current) => ({
+    async function loadAnalytics(): Promise<void> {
+      setAnalyticsState((current) => ({
         ...current,
         loading: true,
         error: null,
       }));
 
+      const analyticsQuery = buildAnalyticsQuery(appliedFilters);
+      const trendQuery = buildTrendQuery(appliedFilters);
+
       try {
-        const response = await runProtectedRequest((token) =>
-          getDashboardResumen(token, buildDashboardQuery(appliedFilters)),
+        const [
+          resumen,
+          infraccionesTendencia,
+          ingresosTendencia,
+          ingresosPorClave,
+          distribuciones,
+        ] = await runProtectedRequest((token) =>
+          Promise.all([
+            getDashboardAnaliticaResumen(token, analyticsQuery),
+            getDashboardInfraccionesTendencia(token, trendQuery),
+            getDashboardIngresosTendencia(token, trendQuery),
+            getDashboardIngresosPorClave(token, analyticsQuery),
+            getDashboardDistribuciones(token, analyticsQuery),
+          ]),
         );
 
-        if (!mounted) {
-          return;
-        }
+        if (!mounted) return;
 
-        setDashboardState({
-          data: response as DashboardResponseWithRevenue,
+        setAnalyticsState({
+          resumen,
+          infraccionesTendencia,
+          ingresosTendencia,
+          ingresosPorClave,
+          distribuciones,
           loading: false,
           error: null,
         });
       } catch (error) {
-        if (!mounted) {
-          return;
-        }
+        if (!mounted) return;
 
-        setDashboardState((current) => ({
+        setAnalyticsState((current) => ({
           ...current,
           loading: false,
           error:
             error instanceof Error
               ? error.message
-              : "No se pudo cargar el dashboard.",
+              : "No se pudieron cargar las métricas analíticas.",
         }));
       }
     }
 
-    void loadDashboard();
+    void loadAnalytics();
 
     return () => {
       mounted = false;
     };
   }, [appliedFilters, refreshKey, reloadKey, runProtectedRequest]);
+
+  useEffect(() => {
+    const query = filters.claveConcepto.trim();
+    if (!query) return;
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      setConceptSearchLoading(true);
+      setConceptSearchError(false);
+
+      void runProtectedRequest((token) => findConceptosPago(token, query, 20))
+        .then((result) => {
+          if (!cancelled) setConceptSuggestions(result);
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setConceptSuggestions([]);
+            setConceptSearchError(true);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setConceptSearchLoading(false);
+        });
+    }, 220);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [filters.claveConcepto, runProtectedRequest]);
 
   const filteredDelegaciones = useMemo(() => {
     if (!catalogs || !filters.idRegion) {
@@ -374,82 +297,30 @@ function DashboardPage({
     );
   }, [catalogs, filters.idRegion]);
 
-  const data = dashboardState.data;
-  const resumen = data?.resumen;
-  const ingresos = data?.ingresos;
-  const totalInfracciones = resumen?.totalInfracciones ?? 0;
-  const vehiculosRetenidos = resumen?.totalVehiculosRetenidos ?? 0;
-  const pendientesPago = resumen?.totalSinPago ?? 0;
-  const pagadosPorLiberar = resumen?.totalPagadosPendienteLiberacion ?? 0;
-  const liberadosPorEntregar = resumen?.totalLiberadosPendienteSalida ?? 0;
-  const entregados = resumen?.totalEntregados ?? 0;
-  const totalIngresos = ingresos?.totalIngresos ?? 0;
-  const ingresosHoy = ingresos?.ingresosHoy ?? 0;
-  const ingresosMesActual = ingresos?.ingresosMesActual ?? 0;
-  const ingresosAnioActual = ingresos?.ingresosAnioActual ?? 0;
-
-  const estadoChartData: ChartDatum[] = ESTADOS_OPERATIVOS.map(
-    (estadoOperativo) => {
-      const item = data?.flujoOperativo.find(
-        (current) => current.estado === estadoOperativo,
-      );
-
-      return {
-        label: item?.label ?? ESTADO_LABELS[estadoOperativo],
-        value: item?.total ?? 0,
-      };
-    },
+  const expedienteTypes = useMemo(
+    () =>
+      (catalogs?.tiposProcedimiento ?? []).filter(
+        (tipo) => tipo.esTipoExpediente,
+      ),
+    [catalogs],
   );
 
-  const delegacionChartData: ChartDatum[] =
-    data?.topDelegaciones.map((item) => ({
-      label: item.nombreDelegacion,
-      value: item.total,
-    })) ?? [];
+  const conceptSuggestionKeys = useMemo(
+    () =>
+      Array.from(
+        new Set(conceptSuggestions.map((concepto) => concepto.claveConcepto)),
+      ),
+    [conceptSuggestions],
+  );
 
-  const dayChartData: ChartDatum[] =
-    data?.infraccionesPorDia.map((item) => ({
-      label: formatDateLabel(item.fecha),
-      value: item.total,
-    })) ?? [];
-
-  const encierroChartData: ChartDatum[] =
-    data?.topEncierros.map((item) => ({
-      label: item.nombreEncierro,
-      value: item.total,
-      hint: `${formatNumber(item.sinPago)} sin pago`,
-    })) ?? [];
-
-  const ingresosPorDiaChartData: ChartDatum[] =
-    ingresos?.porDia.map((item) => ({
-      displayValue: formatCurrency(item.total),
-      label: formatDateLabel(item.periodo),
-      value: item.total,
-    })) ?? [];
-
-  const ingresosPorMesChartData: ChartDatum[] =
-    ingresos?.porMes.map((item) => ({
-      displayValue: formatCurrency(item.total),
-      label: formatMonthLabel(item.periodo),
-      value: item.total,
-    })) ?? [];
-
-  const ingresosPorAnioChartData: ChartDatum[] =
-    ingresos?.porAnio.map((item) => ({
-      displayValue: formatCurrency(item.total),
-      label: formatYearLabel(item.periodo),
-      value: item.total,
-    })) ?? [];
+  const analyticsResumen = analyticsState.resumen;
 
   function updateFilter<K extends keyof DashboardFilters>(
     key: K,
     value: DashboardFilters[K],
   ): void {
     setFilters((current) => {
-      const nextFilters: DashboardFilters = {
-        ...current,
-        [key]: value,
-      };
+      const nextFilters: DashboardFilters = { ...current, [key]: value };
 
       if (key === "idRegion") {
         nextFilters.idDelegacion = "";
@@ -463,10 +334,24 @@ function DashboardPage({
     });
   }
 
+  function updateConceptFilter(value: string): void {
+    const normalized = value.toUpperCase();
+    updateFilter("claveConcepto", normalized);
+
+    if (!normalized.trim()) {
+      setConceptSuggestions([]);
+      setConceptSearchError(false);
+      setConceptSearchLoading(false);
+    }
+  }
+
   function resetFilters(): void {
     const nextFilters = createDefaultFilters();
     setFilters(nextFilters);
     setAppliedFilters(nextFilters);
+    setConceptSuggestions([]);
+    setConceptSearchError(false);
+    setConceptSearchLoading(false);
   }
 
   return (
@@ -474,16 +359,16 @@ function DashboardPage({
       <header className="dashboard-hero">
         <div>
           <p className="eyebrow">Dashboard</p>
-          <h1>Resumen general del sistema</h1>
+          <h1>Tablero analítico de infracciones e ingresos</h1>
           <p className="page-description">
-            Indicadores principales de infracciones, encierros, pago,
-            liberacion, salida de vehiculos e ingresos.
+            Tendencias, retenciones, vehículos sin infracción, encierros,
+            recaudación, claves de concepto y distribución territorial.
           </p>
         </div>
         <div className="dashboard-refresh-box">
           <span>
-            {data?.updatedAt
-              ? `Actualizado: ${formatDateTime(data.updatedAt)}`
+            {analyticsResumen?.updatedAt
+              ? `Actualizado: ${formatDateTime(analyticsResumen.updatedAt)}`
               : apiStatusLabel}
           </span>
           <button
@@ -496,7 +381,48 @@ function DashboardPage({
         </div>
       </header>
 
-      <section className="dashboard-filters" aria-label="Filtros de dashboard">
+      <section
+        className="dashboard-filters"
+        aria-label="Filtros globales del dashboard"
+      >
+        <label className="field">
+          <span>Periodo</span>
+          <select
+            value={filters.periodo}
+            onChange={(event) =>
+              setFilters((current) =>
+                applyPeriod(
+                  current,
+                  event.target.value as DashboardFilters["periodo"],
+                ),
+              )
+            }
+          >
+            <option value="all">Todo el histórico</option>
+            <option value="7">Últimos 7 días</option>
+            <option value="30">Últimos 30 días</option>
+            <option value="90">Últimos 90 días</option>
+            <option value="custom">Personalizado</option>
+          </select>
+        </label>
+
+        <label className="field">
+          <span>Agrupar tendencia</span>
+          <select
+            value={filters.agrupacion}
+            onChange={(event) =>
+              updateFilter(
+                "agrupacion",
+                event.target.value as DashboardAgrupacion,
+              )
+            }
+          >
+            <option value="dia">Día</option>
+            <option value="mes">Mes</option>
+            <option value="anio">Año</option>
+          </select>
+        </label>
+
         <label className="field">
           <span>Desde</span>
           <input
@@ -505,6 +431,7 @@ function DashboardPage({
             onChange={(event) => updateFilter("fechaDesde", event.target.value)}
           />
         </label>
+
         <label className="field">
           <span>Hasta</span>
           <input
@@ -513,8 +440,9 @@ function DashboardPage({
             onChange={(event) => updateFilter("fechaHasta", event.target.value)}
           />
         </label>
+
         <label className="field">
-          <span>Region</span>
+          <span>Región</span>
           <select
             value={filters.idRegion}
             onChange={(event) => updateFilter("idRegion", event.target.value)}
@@ -527,8 +455,9 @@ function DashboardPage({
             ))}
           </select>
         </label>
+
         <label className="field">
-          <span>Delegacion / unidad</span>
+          <span>Delegación / unidad</span>
           <select
             value={filters.idDelegacion}
             onChange={(event) =>
@@ -546,6 +475,74 @@ function DashboardPage({
             ))}
           </select>
         </label>
+
+        <label className="field">
+          <span>Tipo de expediente</span>
+          <select
+            value={filters.idTipoProcedimiento}
+            onChange={(event) =>
+              updateFilter("idTipoProcedimiento", event.target.value)
+            }
+          >
+            <option value="">Todos</option>
+            {expedienteTypes.map((tipo) => (
+              <option
+                key={tipo.idTipoProcedimiento}
+                value={tipo.idTipoProcedimiento}
+              >
+                {tipo.nombreTipoProcedimiento}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="field">
+          <span>Condición</span>
+          <select
+            value={filters.condicionExpediente}
+            onChange={(event) =>
+              updateFilter(
+                "condicionExpediente",
+                event.target.value as DashboardFilters["condicionExpediente"],
+              )
+            }
+          >
+            <option value="">Todas</option>
+            {Object.entries(CONDICION_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="field dashboard-filter-concept">
+          <span>Clave de concepto</span>
+          <input
+            type="text"
+            list="dashboard-conceptos-sugerencias"
+            value={filters.claveConcepto}
+            onChange={(event) => updateConceptFilter(event.target.value)}
+            placeholder="Todas / buscar clave"
+            maxLength={50}
+            autoComplete="off"
+          />
+          <datalist id="dashboard-conceptos-sugerencias">
+            {conceptSuggestionKeys.map((clave) => (
+              <option key={clave} value={clave} />
+            ))}
+          </datalist>
+          <small>
+            {conceptSearchLoading
+              ? "Buscando claves..."
+              : conceptSearchError
+                ? "No se pudieron consultar coincidencias."
+                : filters.claveConcepto.trim()
+                  ? `${conceptSuggestionKeys.length} coincidencia(s).`
+                  : "Todas las claves"}
+          </small>
+        </label>
+
         <label className="field">
           <span>Estatus</span>
           <select
@@ -565,6 +562,7 @@ function DashboardPage({
             ))}
           </select>
         </label>
+
         <label className="field">
           <span>Encierro</span>
           <select
@@ -579,42 +577,7 @@ function DashboardPage({
             ))}
           </select>
         </label>
-        <label className="field">
-          <span>Flujo</span>
-          <select
-            value={filters.estadoOperativo}
-            onChange={(event) =>
-              updateFilter("estadoOperativo", event.target.value)
-            }
-          >
-            <option value="">Todos</option>
-            {ESTADOS_OPERATIVOS.map((estado) => (
-              <option key={estado} value={estado}>
-                {ESTADO_LABELS[estado]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Periodo</span>
-          <select
-            value={filters.periodo}
-            onChange={(event) =>
-              setFilters((current) =>
-                applyPeriod(
-                  current,
-                  event.target.value as DashboardFilters["periodo"],
-                ),
-              )
-            }
-          >
-            <option value="all">Todo el historico</option>
-            <option value="7">Ultimos 7 dias</option>
-            <option value="30">Ultimos 30 dias</option>
-            <option value="90">Ultimos 90 dias</option>
-            <option value="custom">Personalizado</option>
-          </select>
-        </label>
+
         <div className="dashboard-filter-actions">
           <button type="button" onClick={() => setAppliedFilters(filters)}>
             Aplicar filtros
@@ -630,194 +593,85 @@ function DashboardPage({
       </section>
 
       <section
-        className="dashboard-metrics-grid"
-        aria-label="Indicadores principales"
+        className="dashboard-filter-context"
+        aria-label="Contexto analítico aplicado"
       >
-        <MetricCard
-          accent="blue"
-          label="Total infracciones"
-          value={formatNumber(totalInfracciones)}
-          helper="Total real segun filtros aplicados"
-        />
-        <MetricCard
-          accent="orange"
-          label="Vehiculos retenidos"
-          value={formatNumber(vehiculosRetenidos)}
-          helper="Sin salida registrada"
-        />
-        <MetricCard
-          accent="red"
-          label="Sin pago"
-          value={formatNumber(pendientesPago)}
-          helper="Prioridad de seguimiento"
-        />
-        <MetricCard
-          accent="green"
-          label="Pagados por liberar"
-          value={formatNumber(pagadosPorLiberar)}
-          helper="Listos para liberaciones"
-        />
-        <MetricCard
-          accent="purple"
-          label="Liberados por entregar"
-          value={formatNumber(liberadosPorEntregar)}
-          helper="Pendientes en encierro"
-        />
-        <MetricCard
-          accent="teal"
-          label="Entregados"
-          value={formatNumber(entregados)}
-          helper="Flujo concluido"
-        />
+        {analyticsState.loading ? (
+          <span>Actualizando analítica...</span>
+        ) : analyticsResumen ? (
+          <>
+            <span>
+              <strong>
+                {formatNumber(analyticsResumen.expedientes.totalInfracciones)}
+              </strong>
+              {" infracciones"}
+            </span>
+            <span>
+              <strong>
+                {formatNumber(
+                  analyticsResumen.expedientes.infraccionesConRetencion,
+                )}
+              </strong>
+              {" con retención"}
+            </span>
+            <span>
+              <strong>
+                {formatNumber(
+                  analyticsResumen.expedientes.infraccionesSinRetencion,
+                )}
+              </strong>
+              {" sin retención"}
+            </span>
+            <span>
+              <strong>
+                {formatNumber(
+                  analyticsResumen.expedientes.vehiculosSinInfraccion,
+                )}
+              </strong>
+              {" vehículos sin infracción"}
+            </span>
+            <span>
+              <strong>
+                {formatCurrency(analyticsResumen.ingresos.totalIngresos)}
+              </strong>
+              {" ingresos"}
+            </span>
+            <span>
+              <strong>{analyticsState.ingresosPorClave?.claves.length ?? 0}</strong>
+              {" claves con monto"}
+            </span>
+          </>
+        ) : (
+          <span>Sin métricas analíticas para los filtros aplicados.</span>
+        )}
       </section>
 
-      <section className="dashboard-section-heading">
-        <div>
-          <p className="section-label">Ingresos</p>
-          <h2>Recaudacion por pagos registrados</h2>
-        </div>
-        <span>Segmentado por día, mes y año</span>
-      </section>
-
-      <section
-        className="dashboard-revenue-grid"
-        aria-label="Indicadores de ingresos"
-      >
-        <MetricCard
-          accent="green"
-          label="Ingresos totales"
-          value={formatCurrency(totalIngresos)}
-          helper="Pagos segun filtros"
-        />
-        <MetricCard
-          accent="teal"
-          label="Ingresos de hoy"
-          value={formatCurrency(ingresosHoy)}
-          helper="Fecha de pago del dia"
-        />
-        <MetricCard
-          accent="blue"
-          label="Ingresos del mes"
-          value={formatCurrency(ingresosMesActual)}
-          helper="Mes calendario actual"
-        />
-        <MetricCard
-          accent="purple"
-          label="Ingresos del año"
-          value={formatCurrency(ingresosAnioActual)}
-          helper="Año calendario actual"
-        />
-      </section>
-
-      {dashboardState.loading ? (
-        <p className="notice">Actualizando indicadores del dashboard...</p>
-      ) : null}
-      {dashboardState.error || notice ? (
+      {analyticsState.error || notice ? (
         <div className="notice notice-error">
-          {dashboardState.error ?? notice}
+          {analyticsState.error ?? notice}
         </div>
       ) : null}
 
-      <section className="dashboard-analytics-grid">
-        <article className="dashboard-panel dashboard-panel-wide">
-          <div className="dashboard-panel-header">
-            <div>
-              <p className="section-label">Operacion</p>
-              <h2>Infracciones por dia</h2>
-            </div>
-            <span>Agregado real</span>
-          </div>
-          {dayChartData.length ? (
-            <ColumnChart data={dayChartData} />
-          ) : (
-            <EmptyChart message="Sin datos para graficar." />
-          )}
-        </article>
+      <DashboardAnalyticsOverview
+        agrupacion={appliedFilters.agrupacion}
+        loading={analyticsState.loading}
+        resumen={analyticsState.resumen}
+        tendencia={analyticsState.infraccionesTendencia}
+      />
 
-        <article className="dashboard-panel">
-          <div className="dashboard-panel-header">
-            <div>
-              <p className="section-label">Flujo operativo</p>
-              <h2>Estado actual</h2>
-            </div>
-          </div>
-          <BarChart data={estadoChartData} />
-        </article>
+      <DashboardRevenueOverview
+        agrupacion={appliedFilters.agrupacion}
+        claveConcepto={appliedFilters.claveConcepto}
+        loading={analyticsState.loading}
+        resumen={analyticsState.resumen}
+        tendencia={analyticsState.ingresosTendencia}
+        porClave={analyticsState.ingresosPorClave}
+      />
 
-        <article className="dashboard-panel">
-          <div className="dashboard-panel-header">
-            <div>
-              <p className="section-label">Encierros</p>
-              <h2>Top encierros</h2>
-            </div>
-          </div>
-          {encierroChartData.length ? (
-            <BarChart data={encierroChartData} />
-          ) : (
-            <EmptyChart message="Sin vehiculos retenidos en el periodo." />
-          )}
-        </article>
-
-        <article className="dashboard-panel dashboard-panel-wide">
-          <div className="dashboard-panel-header">
-            <div>
-              <p className="section-label">Delegaciones</p>
-              <h2>Top unidades</h2>
-            </div>
-            <span>Agregado real</span>
-          </div>
-          {delegacionChartData.length ? (
-            <BarChart data={delegacionChartData} />
-          ) : (
-            <EmptyChart message="Sin delegaciones para mostrar." />
-          )}
-        </article>
-
-        <article className="dashboard-panel">
-          <div className="dashboard-panel-header">
-            <div>
-              <p className="section-label">Ingresos</p>
-              <h2>Ingresos por dia</h2>
-            </div>
-            <span>Fecha de pago</span>
-          </div>
-          {ingresosPorDiaChartData.length ? (
-            <ColumnChart data={ingresosPorDiaChartData} />
-          ) : (
-            <EmptyChart message="Sin pagos registrados para graficar." />
-          )}
-        </article>
-
-        <article className="dashboard-panel">
-          <div className="dashboard-panel-header">
-            <div>
-              <p className="section-label">Ingresos</p>
-              <h2>Ingresos por mes</h2>
-            </div>
-            <span>Fecha de pago</span>
-          </div>
-          {ingresosPorMesChartData.length ? (
-            <BarChart data={ingresosPorMesChartData} />
-          ) : (
-            <EmptyChart message="Sin pagos mensuales para graficar." />
-          )}
-        </article>
-
-        <article className="dashboard-panel">
-          <div className="dashboard-panel-header">
-            <div>
-              <p className="section-label">Ingresos</p>
-              <h2>Ingresos por año</h2>
-            </div>
-            <span>Fecha de pago</span>
-          </div>
-          {ingresosPorAnioChartData.length ? (
-            <BarChart data={ingresosPorAnioChartData} />
-          ) : (
-            <EmptyChart message="Sin pagos anuales para graficar." />
-          )}
-        </article>
-      </section>
+      <DashboardDistributionsOverview
+        data={analyticsState.distribuciones}
+        loading={analyticsState.loading}
+      />
     </section>
   );
 }

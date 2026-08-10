@@ -1,12 +1,39 @@
+export interface RegistrarPagoConceptoPayload {
+  claveConcepto: string;
+  monto: string;
+}
+
 export interface RegistrarPagoPayload {
   idInfraccion: number;
-  folioPago: string;
-  monto?: string;
+  folioLineaCaptura: string;
+  conceptos: RegistrarPagoConceptoPayload[];
+  fechaPago?: string;
+  observaciones?: string | null;
+}
+
+export interface ConceptoPagoOption {
+  idConceptoPago: number;
+  claveConcepto: string;
+  activo: boolean;
+}
+
+export interface PagoConceptoRegistradoApi {
+  idPagoConcepto: number;
+  monto: string;
+  orden: number;
+  conceptoPago: ConceptoPagoOption;
+}
+
+export interface PagoRegistradoApi {
+  idPagoInfraccion: number;
+  folioLineaCaptura: string;
+  monto: string;
   montoInfraccion: string;
   diasPisoCobrados: number;
   montoDiasPiso: string;
-  fechaPago?: string;
-  observaciones?: string | null;
+  fechaPago: string;
+  observaciones: string | null;
+  conceptos: PagoConceptoRegistradoApi[];
 }
 
 export interface GenerarLiberacionPayload {

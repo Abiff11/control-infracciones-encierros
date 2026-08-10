@@ -33,6 +33,11 @@ import type {
   RegistrarRetencionPayload,
   RegistrarSalidaPayload,
 } from "../../types/operaciones.types";
+import {
+  createEmptyPagoConceptoRow,
+  PagoConceptosEditor,
+  type PagoConceptoFormRow,
+} from "./PagoConceptosEditor";
 import "./InfraccionOperacionModal.css";
 
 export type InfraccionOperacionTipo =
@@ -62,9 +67,6 @@ interface OperationFormState {
   estadoIngreso: string;
   observacionesIngreso: string;
   folioPago: string;
-  montoInfraccion: string;
-  diasPisoCobrados: string;
-  montoDiasPiso: string;
   fechaPago: string;
   observacionesPago: string;
   folioLiberacion: string;
@@ -114,9 +116,6 @@ function createInitialForm(
     estadoIngreso: "CAPTURADO",
     observacionesIngreso: "",
     folioPago: "",
-    montoInfraccion: "0.00",
-    diasPisoCobrados: "0",
-    montoDiasPiso: "0.00",
     fechaPago: now,
     observacionesPago: "",
     folioLiberacion: "",
@@ -142,7 +141,8 @@ function getOperationCopy(type: InfraccionOperacionTipo | null): OperationCopy {
     case "pago":
       return {
         title: "Registrar pago",
-        description: "Registra el pago separado por infraccion y dias de piso.",
+        description:
+          "Registra el folio de la linea de captura y sus claves de concepto.",
         submitLabel: "Guardar pago",
       };
     case "liberacion":
@@ -241,6 +241,9 @@ export function InfraccionOperacionModal({
   const [form, setForm] = useState<OperationFormState>(() =>
     createInitialForm(type),
   );
+  const [pagoConceptos, setPagoConceptos] = useState<PagoConceptoFormRow[]>([
+    createEmptyPagoConceptoRow(),
+  ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -248,11 +251,13 @@ export function InfraccionOperacionModal({
     () =>
       toMoney(
         String(
-          Number(form.montoInfraccion || "0") +
-            Number(form.montoDiasPiso || "0"),
+          pagoConceptos.reduce((total, concepto) => {
+            const monto = Number(concepto.monto || "0");
+            return total + (Number.isFinite(monto) ? monto : 0);
+          }, 0),
         ),
       ),
-    [form.montoDiasPiso, form.montoInfraccion],
+    [pagoConceptos],
   );
   const permiteRetencion = item?.tipoProcedimiento.permiteRetencion ?? true;
 
@@ -260,6 +265,7 @@ export function InfraccionOperacionModal({
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setForm(createInitialForm(type));
+      setPagoConceptos([createEmptyPagoConceptoRow()]);
       setSaving(false);
       setError(null);
     }
@@ -267,6 +273,11 @@ export function InfraccionOperacionModal({
 
   function updateField(field: keyof OperationFormState, value: string): void {
     setForm((current) => ({ ...current, [field]: value }));
+    setError(null);
+  }
+
+  function updatePagoConceptos(rows: PagoConceptoFormRow[]): void {
+    setPagoConceptos(rows);
     setError(null);
   }
 
@@ -295,31 +306,36 @@ export function InfraccionOperacionModal({
 
     if (type === "pago") {
       if (!form.folioPago.trim()) {
-        return "Captura el folio de pago.";
+        return "Captura el folio de la linea de captura.";
       }
 
-      if (Number(form.montoInfraccion || "0") < 0) {
-        return "El monto de infraccion no puede ser negativo.";
+      if (pagoConceptos.length === 0) {
+        return "Agrega al menos una clave de concepto.";
       }
 
-      if (Number(form.diasPisoCobrados || "0") < 0) {
-        return "Los dias de piso no pueden ser negativos.";
-      }
+      const claves = new Set<string>();
 
-      if (Number(form.montoDiasPiso || "0") < 0) {
-        return "El monto de dias de piso no puede ser negativo.";
+      for (const concepto of pagoConceptos) {
+        const clave = concepto.claveConcepto.trim().toUpperCase();
+        const monto = Number(concepto.monto);
+
+        if (!clave) {
+          return "Captura la clave de todos los conceptos.";
+        }
+
+        if (!Number.isFinite(monto) || monto <= 0) {
+          return `Captura un monto mayor a cero para la clave ${clave}.`;
+        }
+
+        if (claves.has(clave)) {
+          return `La clave ${clave} esta repetida en la linea de captura.`;
+        }
+
+        claves.add(clave);
       }
 
       if (Number(montoTotalPago) <= 0) {
-        return "Captura al menos un importe mayor a cero.";
-      }
-
-      if (
-        !permiteRetencion &&
-        (Number(form.diasPisoCobrados || "0") !== 0 ||
-          Number(form.montoDiasPiso || "0") !== 0)
-      ) {
-        return "Un expediente sin retencion debe registrar dias y monto de piso en cero.";
+        return "El total de la linea de captura debe ser mayor a cero.";
       }
     }
 
@@ -399,7 +415,7 @@ export function InfraccionOperacionModal({
       if (type === "pago") {
         const confirmed = await confirmAction({
           title: "Registrar pago",
-          text: `Vas a registrar el pago del expediente ${item.folioInfraccion} por ${montoTotalPago}.`,
+          text: `Vas a registrar la linea de captura ${form.folioPago.trim()} del expediente ${item.folioInfraccion} por ${montoTotalPago}.`,
           confirmButtonText: "Registrar pago",
           cancelButtonText: "Seguir editando",
         });
@@ -413,17 +429,11 @@ export function InfraccionOperacionModal({
 
         const payload: RegistrarPagoPayload = {
           idInfraccion: item.idInfraccion,
-          folioPago: form.folioPago.trim(),
-          monto: permiteRetencion
-            ? montoTotalPago
-            : toMoney(form.montoInfraccion),
-          montoInfraccion: toMoney(form.montoInfraccion),
-          diasPisoCobrados: permiteRetencion
-            ? Number(form.diasPisoCobrados || "0")
-            : 0,
-          montoDiasPiso: permiteRetencion
-            ? toMoney(form.montoDiasPiso)
-            : "0.00",
+          folioLineaCaptura: form.folioPago.trim(),
+          conceptos: pagoConceptos.map((concepto) => ({
+            claveConcepto: concepto.claveConcepto.trim().toUpperCase(),
+            monto: toMoney(concepto.monto),
+          })),
           fechaPago: toIsoDateTime(form.fechaPago),
           observaciones: toNullableString(form.observacionesPago),
         };
@@ -588,7 +598,10 @@ export function InfraccionOperacionModal({
 
         {type === "pago" ? (
           <div className="form-grid form-grid-2">
-            <Field htmlFor="operacion-pago-folio" label="Folio pago">
+            <Field
+              htmlFor="operacion-pago-folio"
+              label="Folio linea de captura"
+            >
               <TextInput
                 id="operacion-pago-folio"
                 value={form.folioPago}
@@ -596,62 +609,6 @@ export function InfraccionOperacionModal({
                   updateField("folioPago", event.target.value)
                 }
                 required
-              />
-            </Field>
-
-            <Field htmlFor="operacion-pago-monto-inf" label="Monto infraccion">
-              <TextInput
-                id="operacion-pago-monto-inf"
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.montoInfraccion}
-                onChange={(event) =>
-                  updateField("montoInfraccion", event.target.value)
-                }
-                placeholder="0.00"
-              />
-            </Field>
-
-            <Field
-              htmlFor="operacion-pago-dias-piso"
-              label="Dias de piso cobrados"
-            >
-              <TextInput
-                id="operacion-pago-dias-piso"
-                type="number"
-                min="0"
-                value={permiteRetencion ? form.diasPisoCobrados : "0"}
-                onChange={(event) =>
-                  updateField("diasPisoCobrados", event.target.value)
-                }
-                disabled={!permiteRetencion}
-              />
-            </Field>
-
-            <Field
-              htmlFor="operacion-pago-monto-piso"
-              label="Monto dias de piso"
-            >
-              <TextInput
-                id="operacion-pago-monto-piso"
-                type="number"
-                min="0"
-                step="0.01"
-                value={permiteRetencion ? form.montoDiasPiso : "0.00"}
-                onChange={(event) =>
-                  updateField("montoDiasPiso", event.target.value)
-                }
-                placeholder="0.00"
-                disabled={!permiteRetencion}
-              />
-            </Field>
-
-            <Field htmlFor="operacion-pago-total" label="Total calculado">
-              <TextInput
-                id="operacion-pago-total"
-                value={montoTotalPago}
-                readOnly
               />
             </Field>
 
@@ -663,6 +620,22 @@ export function InfraccionOperacionModal({
                 onChange={(event) =>
                   updateField("fechaPago", event.target.value)
                 }
+              />
+            </Field>
+
+            <div className="field-span-2">
+              <PagoConceptosEditor
+                rows={pagoConceptos}
+                token={token}
+                onChange={updatePagoConceptos}
+              />
+            </div>
+
+            <Field htmlFor="operacion-pago-total" label="Total calculado">
+              <TextInput
+                id="operacion-pago-total"
+                value={montoTotalPago}
+                readOnly
               />
             </Field>
 

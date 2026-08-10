@@ -14,6 +14,7 @@ import {
   formatTimeOfDay,
 } from '../../utils/formatters';
 import type { InfraccionDetalleResponse } from '../../types/infracciones.types';
+import type { PagoRegistradoApi } from '../../types/operaciones.types';
 import './InfraccionDetalleModal.css';
 
 interface InfraccionDetalleModalProps {
@@ -97,6 +98,12 @@ function getVehiculoPrincipal(data: InfraccionDetalleResponse): string {
   ]
     .filter(Boolean)
     .join(' - ');
+}
+
+function getPagoRegistrado(
+  pago: InfraccionDetalleResponse['pagos'][number],
+): PagoRegistradoApi {
+  return pago as unknown as PagoRegistradoApi;
 }
 
 function TabButton({
@@ -428,32 +435,62 @@ export function InfraccionDetalleModal({
           ) : null}
 
           {safeActiveTab === 'pagos' ? (
-            <DetailSection title="Pagos" description="Historial de pagos registrados.">
+            <DetailSection
+              title="Pagos"
+              description="Lineas de captura y claves de concepto registradas."
+            >
               <RenderCardList
                 emptyLabel="Sin pagos registrados."
-                items={data.pagos.map((pago, index) => ({
-                  key: pago.folioPago || index,
-                  header: (
-                    <div>
-                      <p className="card-label">Folio pago</p>
-                      <h4>{pago.folioPago}</h4>
-                    </div>
-                  ),
-                  meta: <strong>{formatCurrencyMxn(pago.monto)}</strong>,
-                  children: (
-                    <DetailFieldGrid
-                      columns={2}
-                      items={[
-                        { label: 'Fecha', value: formatDateTime(pago.fechaPago) },
-                        {
-                          label: 'Observaciones',
-                          value: formatEmptyValue(pago.observaciones),
-                          span: 2,
-                        },
-                      ]}
-                    />
-                  ),
-                }))}
+                items={data.pagos.map((pagoBase, index) => {
+                  const pago = getPagoRegistrado(pagoBase);
+
+                  return {
+                    key: pago.folioLineaCaptura || index,
+                    header: (
+                      <div>
+                        <p className="card-label">Folio linea de captura</p>
+                        <h4>{pago.folioLineaCaptura}</h4>
+                      </div>
+                    ),
+                    meta: <strong>{formatCurrencyMxn(pago.monto)}</strong>,
+                    children: (
+                      <div className="page-stack">
+                        <DetailFieldGrid
+                          columns={2}
+                          items={[
+                            { label: 'Fecha', value: formatDateTime(pago.fechaPago) },
+                            { label: 'Total', value: formatCurrencyMxn(pago.monto) },
+                            {
+                              label: 'Observaciones',
+                              value: formatEmptyValue(pago.observaciones),
+                              span: 2,
+                            },
+                          ]}
+                        />
+
+                        {pago.conceptos.length > 0 ? (
+                          <div className="page-stack">
+                            <div>
+                              <p className="section-label">Claves de concepto</p>
+                              <p className="page-description">
+                                Desglose de importes de la linea de captura.
+                              </p>
+                            </div>
+                            <DetailFieldGrid
+                              columns={2}
+                              items={pago.conceptos.map((concepto) => ({
+                                label: concepto.conceptoPago.claveConcepto,
+                                value: formatCurrencyMxn(concepto.monto),
+                              }))}
+                            />
+                          </div>
+                        ) : (
+                          <EmptyState title="Sin claves de concepto asociadas." />
+                        )}
+                      </div>
+                    ),
+                  };
+                })}
               />
             </DetailSection>
           ) : null}
