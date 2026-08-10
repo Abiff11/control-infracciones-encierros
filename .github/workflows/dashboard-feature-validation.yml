@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feature/dashboard-analitico
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
