@@ -27,6 +27,7 @@ export interface DashboardAnalyticsQuery {
   idEncierro?: number;
   claveConcepto?: string;
   condicionExpediente?: DashboardCondicionExpediente;
+  estadoOperativo?: EstadoOperativoVehiculo;
 }
 
 export interface DashboardTrendQuery extends DashboardAnalyticsQuery {
@@ -162,4 +163,48 @@ export interface DashboardIngresoClaveItem {
 export interface DashboardIngresosPorClaveResponse {
   totalIdentificado: number;
   claves: DashboardIngresoClaveItem[];
+}
+
+export interface DashboardDistribucionTerritorialItem {
+  id: number;
+  nombre: string;
+  totalExpedientes: number;
+  totalInfracciones: number;
+  totalIngresos: number;
+}
+
+export interface DashboardDistribucionMotivoItem {
+  idMotivo: number;
+  nombreMotivo: string;
+  totalInfracciones: number;
+}
+
+export interface DashboardDistribucionTipoItem {
+  idTipoProcedimiento: number;
+  claveTipoProcedimiento: string;
+  nombreTipoProcedimiento: string;
+  totalExpedientes: number;
+}
+
+export interface DashboardDistribucionEncierroItem {
+  idEncierro: number;
+  nombreEncierro: string;
+  totalExpedientes: number;
+  actualmenteEnEncierro: number;
+  totalIngresos: number;
+}
+
+export interface DashboardDistribucionEstadoOperativoItem {
+  estado: EstadoOperativoVehiculo;
+  label: string;
+  total: number;
+}
+
+export interface DashboardDistribucionesResponse {
+  regiones: DashboardDistribucionTerritorialItem[];
+  delegaciones: DashboardDistribucionTerritorialItem[];
+  motivos: DashboardDistribucionMotivoItem[];
+  tiposProcedimiento: DashboardDistribucionTipoItem[];
+  encierros: DashboardDistribucionEncierroItem[];
+  estadosOperativos: DashboardDistribucionEstadoOperativoItem[];
 }
