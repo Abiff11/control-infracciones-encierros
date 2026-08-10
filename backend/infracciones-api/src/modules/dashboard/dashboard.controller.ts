@@ -7,10 +7,12 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
 import type {
   DashboardAnaliticaResumenResponse,
+  DashboardDistribucionesResponse,
   DashboardIngresosPorClaveResponse,
   DashboardIngresosTendenciaResponse,
   DashboardInfraccionesTendenciaResponse,
 } from './dashboard-analytics.types';
+import { DashboardDistributionsService } from './dashboard-distributions.service';
 import {
   DashboardService,
   type DashboardResumenResponse,
@@ -27,7 +29,10 @@ import { DashboardQueryDto } from './dto/dashboard-query.dto';
 @Roles(...READ_ROLES)
 @Controller('dashboard')
 export class DashboardController {
-  constructor(private readonly dashboardService: DashboardService) {}
+  constructor(
+    private readonly dashboardService: DashboardService,
+    private readonly dashboardDistributionsService: DashboardDistributionsService,
+  ) {}
 
   @Get('resumen')
   @ApiOperation({ summary: 'Obtener resumen agregado del dashboard operativo' })
@@ -75,5 +80,16 @@ export class DashboardController {
     @Query() query: DashboardAnalyticsQueryDto,
   ): Promise<DashboardIngresosPorClaveResponse> {
     return this.dashboardService.getIngresosPorClave(query);
+  }
+
+  @Get('analitica/distribuciones')
+  @ApiOperation({
+    summary:
+      'Obtener distribuciones por territorio, motivo, tipo, encierro y estado operativo',
+  })
+  getDistribuciones(
+    @Query() query: DashboardAnalyticsQueryDto,
+  ): Promise<DashboardDistribucionesResponse> {
+    return this.dashboardDistributionsService.getDistribuciones(query);
   }
 }
