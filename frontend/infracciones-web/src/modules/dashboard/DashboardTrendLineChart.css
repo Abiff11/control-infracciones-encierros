@@ -1,0 +1,93 @@
+.dashboard-trend-wrapper {
+  display: grid;
+  gap: 14px;
+}
+
+.dashboard-trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  color: var(--slate-700);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.dashboard-trend-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.dashboard-trend-legend i {
+  width: 18px;
+  height: 4px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.dashboard-trend-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.dashboard-trend-chart {
+  display: block;
+  width: 100%;
+  min-width: 760px;
+  height: auto;
+  overflow: visible;
+}
+
+.dashboard-trend-grid-line {
+  stroke: #e2e8f0;
+  stroke-width: 1;
+}
+
+.dashboard-trend-axis {
+  stroke: #94a3b8;
+  stroke-width: 1.1;
+}
+
+.dashboard-trend-y-label,
+.dashboard-trend-x-label {
+  fill: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dashboard-trend-polyline {
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.dashboard-trend-point {
+  fill: #ffffff;
+  stroke: currentColor;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.dashboard-trend-series-total { color: #2563eb; }
+.dashboard-trend-series-retencion { color: #f97316; }
+.dashboard-trend-series-sin-retencion { color: #16a34a; }
+.dashboard-trend-series-sin-infraccion { color: #7c3aed; }
+
+.dashboard-trend-empty {
+  min-height: 280px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--border-strong);
+  border-radius: 14px;
+  background: #f8fafc;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 860px) {
+  .dashboard-trend-chart {
+    width: 880px;
+  }
+}
