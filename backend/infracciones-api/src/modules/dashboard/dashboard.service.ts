@@ -2,6 +2,20 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
+import {
+  type DashboardAgrupacion,
+  type DashboardAnaliticaResumenResponse,
+  type DashboardIngresoClaveItem,
+  type DashboardIngresosPorClaveResponse,
+  type DashboardIngresosTendenciaItem,
+  type DashboardIngresosTendenciaResponse,
+  type DashboardInfraccionesTendenciaItem,
+  type DashboardInfraccionesTendenciaResponse,
+} from './dashboard-analytics.types';
+import {
+  DashboardAnalyticsQueryDto,
+  DashboardTrendQueryDto,
+} from './dto/dashboard-analytics-query.dto';
 import { DashboardQueryDto } from './dto/dashboard-query.dto';
 
 export interface DashboardResumenResponse {
@@ -124,8 +138,54 @@ interface SqlFilterParts {
   params: unknown[];
 }
 
+interface AnalyticsExpedientesRawRow {
+  totalExpedientes: number | string;
+  totalInfracciones: number | string;
+  infraccionesConRetencion: number | string;
+  infraccionesSinRetencion: number | string;
+  tipoInfraccionSinRetencion: number | string;
+  vehiculosSinInfraccion: number | string;
+  vehiculosActualmenteEnEncierro: number | string;
+}
+
+interface AnalyticsIngresosRawRow {
+  totalPagos: number | string;
+  totalIngresos: number | string;
+  promedioPago: number | string;
+}
+
+interface AnalyticsCoberturaRawRow {
+  ingresosConClaveIdentificada: number | string;
+  ingresosSinDesgloseClave: number | string;
+}
+
+interface AnalyticsInfraccionesTendenciaRawRow {
+  periodo: string | Date;
+  totalExpedientes: number | string;
+  totalInfracciones: number | string;
+  conRetencion: number | string;
+  sinRetencion: number | string;
+  tipoInfraccionSinRetencion: number | string;
+  vehiculosSinInfraccion: number | string;
+}
+
+interface AnalyticsIngresosTendenciaRawRow {
+  periodo: string | Date;
+  totalIngresos: number | string;
+  totalPagos: number | string;
+  promedioPago: number | string;
+}
+
+interface AnalyticsIngresoClaveRawRow {
+  idConceptoPago: number | string;
+  claveConcepto: string;
+  totalPagos: number | string;
+  monto: number | string;
+}
+
 const ESTADO_LABELS: Record<string, string> = {
   SIN_RETENCION: 'Sin retencion',
+  PAGADA_SIN_RETENCION: 'Pagada sin retencion',
   EN_ENCIERRO_SIN_PAGO: 'En encierro sin pago',
   PAGADO_PENDIENTE_LIBERACION: 'Pagado por liberar',
   LIBERADO_PENDIENTE_SALIDA: 'Liberado por entregar',
@@ -134,11 +194,18 @@ const ESTADO_LABELS: Record<string, string> = {
 
 const ESTADOS_OPERATIVOS = [
   'SIN_RETENCION',
+  'PAGADA_SIN_RETENCION',
   'EN_ENCIERRO_SIN_PAGO',
   'PAGADO_PENDIENTE_LIBERACION',
   'LIBERADO_PENDIENTE_SALIDA',
   'VEHICULO_ENTREGADO',
 ] as const;
+
+const CLAVES_TIPO_INFRACCION = [
+  'INFRACCION',
+  'INFRACCION_SIN_RETENCION',
+] as const;
+const CLAVE_VEHICULO_SIN_INFRACCION = 'VEHICULO_SIN_INFRACCION';
 
 @Injectable()
 export class DashboardService {
@@ -187,10 +254,11 @@ export class DashboardService {
           SELECT *
           FROM (VALUES
             ('SIN_RETENCION', 'Sin retencion', 1),
-            ('EN_ENCIERRO_SIN_PAGO', 'En encierro sin pago', 2),
-            ('PAGADO_PENDIENTE_LIBERACION', 'Pagado por liberar', 3),
-            ('LIBERADO_PENDIENTE_SALIDA', 'Liberado por entregar', 4),
-            ('VEHICULO_ENTREGADO', 'Entregado', 5)
+            ('PAGADA_SIN_RETENCION', 'Pagada sin retencion', 2),
+            ('EN_ENCIERRO_SIN_PAGO', 'En encierro sin pago', 3),
+            ('PAGADO_PENDIENTE_LIBERACION', 'Pagado por liberar', 4),
+            ('LIBERADO_PENDIENTE_SALIDA', 'Liberado por entregar', 5),
+            ('VEHICULO_ENTREGADO', 'Entregado', 6)
           ) AS estados(estado, label, orden)
         ),
         flujo_counts AS (
@@ -345,6 +413,374 @@ export class DashboardService {
     };
   }
 
+  async getAnaliticaResumen(
+    query: DashboardAnalyticsQueryDto,
+  ): Promise<DashboardAnaliticaResumenResponse> {
+    const infraccionFilters = this.buildAnalyticsFilters(query, 'infraccion', true);
+    const pagoFilters = this.buildAnalyticsFilters(query, 'pago', false);
+    const tipoInfraccionSql = this.getTipoInfraccionExpression('tp');
+    const hasRetencion = this.hasRetencionExpression('i');
+    const hasSalida = this.hasSalidaExpression('i');
+
+    const ingresosClaveParam = query.claveConcepto?.trim().toUpperCase();
+    const ingresoParams = [...pagoFilters.params];
+    let ingresoJoinSql = '';
+    let ingresoMontoSql = 'p.monto::numeric';
+
+    if (ingresosClaveParam) {
+      ingresoParams.push(ingresosClaveParam);
+      const placeholder = `$${ingresoParams.length}`;
+      ingresoJoinSql = `
+        INNER JOIN pago_concepto pc_analytics
+          ON pc_analytics.id_pago_infraccion = p.id_pago_infraccion
+        INNER JOIN concepto_pago cp_analytics
+          ON cp_analytics.id_concepto_pago = pc_analytics.id_concepto_pago
+         AND cp_analytics.clave_concepto = ${placeholder}
+      `;
+      ingresoMontoSql = 'pc_analytics.monto::numeric';
+    }
+
+    const coberturaParams = [...pagoFilters.params];
+
+    const [expedientesRows, ingresosRows, coberturaRows] = await Promise.all([
+      this.dataSource.query<AnalyticsExpedientesRawRow[]>(
+        `
+          SELECT
+            COUNT(*)::int AS "totalExpedientes",
+            COUNT(*) FILTER (WHERE ${tipoInfraccionSql})::int AS "totalInfracciones",
+            COUNT(*) FILTER (
+              WHERE ${tipoInfraccionSql} AND ${hasRetencion}
+            )::int AS "infraccionesConRetencion",
+            COUNT(*) FILTER (
+              WHERE ${tipoInfraccionSql} AND NOT ${hasRetencion}
+            )::int AS "infraccionesSinRetencion",
+            COUNT(*) FILTER (
+              WHERE tp.clave_tipo_procedimiento = 'INFRACCION_SIN_RETENCION'
+            )::int AS "tipoInfraccionSinRetencion",
+            COUNT(*) FILTER (
+              WHERE tp.clave_tipo_procedimiento = '${CLAVE_VEHICULO_SIN_INFRACCION}'
+            )::int AS "vehiculosSinInfraccion",
+            COUNT(*) FILTER (
+              WHERE ${hasRetencion} AND NOT ${hasSalida}
+            )::int AS "vehiculosActualmenteEnEncierro"
+          FROM infracciones i
+          INNER JOIN tipo_procedimiento tp
+            ON tp.id_tipo_procedimiento = i.id_tipo_procedimiento
+          INNER JOIN delegacion d ON d.id_delegacion = i.id_delegacion
+          INNER JOIN region r ON r.id_region = d.id_region
+          WHERE ${infraccionFilters.whereSql}
+        `,
+        infraccionFilters.params,
+      ),
+      this.dataSource.query<AnalyticsIngresosRawRow[]>(
+        `
+          SELECT
+            COUNT(DISTINCT p.id_pago_infraccion)::int AS "totalPagos",
+            COALESCE(SUM(${ingresoMontoSql}), 0)::numeric(14, 2) AS "totalIngresos",
+            COALESCE(AVG(${ingresoMontoSql}), 0)::numeric(14, 2) AS "promedioPago"
+          FROM pago_infraccion p
+          INNER JOIN infracciones i ON i.id_infraccion = p.id_infraccion
+          INNER JOIN tipo_procedimiento tp
+            ON tp.id_tipo_procedimiento = i.id_tipo_procedimiento
+          INNER JOIN delegacion d ON d.id_delegacion = i.id_delegacion
+          INNER JOIN region r ON r.id_region = d.id_region
+          ${ingresoJoinSql}
+          WHERE ${pagoFilters.whereSql}
+        `,
+        ingresoParams,
+      ),
+      ingresosClaveParam
+        ? Promise.resolve<AnalyticsCoberturaRawRow[]>([])
+        : this.dataSource.query<AnalyticsCoberturaRawRow[]>(
+            `
+              WITH conceptos_por_pago AS (
+                SELECT
+                  pc.id_pago_infraccion,
+                  SUM(pc.monto::numeric) AS monto_conceptos
+                FROM pago_concepto pc
+                GROUP BY pc.id_pago_infraccion
+              )
+              SELECT
+                COALESCE(
+                  SUM(COALESCE(conceptos_por_pago.monto_conceptos, 0)),
+                  0
+                )::numeric(14, 2) AS "ingresosConClaveIdentificada",
+                COALESCE(
+                  SUM(
+                    GREATEST(
+                      p.monto::numeric - COALESCE(conceptos_por_pago.monto_conceptos, 0),
+                      0
+                    )
+                  ),
+                  0
+                )::numeric(14, 2) AS "ingresosSinDesgloseClave"
+              FROM pago_infraccion p
+              INNER JOIN infracciones i ON i.id_infraccion = p.id_infraccion
+              INNER JOIN tipo_procedimiento tp
+                ON tp.id_tipo_procedimiento = i.id_tipo_procedimiento
+              INNER JOIN delegacion d ON d.id_delegacion = i.id_delegacion
+              INNER JOIN region r ON r.id_region = d.id_region
+              LEFT JOIN conceptos_por_pago
+                ON conceptos_por_pago.id_pago_infraccion = p.id_pago_infraccion
+              WHERE ${pagoFilters.whereSql}
+            `,
+            coberturaParams,
+          ),
+    ]);
+
+    const expedientes = expedientesRows[0];
+    const ingresos = ingresosRows[0];
+    const totalIngresos = this.toNumber(ingresos?.totalIngresos);
+    const cobertura = coberturaRows[0];
+
+    return {
+      expedientes: {
+        totalExpedientes: this.toNumber(expedientes?.totalExpedientes),
+        totalInfracciones: this.toNumber(expedientes?.totalInfracciones),
+        infraccionesConRetencion: this.toNumber(
+          expedientes?.infraccionesConRetencion,
+        ),
+        infraccionesSinRetencion: this.toNumber(
+          expedientes?.infraccionesSinRetencion,
+        ),
+        tipoInfraccionSinRetencion: this.toNumber(
+          expedientes?.tipoInfraccionSinRetencion,
+        ),
+        vehiculosSinInfraccion: this.toNumber(
+          expedientes?.vehiculosSinInfraccion,
+        ),
+        vehiculosActualmenteEnEncierro: this.toNumber(
+          expedientes?.vehiculosActualmenteEnEncierro,
+        ),
+      },
+      ingresos: {
+        totalPagos: this.toNumber(ingresos?.totalPagos),
+        totalIngresos,
+        promedioPago: this.toNumber(ingresos?.promedioPago),
+        ingresosConClaveIdentificada: ingresosClaveParam
+          ? totalIngresos
+          : this.toNumber(cobertura?.ingresosConClaveIdentificada),
+        ingresosSinDesgloseClave: ingresosClaveParam
+          ? 0
+          : this.toNumber(cobertura?.ingresosSinDesgloseClave),
+      },
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  async getTendenciaInfracciones(
+    query: DashboardTrendQueryDto,
+  ): Promise<DashboardInfraccionesTendenciaResponse> {
+    const agrupacion = query.agrupacion ?? 'mes';
+    const filters = this.buildAnalyticsFilters(query, 'infraccion', true);
+    const periodoSql = this.getPeriodExpression(
+      'i.fecha_infraccion',
+      agrupacion,
+    );
+    const tipoInfraccionSql = this.getTipoInfraccionExpression('tp');
+    const hasRetencion = this.hasRetencionExpression('i');
+
+    const rows = await this.dataSource.query<
+      AnalyticsInfraccionesTendenciaRawRow[]
+    >(
+      `
+        SELECT
+          ${periodoSql} AS periodo,
+          COUNT(*)::int AS "totalExpedientes",
+          COUNT(*) FILTER (WHERE ${tipoInfraccionSql})::int AS "totalInfracciones",
+          COUNT(*) FILTER (
+            WHERE ${tipoInfraccionSql} AND ${hasRetencion}
+          )::int AS "conRetencion",
+          COUNT(*) FILTER (
+            WHERE ${tipoInfraccionSql} AND NOT ${hasRetencion}
+          )::int AS "sinRetencion",
+          COUNT(*) FILTER (
+            WHERE tp.clave_tipo_procedimiento = 'INFRACCION_SIN_RETENCION'
+          )::int AS "tipoInfraccionSinRetencion",
+          COUNT(*) FILTER (
+            WHERE tp.clave_tipo_procedimiento = '${CLAVE_VEHICULO_SIN_INFRACCION}'
+          )::int AS "vehiculosSinInfraccion"
+        FROM infracciones i
+        INNER JOIN tipo_procedimiento tp
+          ON tp.id_tipo_procedimiento = i.id_tipo_procedimiento
+        INNER JOIN delegacion d ON d.id_delegacion = i.id_delegacion
+        INNER JOIN region r ON r.id_region = d.id_region
+        WHERE ${filters.whereSql}
+        GROUP BY ${periodoSql}
+        ORDER BY ${periodoSql} ASC
+      `,
+      filters.params,
+    );
+
+    const normalized = rows.map((row) => ({
+      periodo: this.toPeriodString(row.periodo),
+      totalExpedientes: this.toNumber(row.totalExpedientes),
+      totalInfracciones: this.toNumber(row.totalInfracciones),
+      conRetencion: this.toNumber(row.conRetencion),
+      sinRetencion: this.toNumber(row.sinRetencion),
+      tipoInfraccionSinRetencion: this.toNumber(
+        row.tipoInfraccionSinRetencion,
+      ),
+      vehiculosSinInfraccion: this.toNumber(row.vehiculosSinInfraccion),
+    }));
+
+    const series: DashboardInfraccionesTendenciaItem[] = normalized.map(
+      (item, index) => {
+        const previous = index > 0 ? normalized[index - 1] : undefined;
+
+        return {
+          ...item,
+          variacionVsPeriodoAnteriorPct: {
+            totalInfracciones: this.calculateVariation(
+              item.totalInfracciones,
+              previous?.totalInfracciones,
+            ),
+            conRetencion: this.calculateVariation(
+              item.conRetencion,
+              previous?.conRetencion,
+            ),
+            sinRetencion: this.calculateVariation(
+              item.sinRetencion,
+              previous?.sinRetencion,
+            ),
+            vehiculosSinInfraccion: this.calculateVariation(
+              item.vehiculosSinInfraccion,
+              previous?.vehiculosSinInfraccion,
+            ),
+          },
+        };
+      },
+    );
+
+    return { agrupacion, series };
+  }
+
+  async getTendenciaIngresos(
+    query: DashboardTrendQueryDto,
+  ): Promise<DashboardIngresosTendenciaResponse> {
+    const agrupacion = query.agrupacion ?? 'mes';
+    const filters = this.buildAnalyticsFilters(query, 'pago', false);
+    const periodoSql = this.getPeriodExpression('p.fecha_pago', agrupacion);
+    const params = [...filters.params];
+    const claveConcepto = query.claveConcepto?.trim().toUpperCase();
+    let conceptoJoinSql = '';
+    let montoSql = 'p.monto::numeric';
+
+    if (claveConcepto) {
+      params.push(claveConcepto);
+      const placeholder = `$${params.length}`;
+      conceptoJoinSql = `
+        INNER JOIN pago_concepto pc_trend
+          ON pc_trend.id_pago_infraccion = p.id_pago_infraccion
+        INNER JOIN concepto_pago cp_trend
+          ON cp_trend.id_concepto_pago = pc_trend.id_concepto_pago
+         AND cp_trend.clave_concepto = ${placeholder}
+      `;
+      montoSql = 'pc_trend.monto::numeric';
+    }
+
+    const rows = await this.dataSource.query<AnalyticsIngresosTendenciaRawRow[]>(
+      `
+        SELECT
+          ${periodoSql} AS periodo,
+          COALESCE(SUM(${montoSql}), 0)::numeric(14, 2) AS "totalIngresos",
+          COUNT(DISTINCT p.id_pago_infraccion)::int AS "totalPagos",
+          COALESCE(AVG(${montoSql}), 0)::numeric(14, 2) AS "promedioPago"
+        FROM pago_infraccion p
+        INNER JOIN infracciones i ON i.id_infraccion = p.id_infraccion
+        INNER JOIN tipo_procedimiento tp
+          ON tp.id_tipo_procedimiento = i.id_tipo_procedimiento
+        INNER JOIN delegacion d ON d.id_delegacion = i.id_delegacion
+        INNER JOIN region r ON r.id_region = d.id_region
+        ${conceptoJoinSql}
+        WHERE ${filters.whereSql}
+        GROUP BY ${periodoSql}
+        ORDER BY ${periodoSql} ASC
+      `,
+      params,
+    );
+
+    const normalized = rows.map((row) => ({
+      periodo: this.toPeriodString(row.periodo),
+      totalIngresos: this.toNumber(row.totalIngresos),
+      totalPagos: this.toNumber(row.totalPagos),
+      promedioPago: this.toNumber(row.promedioPago),
+    }));
+
+    const series: DashboardIngresosTendenciaItem[] = normalized.map(
+      (item, index) => ({
+        ...item,
+        variacionIngresosVsPeriodoAnteriorPct: this.calculateVariation(
+          item.totalIngresos,
+          index > 0 ? normalized[index - 1].totalIngresos : undefined,
+        ),
+      }),
+    );
+
+    return { agrupacion, series };
+  }
+
+  async getIngresosPorClave(
+    query: DashboardAnalyticsQueryDto,
+  ): Promise<DashboardIngresosPorClaveResponse> {
+    const filters = this.buildAnalyticsFilters(query, 'pago', false);
+    const params = [...filters.params];
+    const claveConcepto = query.claveConcepto?.trim().toUpperCase();
+    let claveFilterSql = '';
+
+    if (claveConcepto) {
+      params.push(claveConcepto);
+      claveFilterSql = `AND cp.clave_concepto = $${params.length}`;
+    }
+
+    const rows = await this.dataSource.query<AnalyticsIngresoClaveRawRow[]>(
+      `
+        SELECT
+          cp.id_concepto_pago AS "idConceptoPago",
+          cp.clave_concepto AS "claveConcepto",
+          COUNT(DISTINCT p.id_pago_infraccion)::int AS "totalPagos",
+          COALESCE(SUM(pc.monto::numeric), 0)::numeric(14, 2) AS monto
+        FROM pago_infraccion p
+        INNER JOIN pago_concepto pc
+          ON pc.id_pago_infraccion = p.id_pago_infraccion
+        INNER JOIN concepto_pago cp
+          ON cp.id_concepto_pago = pc.id_concepto_pago
+        INNER JOIN infracciones i ON i.id_infraccion = p.id_infraccion
+        INNER JOIN tipo_procedimiento tp
+          ON tp.id_tipo_procedimiento = i.id_tipo_procedimiento
+        INNER JOIN delegacion d ON d.id_delegacion = i.id_delegacion
+        INNER JOIN region r ON r.id_region = d.id_region
+        WHERE ${filters.whereSql}
+          ${claveFilterSql}
+        GROUP BY cp.id_concepto_pago, cp.clave_concepto
+        ORDER BY monto DESC, cp.clave_concepto ASC
+      `,
+      params,
+    );
+
+    const totalIdentificado = rows.reduce(
+      (total, row) => total + this.toNumber(row.monto),
+      0,
+    );
+
+    const claves: DashboardIngresoClaveItem[] = rows.map((row) => {
+      const monto = this.toNumber(row.monto);
+
+      return {
+        idConceptoPago: this.toNumber(row.idConceptoPago),
+        claveConcepto: row.claveConcepto,
+        totalPagos: this.toNumber(row.totalPagos),
+        monto,
+        participacionPct:
+          totalIdentificado > 0
+            ? this.roundPercentage((monto / totalIdentificado) * 100)
+            : 0,
+      };
+    });
+
+    return { totalIdentificado, claves };
+  }
+
   private buildFilters(query: DashboardQueryDto): SqlFilterParts {
     const params: unknown[] = [];
     const filters: string[] = ['1 = 1'];
@@ -395,6 +831,128 @@ export class DashboardService {
     };
   }
 
+  private buildAnalyticsFilters(
+    query: DashboardAnalyticsQueryDto,
+    scope: 'infraccion' | 'pago',
+    includeClaveConcepto: boolean,
+  ): SqlFilterParts {
+    const params: unknown[] = [];
+    const filters: string[] = ['tp.es_tipo_expediente = TRUE'];
+    const dateColumn =
+      scope === 'pago' ? 'p.fecha_pago::date' : 'i.fecha_infraccion::date';
+
+    const addParam = (value: unknown): string => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+
+    if (query.fechaDesde) {
+      filters.push(`${dateColumn} >= ${addParam(query.fechaDesde)}::date`);
+    }
+
+    if (query.fechaHasta) {
+      filters.push(`${dateColumn} <= ${addParam(query.fechaHasta)}::date`);
+    }
+
+    if (query.idRegion) {
+      filters.push(`r.id_region = ${addParam(query.idRegion)}`);
+    }
+
+    if (query.idDelegacion) {
+      filters.push(`d.id_delegacion = ${addParam(query.idDelegacion)}`);
+    }
+
+    if (query.idEstatusInfraccion) {
+      filters.push(
+        `i.id_estatus_infraccion = ${addParam(query.idEstatusInfraccion)}`,
+      );
+    }
+
+    if (query.idTipoProcedimiento) {
+      filters.push(
+        `i.id_tipo_procedimiento = ${addParam(query.idTipoProcedimiento)}`,
+      );
+    }
+
+    if (query.idEncierro) {
+      filters.push(`EXISTS (
+        SELECT 1
+        FROM retencion_vehiculo rv_analytics_filter
+        WHERE rv_analytics_filter.id_infraccion = i.id_infraccion
+          AND rv_analytics_filter.id_encierro = ${addParam(query.idEncierro)}
+      )`);
+    }
+
+    const condicionSql = this.getCondicionExpedienteExpression(
+      query.condicionExpediente,
+    );
+    if (condicionSql) {
+      filters.push(condicionSql);
+    }
+
+    const claveConcepto = query.claveConcepto?.trim().toUpperCase();
+    if (includeClaveConcepto && claveConcepto) {
+      const placeholder = addParam(claveConcepto);
+      filters.push(`EXISTS (
+        SELECT 1
+        FROM pago_infraccion pago_clave_filter
+        INNER JOIN pago_concepto pc_clave_filter
+          ON pc_clave_filter.id_pago_infraccion = pago_clave_filter.id_pago_infraccion
+        INNER JOIN concepto_pago cp_clave_filter
+          ON cp_clave_filter.id_concepto_pago = pc_clave_filter.id_concepto_pago
+        WHERE pago_clave_filter.id_infraccion = i.id_infraccion
+          AND cp_clave_filter.clave_concepto = ${placeholder}
+      )`);
+    }
+
+    return {
+      whereSql: filters.join(' AND '),
+      params,
+    };
+  }
+
+  private getCondicionExpedienteExpression(
+    condicion?: DashboardAnalyticsQueryDto['condicionExpediente'],
+  ): string | null {
+    if (!condicion) {
+      return null;
+    }
+
+    const tipoInfraccion = this.getTipoInfraccionExpression('tp');
+    const hasRetencion = this.hasRetencionExpression('i');
+
+    switch (condicion) {
+      case 'CON_RETENCION':
+        return `(${tipoInfraccion} AND ${hasRetencion})`;
+      case 'SIN_RETENCION':
+        return `(${tipoInfraccion} AND NOT ${hasRetencion})`;
+      case 'VEHICULO_SIN_INFRACCION':
+        return `tp.clave_tipo_procedimiento = '${CLAVE_VEHICULO_SIN_INFRACCION}'`;
+      default:
+        return null;
+    }
+  }
+
+  private getTipoInfraccionExpression(alias: string): string {
+    const keys = CLAVES_TIPO_INFRACCION.map((key) => `'${key}'`).join(', ');
+    return `${alias}.clave_tipo_procedimiento IN (${keys})`;
+  }
+
+  private getPeriodExpression(
+    column: string,
+    agrupacion: DashboardAgrupacion,
+  ): string {
+    switch (agrupacion) {
+      case 'dia':
+        return `${column}::date`;
+      case 'anio':
+        return `date_trunc('year', ${column})::date`;
+      case 'mes':
+      default:
+        return `date_trunc('month', ${column})::date`;
+    }
+  }
+
   private getEstadoOperativoCase(alias: string): string {
     const hasRetencion = this.hasRetencionExpression(alias);
     const hasPago = this.hasPagoExpression(alias);
@@ -403,6 +961,7 @@ export class DashboardService {
 
     return `CASE
       WHEN ${hasSalida} THEN 'VEHICULO_ENTREGADO'
+      WHEN NOT ${hasRetencion} AND ${hasPago} THEN 'PAGADA_SIN_RETENCION'
       WHEN NOT ${hasRetencion} THEN 'SIN_RETENCION'
       WHEN ${hasLiberacion} THEN 'LIBERADO_PENDIENTE_SALIDA'
       WHEN ${hasPago} THEN 'PAGADO_PENDIENTE_LIBERACION'
@@ -497,6 +1056,29 @@ export class DashboardService {
         total: this.toNumber(item.total),
       })),
     };
+  }
+
+  private calculateVariation(
+    current: number,
+    previous: number | undefined,
+  ): number | null {
+    if (previous === undefined || previous === 0) {
+      return null;
+    }
+
+    return this.roundPercentage(((current - previous) / previous) * 100);
+  }
+
+  private roundPercentage(value: number): number {
+    return Math.round(value * 100) / 100;
+  }
+
+  private toPeriodString(value: string | Date): string {
+    if (value instanceof Date) {
+      return value.toISOString().slice(0, 10);
+    }
+
+    return String(value).slice(0, 10);
   }
 
   private toNumber(value: number | string | null | undefined): number {
