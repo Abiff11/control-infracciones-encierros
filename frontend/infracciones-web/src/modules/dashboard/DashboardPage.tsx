@@ -23,6 +23,7 @@ import type {
 } from "../../types/dashboard.types";
 import type { EstadoOperativoVehiculo } from "../../types/infracciones.types";
 import type { ConceptoPagoOption } from "../../types/operaciones.types";
+import { DashboardAnalyticsOverview } from "./DashboardAnalyticsOverview";
 
 import "./DashboardPage.css";
 import "./DashboardExtra.css";
@@ -122,10 +123,7 @@ function applyPeriod(
   period: DashboardFilters["periodo"],
 ): DashboardFilters {
   if (period === "custom") {
-    return {
-      ...filters,
-      periodo: period,
-    };
+    return { ...filters, periodo: period };
   }
 
   if (period === "all") {
@@ -150,10 +148,7 @@ function applyPeriod(
 }
 
 function toOptionalNumber(value: string): number | undefined {
-  if (!value) {
-    return undefined;
-  }
-
+  if (!value) return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
@@ -208,11 +203,7 @@ function formatCurrency(value: number): string {
 
 function formatDateLabel(value: string): string {
   const date = new Date(`${value}T00:00:00`);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
+  if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("es-MX", {
     day: "2-digit",
     month: "short",
@@ -221,11 +212,7 @@ function formatDateLabel(value: string): string {
 
 function formatMonthLabel(value: string): string {
   const date = new Date(`${value.slice(0, 10)}T00:00:00`);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
+  if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("es-MX", {
     month: "short",
     year: "2-digit",
@@ -234,23 +221,13 @@ function formatMonthLabel(value: string): string {
 
 function formatYearLabel(value: string): string {
   const date = new Date(`${value.slice(0, 10)}T00:00:00`);
-
-  if (Number.isNaN(date.getTime())) {
-    return value.slice(0, 4);
-  }
-
-  return new Intl.DateTimeFormat("es-MX", {
-    year: "numeric",
-  }).format(date);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 4);
+  return new Intl.DateTimeFormat("es-MX", { year: "numeric" }).format(date);
 }
 
 function formatDateTime(value: string): string {
   const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
+  if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("es-MX", {
     dateStyle: "short",
     timeStyle: "short",
@@ -297,9 +274,7 @@ function BarChart({ data }: { data: ChartDatum[] }) {
           </div>
           <div className="dashboard-bar-track">
             <span
-              style={{
-                width: `${Math.max((item.value / maxValue) * 100, 4)}%`,
-              }}
+              style={{ width: `${Math.max((item.value / maxValue) * 100, 4)}%` }}
             />
           </div>
           <strong>{item.displayValue ?? formatNumber(item.value)}</strong>
@@ -321,9 +296,7 @@ function ColumnChart({ data }: { data: ChartDatum[] }) {
           </div>
           <div className="dashboard-column-track">
             <span
-              style={{
-                height: `${Math.max((item.value / maxValue) * 100, 8)}%`,
-              }}
+              style={{ height: `${Math.max((item.value / maxValue) * 100, 8)}%` }}
             />
           </div>
           <small>{item.label}</small>
@@ -344,9 +317,7 @@ function DashboardPage({
   refreshKey,
   runProtectedRequest,
 }: DashboardPageProps) {
-  const [filters, setFilters] = useState<DashboardFilters>(() =>
-    createDefaultFilters(),
-  );
+  const [filters, setFilters] = useState<DashboardFilters>(() => createDefaultFilters());
   const [appliedFilters, setAppliedFilters] = useState<DashboardFilters>(() =>
     createDefaultFilters(),
   );
@@ -364,9 +335,7 @@ function DashboardPage({
     loading: true,
     error: null,
   });
-  const [conceptSuggestions, setConceptSuggestions] = useState<
-    ConceptoPagoOption[]
-  >([]);
+  const [conceptSuggestions, setConceptSuggestions] = useState<ConceptoPagoOption[]>([]);
   const [conceptSearchLoading, setConceptSearchLoading] = useState(false);
   const [conceptSearchError, setConceptSearchError] = useState(false);
 
@@ -374,31 +343,16 @@ function DashboardPage({
     let mounted = true;
 
     async function loadDashboard(): Promise<void> {
-      setDashboardState((current) => ({
-        ...current,
-        loading: true,
-        error: null,
-      }));
+      setDashboardState((current) => ({ ...current, loading: true, error: null }));
 
       try {
         const response = await runProtectedRequest((token) =>
           getDashboardResumen(token, buildDashboardQuery(appliedFilters)),
         );
-
-        if (!mounted) {
-          return;
-        }
-
-        setDashboardState({
-          data: response,
-          loading: false,
-          error: null,
-        });
+        if (!mounted) return;
+        setDashboardState({ data: response, loading: false, error: null });
       } catch (error) {
-        if (!mounted) {
-          return;
-        }
-
+        if (!mounted) return;
         setDashboardState((current) => ({
           ...current,
           loading: false,
@@ -411,7 +365,6 @@ function DashboardPage({
     }
 
     void loadDashboard();
-
     return () => {
       mounted = false;
     };
@@ -421,12 +374,7 @@ function DashboardPage({
     let mounted = true;
 
     async function loadAnalytics(): Promise<void> {
-      setAnalyticsState((current) => ({
-        ...current,
-        loading: true,
-        error: null,
-      }));
-
+      setAnalyticsState((current) => ({ ...current, loading: true, error: null }));
       const analyticsQuery = buildAnalyticsQuery(appliedFilters);
       const trendQuery = buildTrendQuery(appliedFilters);
 
@@ -441,10 +389,7 @@ function DashboardPage({
             ]),
           );
 
-        if (!mounted) {
-          return;
-        }
-
+        if (!mounted) return;
         setAnalyticsState({
           resumen,
           infraccionesTendencia,
@@ -454,10 +399,7 @@ function DashboardPage({
           error: null,
         });
       } catch (error) {
-        if (!mounted) {
-          return;
-        }
-
+        if (!mounted) return;
         setAnalyticsState((current) => ({
           ...current,
           loading: false,
@@ -470,7 +412,6 @@ function DashboardPage({
     }
 
     void loadAnalytics();
-
     return () => {
       mounted = false;
     };
@@ -478,9 +419,7 @@ function DashboardPage({
 
   useEffect(() => {
     const query = filters.claveConcepto.trim();
-    if (!query) {
-      return;
-    }
+    if (!query) return;
 
     let cancelled = false;
     const timeoutId = window.setTimeout(() => {
@@ -489,9 +428,7 @@ function DashboardPage({
 
       void runProtectedRequest((token) => findConceptosPago(token, query, 20))
         .then((result) => {
-          if (!cancelled) {
-            setConceptSuggestions(result);
-          }
+          if (!cancelled) setConceptSuggestions(result);
         })
         .catch(() => {
           if (!cancelled) {
@@ -500,9 +437,7 @@ function DashboardPage({
           }
         })
         .finally(() => {
-          if (!cancelled) {
-            setConceptSearchLoading(false);
-          }
+          if (!cancelled) setConceptSearchLoading(false);
         });
     }, 220);
 
@@ -513,10 +448,7 @@ function DashboardPage({
   }, [filters.claveConcepto, runProtectedRequest]);
 
   const filteredDelegaciones = useMemo(() => {
-    if (!catalogs || !filters.idRegion) {
-      return catalogs?.delegaciones ?? [];
-    }
-
+    if (!catalogs || !filters.idRegion) return catalogs?.delegaciones ?? [];
     const idRegion = Number(filters.idRegion);
     return catalogs.delegaciones.filter(
       (delegacion) => delegacion.region?.idRegion === idRegion,
@@ -524,10 +456,7 @@ function DashboardPage({
   }, [catalogs, filters.idRegion]);
 
   const expedienteTypes = useMemo(
-    () =>
-      (catalogs?.tiposProcedimiento ?? []).filter(
-        (tipo) => tipo.esTipoExpediente,
-      ),
+    () => (catalogs?.tiposProcedimiento ?? []).filter((tipo) => tipo.esTipoExpediente),
     [catalogs],
   );
 
@@ -554,18 +483,10 @@ function DashboardPage({
   const ingresosAnioActual = ingresos?.ingresosAnioActual ?? 0;
   const analyticsResumen = analyticsState.resumen;
 
-  const estadoChartData: ChartDatum[] = ESTADOS_OPERATIVOS.map(
-    (estadoOperativo) => {
-      const item = data?.flujoOperativo.find(
-        (current) => current.estado === estadoOperativo,
-      );
-
-      return {
-        label: item?.label ?? ESTADO_LABELS[estadoOperativo],
-        value: item?.total ?? 0,
-      };
-    },
-  );
+  const estadoChartData: ChartDatum[] = ESTADOS_OPERATIVOS.map((estadoOperativo) => {
+    const item = data?.flujoOperativo.find((current) => current.estado === estadoOperativo);
+    return { label: item?.label ?? ESTADO_LABELS[estadoOperativo], value: item?.total ?? 0 };
+  });
 
   const delegacionChartData: ChartDatum[] =
     data?.topDelegaciones.map((item) => ({
@@ -612,19 +533,9 @@ function DashboardPage({
     value: DashboardFilters[K],
   ): void {
     setFilters((current) => {
-      const nextFilters: DashboardFilters = {
-        ...current,
-        [key]: value,
-      };
-
-      if (key === "idRegion") {
-        nextFilters.idDelegacion = "";
-      }
-
-      if (key === "fechaDesde" || key === "fechaHasta") {
-        nextFilters.periodo = "custom";
-      }
-
+      const nextFilters: DashboardFilters = { ...current, [key]: value };
+      if (key === "idRegion") nextFilters.idDelegacion = "";
+      if (key === "fechaDesde" || key === "fechaHasta") nextFilters.periodo = "custom";
       return nextFilters;
     });
   }
@@ -632,7 +543,6 @@ function DashboardPage({
   function updateConceptFilter(value: string): void {
     const normalized = value.toUpperCase();
     updateFilter("claveConcepto", normalized);
-
     if (!normalized.trim()) {
       setConceptSuggestions([]);
       setConceptSearchError(false);
@@ -685,10 +595,7 @@ function DashboardPage({
             value={filters.periodo}
             onChange={(event) =>
               setFilters((current) =>
-                applyPeriod(
-                  current,
-                  event.target.value as DashboardFilters["periodo"],
-                ),
+                applyPeriod(current, event.target.value as DashboardFilters["periodo"]),
               )
             }
           >
@@ -704,10 +611,7 @@ function DashboardPage({
           <select
             value={filters.agrupacion}
             onChange={(event) =>
-              updateFilter(
-                "agrupacion",
-                event.target.value as DashboardAgrupacion,
-              )
+              updateFilter("agrupacion", event.target.value as DashboardAgrupacion)
             }
           >
             <option value="dia">Dia</option>
@@ -749,16 +653,11 @@ function DashboardPage({
           <span>Delegacion / unidad</span>
           <select
             value={filters.idDelegacion}
-            onChange={(event) =>
-              updateFilter("idDelegacion", event.target.value)
-            }
+            onChange={(event) => updateFilter("idDelegacion", event.target.value)}
           >
             <option value="">Todas</option>
             {filteredDelegaciones.map((delegacion) => (
-              <option
-                key={delegacion.idDelegacion}
-                value={delegacion.idDelegacion}
-              >
+              <option key={delegacion.idDelegacion} value={delegacion.idDelegacion}>
                 {delegacion.nombreDelegacion}
               </option>
             ))}
@@ -768,16 +667,11 @@ function DashboardPage({
           <span>Tipo de expediente</span>
           <select
             value={filters.idTipoProcedimiento}
-            onChange={(event) =>
-              updateFilter("idTipoProcedimiento", event.target.value)
-            }
+            onChange={(event) => updateFilter("idTipoProcedimiento", event.target.value)}
           >
             <option value="">Todos</option>
             {expedienteTypes.map((tipo) => (
-              <option
-                key={tipo.idTipoProcedimiento}
-                value={tipo.idTipoProcedimiento}
-              >
+              <option key={tipo.idTipoProcedimiento} value={tipo.idTipoProcedimiento}>
                 {tipo.nombreTipoProcedimiento}
               </option>
             ))}
@@ -832,16 +726,11 @@ function DashboardPage({
           <span>Estatus</span>
           <select
             value={filters.idEstatusInfraccion}
-            onChange={(event) =>
-              updateFilter("idEstatusInfraccion", event.target.value)
-            }
+            onChange={(event) => updateFilter("idEstatusInfraccion", event.target.value)}
           >
             <option value="">Todos</option>
             {catalogs?.estatusInfraccion.map((estatus) => (
-              <option
-                key={estatus.idEstatusInfraccion}
-                value={estatus.idEstatusInfraccion}
-              >
+              <option key={estatus.idEstatusInfraccion} value={estatus.idEstatusInfraccion}>
                 {estatus.nombreEstatus}
               </option>
             ))}
@@ -865,9 +754,7 @@ function DashboardPage({
           <span>Estado operativo</span>
           <select
             value={filters.estadoOperativo}
-            onChange={(event) =>
-              updateFilter("estadoOperativo", event.target.value)
-            }
+            onChange={(event) => updateFilter("estadoOperativo", event.target.value)}
           >
             <option value="">Todos</option>
             {ESTADOS_OPERATIVOS.map((estado) => (
@@ -881,11 +768,7 @@ function DashboardPage({
           <button type="button" onClick={() => setAppliedFilters(filters)}>
             Aplicar filtros
           </button>
-          <button
-            className="button-secondary"
-            type="button"
-            onClick={resetFilters}
-          >
+          <button className="button-secondary" type="button" onClick={resetFilters}>
             Limpiar
           </button>
         </div>
@@ -926,10 +809,14 @@ function DashboardPage({
         )}
       </section>
 
-      <section
-        className="dashboard-metrics-grid"
-        aria-label="Indicadores principales"
-      >
+      <DashboardAnalyticsOverview
+        agrupacion={appliedFilters.agrupacion}
+        loading={analyticsState.loading}
+        resumen={analyticsState.resumen}
+        tendencia={analyticsState.infraccionesTendencia}
+      />
+
+      <section className="dashboard-metrics-grid" aria-label="Indicadores principales">
         <MetricCard
           accent="blue"
           label="Total infracciones"
@@ -976,10 +863,7 @@ function DashboardPage({
         <span>Segmentado por día, mes y año</span>
       </section>
 
-      <section
-        className="dashboard-revenue-grid"
-        aria-label="Indicadores de ingresos"
-      >
+      <section className="dashboard-revenue-grid" aria-label="Indicadores de ingresos">
         <MetricCard
           accent="green"
           label="Ingresos totales"
