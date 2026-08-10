@@ -108,10 +108,10 @@ export function DashboardTrendLineChart({ agrupacion, data }: DashboardTrendLine
           aria-label="Tendencia de infracciones por periodo"
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         >
-          {gridValues.map((value) => {
+          {gridValues.map((value, index) => {
             const y = getY(value, maxValue);
             return (
-              <g key={`grid-${value}-${y}`}>
+              <g key={`grid-${index}`}>
                 <line className="dashboard-trend-grid-line" x1={PADDING_LEFT} x2={WIDTH - PADDING_RIGHT} y1={y} y2={y} />
                 <text className="dashboard-trend-y-label" x={PADDING_LEFT - 12} y={y + 4} textAnchor="end">
                   {formatNumber(value)}
