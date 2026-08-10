@@ -1,4 +1,5 @@
 import { buildQuery, request } from './apiClient';
+import { getPagosByInfraccion } from './pagos.api';
 import type {
   CreateInfraccionCompletaPayload,
   InfraccionDetalleResponse,
@@ -44,15 +45,33 @@ export function getInfraccionFlujo(
   );
 }
 
-export function getInfraccionDetalle(
+export async function getInfraccionDetalle(
   token: string,
   idInfraccion: number,
 ): Promise<InfraccionDetalleResponse> {
-  return request<InfraccionDetalleResponse>(
-    `/infracciones/${idInfraccion}/detalle`,
-    {},
-    token,
-  );
+  const [detalle, pagos] = await Promise.all([
+    request<InfraccionDetalleResponse>(
+      `/infracciones/${idInfraccion}/detalle`,
+      {},
+      token,
+    ),
+    getPagosByInfraccion(token, idInfraccion),
+  ]);
+
+  return {
+    ...detalle,
+    pagos: pagos.map((pago) => ({
+      idPagoInfraccion: pago.idPagoInfraccion,
+      folioPago: pago.folioLineaCaptura,
+      folioLineaCaptura: pago.folioLineaCaptura,
+      monto: pago.monto,
+      fechaPago: pago.fechaPago,
+      observaciones: pago.observaciones,
+      conceptos: pago.conceptos
+        .slice()
+        .sort((first, second) => first.orden - second.orden),
+    })),
+  } as InfraccionDetalleResponse;
 }
 
 export function createInfraccion(
