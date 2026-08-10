@@ -2,6 +2,7 @@ import { buildQuery, request } from './apiClient';
 import type {
   DashboardAnaliticaResumenResponse,
   DashboardAnalyticsQuery,
+  DashboardDistribucionesResponse,
   DashboardIngresosPorClaveResponse,
   DashboardIngresosTendenciaResponse,
   DashboardInfraccionesTendenciaResponse,
@@ -60,6 +61,17 @@ export function getDashboardIngresosPorClave(
 ): Promise<DashboardIngresosPorClaveResponse> {
   return request<DashboardIngresosPorClaveResponse>(
     `/dashboard/analitica/ingresos/por-clave${buildQuery(query)}`,
+    {},
+    token,
+  );
+}
+
+export function getDashboardDistribuciones(
+  token: string,
+  query?: DashboardAnalyticsQuery,
+): Promise<DashboardDistribucionesResponse> {
+  return request<DashboardDistribucionesResponse>(
+    `/dashboard/analitica/distribuciones${buildQuery(query)}`,
     {},
     token,
   );
