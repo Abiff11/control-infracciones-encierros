@@ -4,9 +4,7 @@ const TABLE_PAGO = 'pago_infraccion';
 const OLD_COLUMN = 'folio_pago';
 const NEW_COLUMN = 'folio_linea_captura';
 
-export class RenameFolioPagoToLineaCaptura1870000000000
-  implements MigrationInterface
-{
+export class RenameFolioPagoToLineaCaptura1870000000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     const table = await queryRunner.getTable(TABLE_PAGO);
     const oldColumn = table?.findColumnByName(OLD_COLUMN);
