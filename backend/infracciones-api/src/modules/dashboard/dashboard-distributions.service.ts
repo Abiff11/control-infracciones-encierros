@@ -5,10 +5,8 @@ import { DataSource } from 'typeorm';
 import type {
   DashboardDistribucionEncierroItem,
   DashboardDistribucionEstadoOperativoItem,
-  DashboardDistribucionMotivoItem,
   DashboardDistribucionesResponse,
   DashboardDistribucionTerritorialItem,
-  DashboardDistribucionTipoItem,
   DashboardEstadoOperativo,
 } from './dashboard-analytics.types';
 import { DashboardAnalyticsQueryDto } from './dto/dashboard-analytics-query.dto';
@@ -27,6 +25,7 @@ interface TerritorialCountRawRow {
 
 interface TerritorialRevenueRawRow {
   id: number | string;
+  nombre: string;
   totalIngresos: number | string;
 }
 
@@ -52,6 +51,7 @@ interface EncierroCountRawRow {
 
 interface EncierroRevenueRawRow {
   idEncierro: number | string;
+  nombreEncierro: string;
   totalIngresos: number | string;
 }
 
@@ -138,6 +138,7 @@ export class DashboardDistributionsService {
         `
           SELECT
             r.id_region AS id,
+            r.nombre_region AS nombre,
             COALESCE(SUM(${revenueScope.montoSql}), 0)::numeric(14, 2) AS "totalIngresos"
           FROM pago_infraccion p
           INNER JOIN infracciones i ON i.id_infraccion = p.id_infraccion
@@ -147,7 +148,7 @@ export class DashboardDistributionsService {
           INNER JOIN region r ON r.id_region = d.id_region
           ${revenueScope.joinsSql}
           WHERE ${pagoFilters.whereSql}
-          GROUP BY r.id_region
+          GROUP BY r.id_region, r.nombre_region
         `,
         revenueScope.params,
       ),
@@ -175,6 +176,7 @@ export class DashboardDistributionsService {
         `
           SELECT
             d.id_delegacion AS id,
+            d.nombre_delegacion AS nombre,
             COALESCE(SUM(${revenueScope.montoSql}), 0)::numeric(14, 2) AS "totalIngresos"
           FROM pago_infraccion p
           INNER JOIN infracciones i ON i.id_infraccion = p.id_infraccion
@@ -184,7 +186,7 @@ export class DashboardDistributionsService {
           INNER JOIN region r ON r.id_region = d.id_region
           ${revenueScope.joinsSql}
           WHERE ${pagoFilters.whereSql}
-          GROUP BY d.id_delegacion
+          GROUP BY d.id_delegacion, d.nombre_delegacion
         `,
         revenueScope.params,
       ),
@@ -270,6 +272,7 @@ export class DashboardDistributionsService {
           )
           SELECT
             e.id_encierro AS "idEncierro",
+            e.nombre_encierro AS "nombreEncierro",
             COALESCE(SUM(${revenueScope.montoSql}), 0)::numeric(14, 2) AS "totalIngresos"
           FROM pago_infraccion p
           INNER JOIN infracciones i ON i.id_infraccion = p.id_infraccion
@@ -281,7 +284,7 @@ export class DashboardDistributionsService {
           INNER JOIN encierro e ON e.id_encierro = ra.id_encierro
           ${revenueScope.joinsSql}
           WHERE ${pagoFilters.whereSql}
-          GROUP BY e.id_encierro
+          GROUP BY e.id_encierro, e.nombre_encierro
         `,
         revenueScope.params,
       ),
@@ -517,37 +520,67 @@ export class DashboardDistributionsService {
     counts: TerritorialCountRawRow[],
     revenues: TerritorialRevenueRawRow[],
   ): DashboardDistribucionTerritorialItem[] {
-    const revenueMap = new Map(
-      revenues.map((row) => [this.toNumber(row.id), this.toNumber(row.totalIngresos)]),
+    const countMap = new Map(
+      counts.map((row) => [this.toNumber(row.id), row]),
     );
+    const revenueMap = new Map(
+      revenues.map((row) => [this.toNumber(row.id), row]),
+    );
+    const ids = new Set([...countMap.keys(), ...revenueMap.keys()]);
 
-    return counts.map((row) => ({
-      id: this.toNumber(row.id),
-      nombre: row.nombre,
-      totalExpedientes: this.toNumber(row.totalExpedientes),
-      totalInfracciones: this.toNumber(row.totalInfracciones),
-      totalIngresos: revenueMap.get(this.toNumber(row.id)) ?? 0,
-    }));
+    return Array.from(ids)
+      .map((id) => {
+        const count = countMap.get(id);
+        const revenue = revenueMap.get(id);
+
+        return {
+          id,
+          nombre: count?.nombre ?? revenue?.nombre ?? 'Sin nombre',
+          totalExpedientes: this.toNumber(count?.totalExpedientes),
+          totalInfracciones: this.toNumber(count?.totalInfracciones),
+          totalIngresos: this.toNumber(revenue?.totalIngresos),
+        };
+      })
+      .sort(
+        (first, second) =>
+          second.totalExpedientes - first.totalExpedientes ||
+          second.totalIngresos - first.totalIngresos ||
+          first.nombre.localeCompare(second.nombre, 'es'),
+      );
   }
 
   private mergeEncierros(
     counts: EncierroCountRawRow[],
     revenues: EncierroRevenueRawRow[],
   ): DashboardDistribucionEncierroItem[] {
-    const revenueMap = new Map(
-      revenues.map((row) => [
-        this.toNumber(row.idEncierro),
-        this.toNumber(row.totalIngresos),
-      ]),
+    const countMap = new Map(
+      counts.map((row) => [this.toNumber(row.idEncierro), row]),
     );
+    const revenueMap = new Map(
+      revenues.map((row) => [this.toNumber(row.idEncierro), row]),
+    );
+    const ids = new Set([...countMap.keys(), ...revenueMap.keys()]);
 
-    return counts.map((row) => ({
-      idEncierro: this.toNumber(row.idEncierro),
-      nombreEncierro: row.nombreEncierro,
-      totalExpedientes: this.toNumber(row.totalExpedientes),
-      actualmenteEnEncierro: this.toNumber(row.actualmenteEnEncierro),
-      totalIngresos: revenueMap.get(this.toNumber(row.idEncierro)) ?? 0,
-    }));
+    return Array.from(ids)
+      .map((idEncierro) => {
+        const count = countMap.get(idEncierro);
+        const revenue = revenueMap.get(idEncierro);
+
+        return {
+          idEncierro,
+          nombreEncierro:
+            count?.nombreEncierro ?? revenue?.nombreEncierro ?? 'Sin encierro',
+          totalExpedientes: this.toNumber(count?.totalExpedientes),
+          actualmenteEnEncierro: this.toNumber(count?.actualmenteEnEncierro),
+          totalIngresos: this.toNumber(revenue?.totalIngresos),
+        };
+      })
+      .sort(
+        (first, second) =>
+          second.actualmenteEnEncierro - first.actualmenteEnEncierro ||
+          second.totalIngresos - first.totalIngresos ||
+          first.nombreEncierro.localeCompare(second.nombreEncierro, 'es'),
+      );
   }
 
   private normalizeEstados(
