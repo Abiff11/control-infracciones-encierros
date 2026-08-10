@@ -364,7 +364,13 @@ function PagoCreatePage({
       </form>
 
       {paymentSummary.length ? (
-        <OperationResultCard title="Pago registrado" items={paymentSummary} />
+        <OperationResultCard
+          title="Pago registrado"
+          result={result}
+          emptyLabel="Sin resultado"
+          copyValue={paymentId}
+          summary={paymentSummary}
+        />
       ) : null}
     </section>
   );
