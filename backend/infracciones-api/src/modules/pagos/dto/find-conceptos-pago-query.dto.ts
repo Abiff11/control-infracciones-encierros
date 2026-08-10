@@ -1,5 +1,12 @@
 import { Transform, Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class FindConceptosPagoQueryDto {
   @IsOptional()
@@ -7,6 +14,7 @@ export class FindConceptosPagoQueryDto {
     typeof value === 'string' ? value.trim().toUpperCase() : value,
   )
   @IsString()
+  @MaxLength(50)
   q?: string;
 
   @IsOptional()
