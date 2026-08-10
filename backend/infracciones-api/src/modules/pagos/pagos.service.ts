@@ -13,6 +13,8 @@ import { ConceptoPago } from './entities/concepto-pago.entity';
 import { PagoConcepto } from './entities/pago-concepto.entity';
 import { PagoInfraccion } from './entities/pago-infraccion.entity';
 
+const CLAVE_INFRACCION_SIN_RETENCION = 'INFRACCION_SIN_RETENCION';
+
 interface RegistrarPagoConceptoParams {
   claveConcepto: string;
   monto: string;
@@ -115,7 +117,9 @@ export class PagosService {
   }
 
   async registrarPago(params: RegistrarPagoParams): Promise<PagoInfraccion> {
-    await this.infraccionesService.findByIdOrFail(params.idInfraccion);
+    const infraccion = await this.infraccionesService.findByIdOrFail(
+      params.idInfraccion,
+    );
 
     const folioLineaCaptura = params.folioLineaCaptura.trim();
     if (!folioLineaCaptura) {
@@ -166,9 +170,15 @@ export class PagosService {
       },
     );
 
+    const nombreEstatus =
+      infraccion.tipoProcedimiento.claveTipoProcedimiento ===
+      CLAVE_INFRACCION_SIN_RETENCION
+        ? ESTATUS_INFRACCION.PAGADA_SIN_RETENCION
+        : ESTATUS_INFRACCION.PAGADA;
+
     await this.infraccionesService.actualizarEstatusYRegistrarMovimiento({
       idInfraccion: params.idInfraccion,
-      nombreEstatus: ESTATUS_INFRACCION.PAGADA,
+      nombreEstatus,
       idUsuario: params.idUsuarioRegistraPago,
       accion: ACCION_MOVIMIENTO.PAGO_REGISTRADO,
       observaciones: `Pago registrado con linea de captura ${folioLineaCaptura}`,
