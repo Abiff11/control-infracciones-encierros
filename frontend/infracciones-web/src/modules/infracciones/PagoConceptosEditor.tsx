@@ -4,6 +4,7 @@ import { Button } from "../../components/ui/Button";
 import { Field, TextInput } from "../../components/ui/Field";
 import { findConceptosPago } from "../../services/api/pagos.api";
 import type { ConceptoPagoOption } from "../../types/operaciones.types";
+import "./PagoConceptosEditor.css";
 
 export interface PagoConceptoFormRow {
   claveConcepto: string;
