@@ -10,10 +10,6 @@ import {
 } from 'class-validator';
 
 import {
-  ESTADOS_OPERATIVOS_VEHICULO,
-  type EstadoOperativoVehiculo,
-} from '../../infracciones/constants/estado-operativo-vehiculo.constants';
-import {
   DASHBOARD_AGRUPACIONES,
   DASHBOARD_CONDICIONES_EXPEDIENTE,
   type DashboardAgrupacion,
@@ -58,10 +54,6 @@ export class DashboardAnalyticsQueryDto {
   @IsInt()
   @Min(1)
   idEncierro?: number;
-
-  @IsOptional()
-  @IsIn(ESTADOS_OPERATIVOS_VEHICULO)
-  estadoOperativo?: EstadoOperativoVehiculo;
 
   @IsOptional()
   @Transform(({ value }): unknown =>
