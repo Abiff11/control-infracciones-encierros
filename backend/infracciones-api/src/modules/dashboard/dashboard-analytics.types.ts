@@ -9,6 +9,17 @@ export const DASHBOARD_CONDICIONES_EXPEDIENTE = [
 export type DashboardCondicionExpediente =
   (typeof DASHBOARD_CONDICIONES_EXPEDIENTE)[number];
 
+export const DASHBOARD_ESTADOS_OPERATIVOS = [
+  'SIN_RETENCION',
+  'PAGADA_SIN_RETENCION',
+  'EN_ENCIERRO_SIN_PAGO',
+  'PAGADO_PENDIENTE_LIBERACION',
+  'LIBERADO_PENDIENTE_SALIDA',
+  'VEHICULO_ENTREGADO',
+] as const;
+export type DashboardEstadoOperativo =
+  (typeof DASHBOARD_ESTADOS_OPERATIVOS)[number];
+
 export interface DashboardAnaliticaResumenResponse {
   expedientes: {
     totalExpedientes: number;
@@ -76,4 +87,48 @@ export interface DashboardIngresoClaveItem {
 export interface DashboardIngresosPorClaveResponse {
   totalIdentificado: number;
   claves: DashboardIngresoClaveItem[];
+}
+
+export interface DashboardDistribucionTerritorialItem {
+  id: number;
+  nombre: string;
+  totalExpedientes: number;
+  totalInfracciones: number;
+  totalIngresos: number;
+}
+
+export interface DashboardDistribucionMotivoItem {
+  idMotivo: number;
+  nombreMotivo: string;
+  totalInfracciones: number;
+}
+
+export interface DashboardDistribucionTipoItem {
+  idTipoProcedimiento: number;
+  claveTipoProcedimiento: string;
+  nombreTipoProcedimiento: string;
+  totalExpedientes: number;
+}
+
+export interface DashboardDistribucionEncierroItem {
+  idEncierro: number;
+  nombreEncierro: string;
+  totalExpedientes: number;
+  actualmenteEnEncierro: number;
+  totalIngresos: number;
+}
+
+export interface DashboardDistribucionEstadoOperativoItem {
+  estado: DashboardEstadoOperativo;
+  label: string;
+  total: number;
+}
+
+export interface DashboardDistribucionesResponse {
+  regiones: DashboardDistribucionTerritorialItem[];
+  delegaciones: DashboardDistribucionTerritorialItem[];
+  motivos: DashboardDistribucionMotivoItem[];
+  tiposProcedimiento: DashboardDistribucionTipoItem[];
+  encierros: DashboardDistribucionEncierroItem[];
+  estadosOperativos: DashboardDistribucionEstadoOperativoItem[];
 }
