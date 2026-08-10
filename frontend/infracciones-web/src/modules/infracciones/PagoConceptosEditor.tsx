@@ -40,9 +40,6 @@ export function PagoConceptosEditor({
     const normalizedQuery = query.trim();
 
     if (!normalizedQuery) {
-      setSuggestions([]);
-      setLoading(false);
-      setSearchError(false);
       return;
     }
 
@@ -93,6 +90,16 @@ export function PagoConceptosEditor({
     );
   }
 
+  function updateQuery(value: string): void {
+    setQuery(value);
+
+    if (!value.trim()) {
+      setSuggestions([]);
+      setLoading(false);
+      setSearchError(false);
+    }
+  }
+
   function removeRow(index: number): void {
     if (rows.length === 1) {
       onChange([createEmptyPagoConceptoRow()]);
@@ -139,11 +146,11 @@ export function PagoConceptosEditor({
                 id={`operacion-pago-clave-${index}`}
                 list="pago-conceptos-sugerencias"
                 value={row.claveConcepto}
-                onFocus={() => setQuery(row.claveConcepto)}
+                onFocus={() => updateQuery(row.claveConcepto)}
                 onChange={(event) => {
                   const value = event.target.value.toUpperCase();
                   updateRow(index, "claveConcepto", value);
-                  setQuery(value);
+                  updateQuery(value);
                 }}
                 autoComplete="off"
                 maxLength={50}
