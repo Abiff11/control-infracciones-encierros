@@ -99,7 +99,7 @@ export function DashboardAnalyticsOverview({
         />
         <AnalyticMetric
           tone="red"
-          label="INFRACCION SIN RETENCION"
+          label="INFRACCIÓN SIN RETENCIÓN"
           value={formatNumber(resumen?.expedientes.tipoInfraccionSinRetencion ?? 0)}
           helper="Tipo de expediente registrado"
         />
