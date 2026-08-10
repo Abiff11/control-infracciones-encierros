@@ -24,6 +24,7 @@ import type {
 import type { EstadoOperativoVehiculo } from "../../types/infracciones.types";
 import type { ConceptoPagoOption } from "../../types/operaciones.types";
 import { DashboardAnalyticsOverview } from "./DashboardAnalyticsOverview";
+import { DashboardRevenueOverview } from "./DashboardRevenueOverview";
 
 import "./DashboardPage.css";
 import "./DashboardExtra.css";
@@ -69,7 +70,6 @@ interface DashboardAnalyticsState {
 interface ChartDatum {
   label: string;
   value: number;
-  displayValue?: string;
   hint?: string;
 }
 
@@ -210,21 +210,6 @@ function formatDateLabel(value: string): string {
   }).format(date);
 }
 
-function formatMonthLabel(value: string): string {
-  const date = new Date(`${value.slice(0, 10)}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("es-MX", {
-    month: "short",
-    year: "2-digit",
-  }).format(date);
-}
-
-function formatYearLabel(value: string): string {
-  const date = new Date(`${value.slice(0, 10)}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value.slice(0, 4);
-  return new Intl.DateTimeFormat("es-MX", { year: "numeric" }).format(date);
-}
-
 function formatDateTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -277,7 +262,7 @@ function BarChart({ data }: { data: ChartDatum[] }) {
               style={{ width: `${Math.max((item.value / maxValue) * 100, 4)}%` }}
             />
           </div>
-          <strong>{item.displayValue ?? formatNumber(item.value)}</strong>
+          <strong>{formatNumber(item.value)}</strong>
         </div>
       ))}
     </div>
@@ -291,9 +276,7 @@ function ColumnChart({ data }: { data: ChartDatum[] }) {
     <div className="dashboard-column-chart">
       {data.map((item) => (
         <div className="dashboard-column-item" key={item.label}>
-          <div className="dashboard-column-value">
-            {item.displayValue ?? formatNumber(item.value)}
-          </div>
+          <div className="dashboard-column-value">{formatNumber(item.value)}</div>
           <div className="dashboard-column-track">
             <span
               style={{ height: `${Math.max((item.value / maxValue) * 100, 8)}%` }}
@@ -470,17 +453,6 @@ function DashboardPage({
 
   const data = dashboardState.data;
   const resumen = data?.resumen;
-  const ingresos = data?.ingresos;
-  const totalInfracciones = resumen?.totalInfracciones ?? 0;
-  const vehiculosRetenidos = resumen?.totalVehiculosRetenidos ?? 0;
-  const pendientesPago = resumen?.totalSinPago ?? 0;
-  const pagadosPorLiberar = resumen?.totalPagadosPendienteLiberacion ?? 0;
-  const liberadosPorEntregar = resumen?.totalLiberadosPendienteSalida ?? 0;
-  const entregados = resumen?.totalEntregados ?? 0;
-  const totalIngresos = ingresos?.totalIngresos ?? 0;
-  const ingresosHoy = ingresos?.ingresosHoy ?? 0;
-  const ingresosMesActual = ingresos?.ingresosMesActual ?? 0;
-  const ingresosAnioActual = ingresos?.ingresosAnioActual ?? 0;
   const analyticsResumen = analyticsState.resumen;
 
   const estadoChartData: ChartDatum[] = ESTADOS_OPERATIVOS.map((estadoOperativo) => {
@@ -505,27 +477,6 @@ function DashboardPage({
       label: item.nombreEncierro,
       value: item.total,
       hint: `${formatNumber(item.sinPago)} sin pago`,
-    })) ?? [];
-
-  const ingresosPorDiaChartData: ChartDatum[] =
-    ingresos?.porDia.map((item) => ({
-      displayValue: formatCurrency(item.total),
-      label: formatDateLabel(item.periodo),
-      value: item.total,
-    })) ?? [];
-
-  const ingresosPorMesChartData: ChartDatum[] =
-    ingresos?.porMes.map((item) => ({
-      displayValue: formatCurrency(item.total),
-      label: formatMonthLabel(item.periodo),
-      value: item.total,
-    })) ?? [];
-
-  const ingresosPorAnioChartData: ChartDatum[] =
-    ingresos?.porAnio.map((item) => ({
-      displayValue: formatCurrency(item.total),
-      label: formatYearLabel(item.periodo),
-      value: item.total,
     })) ?? [];
 
   function updateFilter<K extends keyof DashboardFilters>(
@@ -816,77 +767,59 @@ function DashboardPage({
         tendencia={analyticsState.infraccionesTendencia}
       />
 
-      <section className="dashboard-metrics-grid" aria-label="Indicadores principales">
+      <DashboardRevenueOverview
+        agrupacion={appliedFilters.agrupacion}
+        claveConcepto={appliedFilters.claveConcepto}
+        loading={analyticsState.loading}
+        resumen={analyticsState.resumen}
+        tendencia={analyticsState.ingresosTendencia}
+        porClave={analyticsState.ingresosPorClave}
+      />
+
+      <section className="dashboard-section-heading">
+        <div>
+          <p className="section-label">Operacion</p>
+          <h2>Flujo y seguimiento de expedientes</h2>
+        </div>
+        <span>Estado operativo actual</span>
+      </section>
+
+      <section className="dashboard-metrics-grid" aria-label="Indicadores operativos">
         <MetricCard
           accent="blue"
-          label="Total infracciones"
-          value={formatNumber(totalInfracciones)}
-          helper="Total real segun filtros operativos"
+          label="Expedientes operativos"
+          value={formatNumber(resumen?.totalInfracciones ?? 0)}
+          helper="Segun filtros compatibles con flujo"
         />
         <MetricCard
           accent="orange"
           label="Vehiculos retenidos"
-          value={formatNumber(vehiculosRetenidos)}
+          value={formatNumber(resumen?.totalVehiculosRetenidos ?? 0)}
           helper="Sin salida registrada"
         />
         <MetricCard
           accent="red"
           label="Sin pago"
-          value={formatNumber(pendientesPago)}
+          value={formatNumber(resumen?.totalSinPago ?? 0)}
           helper="Prioridad de seguimiento"
         />
         <MetricCard
           accent="green"
           label="Pagados por liberar"
-          value={formatNumber(pagadosPorLiberar)}
+          value={formatNumber(resumen?.totalPagadosPendienteLiberacion ?? 0)}
           helper="Listos para liberaciones"
         />
         <MetricCard
           accent="purple"
           label="Liberados por entregar"
-          value={formatNumber(liberadosPorEntregar)}
+          value={formatNumber(resumen?.totalLiberadosPendienteSalida ?? 0)}
           helper="Pendientes en encierro"
         />
         <MetricCard
           accent="teal"
           label="Entregados"
-          value={formatNumber(entregados)}
+          value={formatNumber(resumen?.totalEntregados ?? 0)}
           helper="Flujo concluido"
-        />
-      </section>
-
-      <section className="dashboard-section-heading">
-        <div>
-          <p className="section-label">Ingresos</p>
-          <h2>Recaudacion por pagos registrados</h2>
-        </div>
-        <span>Segmentado por día, mes y año</span>
-      </section>
-
-      <section className="dashboard-revenue-grid" aria-label="Indicadores de ingresos">
-        <MetricCard
-          accent="green"
-          label="Ingresos totales"
-          value={formatCurrency(totalIngresos)}
-          helper="Pagos segun filtros operativos"
-        />
-        <MetricCard
-          accent="teal"
-          label="Ingresos de hoy"
-          value={formatCurrency(ingresosHoy)}
-          helper="Fecha de pago del dia"
-        />
-        <MetricCard
-          accent="blue"
-          label="Ingresos del mes"
-          value={formatCurrency(ingresosMesActual)}
-          helper="Mes calendario actual"
-        />
-        <MetricCard
-          accent="purple"
-          label="Ingresos del año"
-          value={formatCurrency(ingresosAnioActual)}
-          helper="Año calendario actual"
         />
       </section>
 
@@ -904,9 +837,9 @@ function DashboardPage({
           <div className="dashboard-panel-header">
             <div>
               <p className="section-label">Operacion</p>
-              <h2>Infracciones por dia</h2>
+              <h2>Expedientes por dia</h2>
             </div>
-            <span>Agregado real</span>
+            <span>Fecha de infraccion</span>
           </div>
           {dayChartData.length ? (
             <ColumnChart data={dayChartData} />
@@ -945,57 +878,12 @@ function DashboardPage({
               <p className="section-label">Delegaciones</p>
               <h2>Top unidades</h2>
             </div>
-            <span>Agregado real</span>
+            <span>Agregado operativo</span>
           </div>
           {delegacionChartData.length ? (
             <BarChart data={delegacionChartData} />
           ) : (
             <EmptyChart message="Sin delegaciones para mostrar." />
-          )}
-        </article>
-
-        <article className="dashboard-panel">
-          <div className="dashboard-panel-header">
-            <div>
-              <p className="section-label">Ingresos</p>
-              <h2>Ingresos por dia</h2>
-            </div>
-            <span>Fecha de pago</span>
-          </div>
-          {ingresosPorDiaChartData.length ? (
-            <ColumnChart data={ingresosPorDiaChartData} />
-          ) : (
-            <EmptyChart message="Sin pagos registrados para graficar." />
-          )}
-        </article>
-
-        <article className="dashboard-panel">
-          <div className="dashboard-panel-header">
-            <div>
-              <p className="section-label">Ingresos</p>
-              <h2>Ingresos por mes</h2>
-            </div>
-            <span>Fecha de pago</span>
-          </div>
-          {ingresosPorMesChartData.length ? (
-            <BarChart data={ingresosPorMesChartData} />
-          ) : (
-            <EmptyChart message="Sin pagos mensuales para graficar." />
-          )}
-        </article>
-
-        <article className="dashboard-panel">
-          <div className="dashboard-panel-header">
-            <div>
-              <p className="section-label">Ingresos</p>
-              <h2>Ingresos por año</h2>
-            </div>
-            <span>Fecha de pago</span>
-          </div>
-          {ingresosPorAnioChartData.length ? (
-            <BarChart data={ingresosPorAnioChartData} />
-          ) : (
-            <EmptyChart message="Sin pagos anuales para graficar." />
           )}
         </article>
       </section>
