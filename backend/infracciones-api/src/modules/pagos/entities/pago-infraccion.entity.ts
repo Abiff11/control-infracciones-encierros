@@ -3,11 +3,13 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
 import { Infraccion } from '../../infracciones/entities/infraccion.entity';
 import { Usuario } from '../../usuarios/entities/usuario.entity';
+import { PagoConcepto } from './pago-concepto.entity';
 
 @Entity({ name: 'pago_infraccion' })
 export class PagoInfraccion {
@@ -42,4 +44,7 @@ export class PagoInfraccion {
 
   @Column({ name: 'observaciones', type: 'text', nullable: true })
   observaciones!: string | null;
+
+  @OneToMany(() => PagoConcepto, (pagoConcepto) => pagoConcepto.pagoInfraccion)
+  conceptos!: PagoConcepto[];
 }
