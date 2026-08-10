@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 
+import { ESTATUS_INFRACCION } from '../infracciones/constants/estatus-infraccion.constants';
 import { PagosService } from './pagos.service';
 
 function createRepositoryMock() {
@@ -43,15 +44,14 @@ function createServiceFixture() {
 
       throw new Error(`Repositorio no esperado: ${entity?.name ?? 'desconocido'}`);
     }),
-    query: jest.fn(
-      (_sql: string, values: string[]) =>
-        Promise.resolve([
-          {
-            idConceptoPago: values[0] === '101' ? 1 : 2,
-            claveConcepto: values[0],
-            activo: true,
-          },
-        ]),
+    query: jest.fn((_sql: string, values: string[]) =>
+      Promise.resolve([
+        {
+          idConceptoPago: values[0] === '101' ? 1 : 2,
+          claveConcepto: values[0],
+          activo: true,
+        },
+      ]),
     ),
   };
 
@@ -63,7 +63,12 @@ function createServiceFixture() {
   };
 
   const infraccionesService = {
-    findByIdOrFail: jest.fn().mockResolvedValue({ idInfraccion: 10 }),
+    findByIdOrFail: jest.fn().mockResolvedValue({
+      idInfraccion: 10,
+      tipoProcedimiento: {
+        claveTipoProcedimiento: 'INFRACCION',
+      },
+    }),
     actualizarEstatusYRegistrarMovimiento: jest.fn().mockResolvedValue({}),
   };
   const auditoriaService = {
@@ -119,13 +124,42 @@ describe('PagosService registrarPago', () => {
     );
     expect(
       fixture.infraccionesService.actualizarEstatusYRegistrarMovimiento,
-    ).toHaveBeenCalled();
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nombreEstatus: ESTATUS_INFRACCION.PAGADA,
+      }),
+    );
     expect(fixture.auditoriaService.registrar).toHaveBeenCalledWith(
       expect.objectContaining({
         despuesJson: expect.objectContaining({
           folioLineaCaptura: 'LC-123',
           monto: '200.00',
         }),
+      }),
+    );
+  });
+
+  it('cierra una INFRACCION_SIN_RETENCION como PAGADA_SIN_RETENCION', async () => {
+    const fixture = createServiceFixture();
+    fixture.infraccionesService.findByIdOrFail.mockResolvedValue({
+      idInfraccion: 10,
+      tipoProcedimiento: {
+        claveTipoProcedimiento: 'INFRACCION_SIN_RETENCION',
+      },
+    });
+
+    await fixture.service.registrarPago({
+      idInfraccion: 10,
+      idUsuarioRegistraPago: 5,
+      folioLineaCaptura: 'LC-SR-001',
+      conceptos: [{ claveConcepto: '101', monto: '100.00' }],
+    });
+
+    expect(
+      fixture.infraccionesService.actualizarEstatusYRegistrarMovimiento,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nombreEstatus: ESTATUS_INFRACCION.PAGADA_SIN_RETENCION,
       }),
     );
   });
