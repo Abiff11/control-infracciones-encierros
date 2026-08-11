@@ -1,0 +1,92 @@
+name: Supply chain security
+
+on:
+  push:
+    branches:
+      - main
+      - feature/security-supply-chain
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: "41 13 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-dependencies:
+    name: Backend dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend/infracciones-api
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/infracciones-api/package-lock.json
+
+      - name: Install exact backend dependencies
+        run: npm ci
+
+      - name: Block HIGH/CRITICAL runtime vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Block HIGH/CRITICAL vulnerabilities in complete dependency tree
+        run: npm audit --audit-level=high
+
+  frontend-dependencies:
+    name: Frontend dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend/infracciones-web
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/infracciones-web/package-lock.json
+
+      - name: Install exact frontend dependencies
+        run: npm ci
+
+      - name: Block HIGH/CRITICAL runtime vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Block HIGH/CRITICAL vulnerabilities in complete dependency tree
+        run: npm audit --audit-level=high
+
+  repository-security:
+    name: Repository secrets and misconfiguration scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Scan repository for exposed secrets and unsafe configuration
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: secret,misconfig
+          format: table
+          exit-code: "1"
+          severity: HIGH,CRITICAL

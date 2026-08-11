@@ -1,0 +1,39 @@
+name: CodeQL security analysis
+
+on:
+  push:
+    branches:
+      - main
+      - feature/security-supply-chain
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: "17 13 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  packages: read
+
+jobs:
+  analyze:
+    name: CodeQL JavaScript/TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:javascript-typescript"
