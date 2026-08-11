@@ -28,15 +28,20 @@ jobs:
       - name: Build production backend image
         run: docker build --target api-production -t control-infracciones-backend:security-scan .
 
-      - name: Verify minimal backend runtime
+      - name: Verify minimal read-only backend runtime
         run: |
-          docker run --rm control-infracciones-backend:security-scan sh -lc '
-            test ! -e /usr/local/bin/npm
-            test ! -e /usr/local/bin/npx
-            test ! -e /usr/local/bin/corepack
-            test ! -e /usr/local/bin/yarn
-            node ./node_modules/typeorm/cli.js --version >/dev/null
-          '
+          docker run --rm \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+            --tmpfs /app/tmp:rw,noexec,nosuid,size=64m \
+            --pids-limit 128 \
+            control-infracciones-backend:security-scan sh -lc '
+              test ! -e /usr/local/bin/npm
+              test ! -e /usr/local/bin/npx
+              test ! -e /usr/local/bin/corepack
+              test ! -e /usr/local/bin/yarn
+              node ./node_modules/typeorm/cli.js --version >/dev/null
+            '
 
       - name: Scan backend image
         uses: aquasecurity/trivy-action@v0.36.0
@@ -60,8 +65,15 @@ jobs:
       - name: Build production frontend image
         run: docker build --target web-production -t control-infracciones-frontend:security-scan .
 
-      - name: Validate Nginx configuration
-        run: docker run --rm control-infracciones-frontend:security-scan nginx -t
+      - name: Validate read-only Nginx configuration
+        run: |
+          docker run --rm \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,size=16m \
+            --tmpfs /var/cache/nginx:rw,noexec,nosuid,size=16m \
+            --tmpfs /var/run:rw,noexec,nosuid,size=4m \
+            --pids-limit 64 \
+            control-infracciones-frontend:security-scan nginx -t
 
       - name: Scan frontend image
         uses: aquasecurity/trivy-action@v0.36.0

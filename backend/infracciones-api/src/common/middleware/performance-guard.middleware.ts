@@ -9,6 +9,8 @@ const HEAVY_PATH_PATTERNS = [
   '/reporte',
   '/reportes',
   '/pdf',
+  '/importaciones/infracciones/preview',
+  '/importaciones/infracciones/confirmar',
 ];
 
 let activeHeavyRequests = 0;
@@ -86,7 +88,7 @@ export function performanceGuardMiddleware(
     response.status(429).json({
       statusCode: 429,
       message:
-        'Hay demasiados reportes o exportaciones en proceso. Intenta nuevamente en unos segundos.',
+        'Hay demasiadas operaciones pesadas en proceso. Intenta nuevamente en unos segundos.',
       error: 'Too Many Requests',
     });
     return;
