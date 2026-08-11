@@ -95,7 +95,14 @@ async function login(email, password, csrfToken, label) {
     body: JSON.stringify({ email, password }),
   });
 
-  assertSuccess(response, `${label} login`);
+  if (response.status < 200 || response.status >= 300) {
+    const body = await response.text();
+    const retryAfter = response.headers.get('retry-after');
+    throw new Error(
+      `${label} login: HTTP ${response.status}; retry-after=${retryAfter ?? 'none'}; body=${body}`,
+    );
+  }
+
   assertRequestId(response, `${label} login`);
 
   const payload = await responseJson(response, `${label} login`);
