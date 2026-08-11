@@ -1,0 +1,88 @@
+name: Supply chain security
+
+on:
+  push:
+    branches:
+      - main
+      - feature/security-supply-chain
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: "41 13 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-dependencies:
+    name: Backend dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend/infracciones-api
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/infracciones-api/package-lock.json
+
+      - name: Install exact backend dependencies
+        run: npm ci
+
+      - name: Block HIGH/CRITICAL runtime vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Block CRITICAL vulnerabilities in complete dependency tree
+        run: npm audit --audit-level=critical
+
+  frontend-dependencies:
+    name: Frontend dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend/infracciones-web
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/infracciones-web/package-lock.json
+
+      - name: Install exact frontend dependencies
+        run: npm ci
+
+      - name: Block HIGH/CRITICAL runtime vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Block CRITICAL vulnerabilities in complete dependency tree
+        run: npm audit --audit-level=critical
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Reject newly introduced vulnerable dependencies
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
