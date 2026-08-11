@@ -142,6 +142,7 @@ echo "[security-smoke] 4/8 login valido ADMIN y CONSULTA"
 ADMIN_ACCESS_TOKEN="$(login_user "$ADMIN_EMAIL" "$ADMIN_PASSWORD" "$ADMIN_JAR" "$TMP_DIR/admin-login.json")"
 CONSULTA_JAR="$TMP_DIR/consulta.cookies"
 CONSULTA_ACCESS_TOKEN="$(login_user "$CONSULTA_EMAIL" "$CONSULTA_PASSWORD" "$CONSULTA_JAR" "$TMP_DIR/consulta-login.json")"
+ADMIN_CSRF="$(get_csrf_token "$ADMIN_JAR" "$TMP_DIR/admin-post-login-token.headers")"
 
 echo "[security-smoke] 5/8 RBAC CONSULTA -> 403, ADMIN -> 200"
 CONSULTA_USERS_STATUS="$(curl -sS \
