@@ -117,30 +117,32 @@ async function bootstrap() {
   httpAdapter.disable('x-powered-by');
   app.setGlobalPrefix('api');
 
-  app.use((request: AuthenticatedRequest, response: Response, next: NextFunction) => {
-    const requestId = randomUUID();
-    response.setHeader('X-Request-Id', requestId);
+  app.use(
+    (request: AuthenticatedRequest, response: Response, next: NextFunction) => {
+      const requestId = randomUUID();
+      response.setHeader('X-Request-Id', requestId);
 
-    response.once('finish', () => {
-      if (!SECURITY_STATUS_CODES.has(response.statusCode)) {
-        return;
-      }
+      response.once('finish', () => {
+        if (!SECURITY_STATUS_CODES.has(response.statusCode)) {
+          return;
+        }
 
-      void securityObservability.recordHttpRejection({
-        statusCode: response.statusCode,
-        explicitAction: securityActionByResponse.get(response) ?? null,
-        requestId,
-        idUsuario: request.user?.idUsuario ?? null,
-        ip: getClientIp(request),
-        httpMethod: request.method,
-        requestPath: request.path,
-        userAgent: readSingleHeader(request, 'user-agent'),
-        cfRay: readSingleHeader(request, 'cf-ray'),
+        void securityObservability.recordHttpRejection({
+          statusCode: response.statusCode,
+          explicitAction: securityActionByResponse.get(response) ?? null,
+          requestId,
+          idUsuario: request.user?.idUsuario ?? null,
+          ip: getClientIp(request),
+          httpMethod: request.method,
+          requestPath: request.path,
+          userAgent: readSingleHeader(request, 'user-agent'),
+          cfRay: readSingleHeader(request, 'cf-ray'),
+        });
       });
-    });
 
-    next();
-  });
+      next();
+    },
+  );
 
   app.use(performanceGuardMiddleware);
   app.use((_request: Request, response: Response, next: NextFunction) => {
@@ -159,6 +161,9 @@ async function bootstrap() {
   app.use(
     helmet({
       contentSecurityPolicy: false,
+      xFrameOptions: {
+        action: 'deny',
+      },
     }),
   );
 
