@@ -4,6 +4,7 @@ import * as bcrypt from 'bcryptjs';
 export const PASSWORD_MIN_LENGTH = 15;
 export const PASSWORD_MAX_LENGTH = 128;
 
+const BCRYPT_SAFE_UPGRADE_MAX_BYTES = 72;
 const ARGON2_OPTIONS = {
   type: argon2.argon2id,
   memoryCost: 19_456,
@@ -56,4 +57,15 @@ export function passwordHashNeedsUpgrade(passwordHash: string): boolean {
   } catch {
     return true;
   }
+}
+
+export function passwordHashCanBeSafelyUpgraded(
+  passwordHash: string,
+  password: string,
+): boolean {
+  if (!isBcryptHash(passwordHash)) {
+    return true;
+  }
+
+  return Buffer.byteLength(password, 'utf8') <= BCRYPT_SAFE_UPGRADE_MAX_BYTES;
 }
