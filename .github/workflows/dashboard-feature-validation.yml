@@ -61,12 +61,16 @@ jobs:
       - name: Lint security and dashboard code without fixes
         run: >-
           npx eslint
+          "src/main.ts"
+          "src/common/security/**/*.ts"
           "src/modules/auth/**/*.ts"
+          "src/modules/auditoria/**/*.ts"
           "src/modules/usuarios/**/*.ts"
           "src/modules/dashboard/**/*.ts"
           "src/database/migrations/1880000000000-AddDashboardAnalyticsIndexes.ts"
           "src/database/migrations/1890000000000-EnsurePagadaSinRetencionStatus.ts"
           "src/database/migrations/1900000000000-AddAuthSessionVersion.ts"
+          "src/database/migrations/1910000000000-AddSecurityAuditMetadata.ts"
           --rule 'prettier/prettier: off'
 
       - name: Run backend tests
@@ -75,7 +79,7 @@ jobs:
       - name: Run migrations on disposable PostgreSQL
         run: npm run migration:run
 
-      - name: Assert payment, dashboard and auth schema
+      - name: Assert payment, dashboard, auth and security audit schema
         run: |
           node <<'NODE'
           const { Client } = require('pg');
@@ -125,10 +129,27 @@ jobs:
               throw new Error('No existe auth_session_version en usuarios');
             }
 
+            const securityColumns = await client.query(`
+              SELECT column_name
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = 'auditoria'
+                AND column_name = ANY($1)
+            `, [['severity', 'request_id', 'http_method', 'request_path', 'user_agent']]);
+            const securityColumnNames = new Set(securityColumns.rows.map((row) => row.column_name));
+            for (const columnName of ['severity', 'request_id', 'http_method', 'request_path', 'user_agent']) {
+              if (!securityColumnNames.has(columnName)) {
+                throw new Error(`No existe auditoria.${columnName}`);
+              }
+            }
+
             const expectedIndexes = [
               'idx_pago_concepto_concepto_pago_cover',
               'idx_pago_infraccion_dashboard_fecha_cover',
               'idx_retencion_dashboard_latest_encierro',
+              'idx_auditoria_entidad_created_at',
+              'idx_auditoria_severity_created_at',
+              'idx_auditoria_request_id',
             ];
             const indexes = await client.query(
               `SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = ANY($1)`,
@@ -162,6 +183,7 @@ jobs:
 
       - name: Revert security, dashboard and payment migrations
         run: |
+          npm run migration:revert
           npm run migration:revert
           npm run migration:revert
           npm run migration:revert
