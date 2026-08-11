@@ -111,6 +111,7 @@ async function bootstrap() {
     cookieSecure: configService.get<string>('COOKIE_SECURE'),
     cookieSameSite: configService.get<string>('COOKIE_SAME_SITE'),
   });
+  const securityActionByResponse = new WeakMap<Response, SecurityEventAction>();
 
   httpAdapter.set('trust proxy', trustProxy);
   httpAdapter.disable('x-powered-by');
@@ -118,7 +119,6 @@ async function bootstrap() {
 
   app.use((request: AuthenticatedRequest, response: Response, next: NextFunction) => {
     const requestId = randomUUID();
-    response.locals.requestId = requestId;
     response.setHeader('X-Request-Id', requestId);
 
     response.once('finish', () => {
@@ -126,15 +126,9 @@ async function bootstrap() {
         return;
       }
 
-      const explicitAction = response.locals.securityEventAction;
-      const securityEventAction =
-        typeof explicitAction === 'string'
-          ? (explicitAction as SecurityEventAction)
-          : null;
-
       void securityObservability.recordHttpRejection({
         statusCode: response.statusCode,
-        explicitAction: securityEventAction,
+        explicitAction: securityActionByResponse.get(response) ?? null,
         requestId,
         idUsuario: request.user?.idUsuario ?? null,
         ip: getClientIp(request),
@@ -188,7 +182,7 @@ async function bootstrap() {
       assertValidCsrfRequest(request, csrfSecret);
       next();
     } catch {
-      response.locals.securityEventAction = 'CSRF_REJECTED';
+      securityActionByResponse.set(response, 'CSRF_REJECTED');
       response.status(403).json({
         statusCode: 403,
         message: 'Token CSRF invalido',
