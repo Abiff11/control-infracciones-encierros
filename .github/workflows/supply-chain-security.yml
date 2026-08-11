@@ -41,8 +41,8 @@ jobs:
       - name: Block HIGH/CRITICAL runtime vulnerabilities
         run: npm audit --omit=dev --audit-level=high
 
-      - name: Block CRITICAL vulnerabilities in complete dependency tree
-        run: npm audit --audit-level=critical
+      - name: Block HIGH/CRITICAL vulnerabilities in complete dependency tree
+        run: npm audit --audit-level=high
 
   frontend-dependencies:
     name: Frontend dependency audit
@@ -69,8 +69,8 @@ jobs:
       - name: Block HIGH/CRITICAL runtime vulnerabilities
         run: npm audit --omit=dev --audit-level=high
 
-      - name: Block CRITICAL vulnerabilities in complete dependency tree
-        run: npm audit --audit-level=critical
+      - name: Block HIGH/CRITICAL vulnerabilities in complete dependency tree
+        run: npm audit --audit-level=high
 
   dependency-review:
     name: Dependency review
