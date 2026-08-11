@@ -6,10 +6,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import * as bcrypt from 'bcryptjs';
 import { Brackets, Repository } from 'typeorm';
 
 import { sanitizeAuditPayload } from '../../common/redact-sensitive-data';
+import { hashPassword } from '../../common/security/password-hasher';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { ROLES } from '../auth/constants/roles.constants';
 import { Rol } from '../roles/entities/rol.entity';
@@ -21,8 +21,6 @@ import {
   UsuarioResponseDto,
 } from './dto/usuario-response.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
-
-const BCRYPT_SALT_ROUNDS = 10;
 
 @Injectable()
 export class UsuariosService {
@@ -98,7 +96,7 @@ export class UsuariosService {
     const usuario = this.usuariosRepository.create({
       nombreUsuario,
       email,
-      passwordHash: await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS),
+      passwordHash: await hashPassword(dto.password),
       passwordChangedAt: new Date(),
       activo: dto.activo ?? true,
       rol,
@@ -160,10 +158,7 @@ export class UsuariosService {
     usuario.activo = nextActivo;
 
     if (passwordWillChange) {
-      usuario.passwordHash = await bcrypt.hash(
-        dto.password as string,
-        BCRYPT_SALT_ROUNDS,
-      );
+      usuario.passwordHash = await hashPassword(dto.password as string);
       usuario.passwordChangedAt = new Date();
     }
 
