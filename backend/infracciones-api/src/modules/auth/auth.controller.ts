@@ -37,7 +37,6 @@ import {
   LoginResponseUsuarioDto,
 } from './dto/login-response.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { LoginRateLimitGuard } from './guards/login-rate-limit.guard';
 
 function getUserAgent(request: Request): string | undefined {
   const userAgent = request.headers['user-agent'];
@@ -82,8 +81,7 @@ export class AuthController {
   }
 
   @Public()
-  @UseGuards(LoginRateLimitGuard)
-  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Throttle({ default: { limit: 6, ttl: 60_000 } })
   @Post('login')
   @ApiOperation({ summary: 'Iniciar sesion y obtener token JWT' })
   @ApiBody({ type: LoginDto })
@@ -143,7 +141,7 @@ export class AuthController {
     const session = await this.authService.refreshSession(
       refreshToken,
       getClientIp(request),
-      getUserAgent(request),
+      getUserAgentAgent(request),
     );
 
     response.cookie(
