@@ -17,6 +17,9 @@ test -f "$COMPOSE_FILE"
 test -f "$ENV_FILE"
 test -f "$DB_ENV_FILE"
 
+echo "== Validando configuracion Docker y perimetro =="
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --quiet
+
 echo "== Backup PostgreSQL antes de migraciones =="
 if systemctl list-unit-files | grep -q '^intranet-postgres-backup.service'; then
   sudo systemctl start intranet-postgres-backup.service
