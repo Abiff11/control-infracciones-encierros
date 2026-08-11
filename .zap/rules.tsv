@@ -1,0 +1,7 @@
+# ZAP Baseline rules for the disposable CI frontend.
+# TLS terminates outside this local HTTP-only CI target, so HSTS is verified at the real perimeter, not here.
+10020	FAIL	(Anti-clickjacking header must be present)
+10021	FAIL	(X-Content-Type-Options must be present)
+10037	FAIL	(X-Powered-By must not be exposed)
+10038	FAIL	(Content-Security-Policy must be present)
+10035	IGNORE	(HSTS is not meaningful on the local HTTP-only CI target)
