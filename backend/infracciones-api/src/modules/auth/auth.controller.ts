@@ -141,7 +141,7 @@ export class AuthController {
     const session = await this.authService.refreshSession(
       refreshToken,
       getClientIp(request),
-      getUserAgentAgent(request),
+      getUserAgent(request),
     );
 
     response.cookie(
