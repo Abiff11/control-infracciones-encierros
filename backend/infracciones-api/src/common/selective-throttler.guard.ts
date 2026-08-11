@@ -18,6 +18,9 @@ import {
   THROTTLER_TRACKER,
   THROTTLER_TTL,
 } from '@nestjs/throttler/dist/throttler.constants';
+import type { Request } from 'express';
+
+import { getClientIp } from './security/client-ip.util';
 
 interface GuardThrottler {
   name?: string;
@@ -37,6 +40,10 @@ export class SelectiveThrottlerGuard extends ThrottlerGuard {
     reflector: Reflector,
   ) {
     super(options, storageService, reflector);
+  }
+
+  protected async getTracker(request: Request): Promise<string> {
+    return Promise.resolve(getClientIp(request));
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
