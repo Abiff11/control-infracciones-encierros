@@ -2,6 +2,7 @@ import * as bcrypt from 'bcryptjs';
 
 import {
   hashPassword,
+  passwordHashCanBeSafelyUpgraded,
   passwordHashNeedsUpgrade,
   verifyPassword,
 } from './password-hasher';
@@ -30,6 +31,17 @@ describe('password-hasher', () => {
 
     await expect(verifyPassword(legacyHash, password)).resolves.toBe(true);
     expect(passwordHashNeedsUpgrade(legacyHash)).toBe(true);
+    expect(passwordHashCanBeSafelyUpgraded(legacyHash, password)).toBe(true);
+  });
+
+  it('no rehashea automaticamente bcrypt cuando la entrada excede 72 bytes', async () => {
+    const longPassword = 'a'.repeat(80);
+    const legacyHash = await bcrypt.hash(longPassword, 10);
+
+    await expect(verifyPassword(legacyHash, longPassword)).resolves.toBe(true);
+    expect(passwordHashCanBeSafelyUpgraded(legacyHash, longPassword)).toBe(
+      false,
+    );
   });
 
   it('rechaza formatos de hash desconocidos sin lanzar errores', async () => {
