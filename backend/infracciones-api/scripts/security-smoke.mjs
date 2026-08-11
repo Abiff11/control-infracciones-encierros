@@ -212,7 +212,7 @@ async function main() {
       cookie: csrfCookieHeader(adminCsrf),
       'x-csrf-token': adminCsrf,
     },
-    body: '{}',
+    body: JSON.stringify({ nombreRegion: 123 }),
   });
   assertStatus(
     mutationWithCsrf,
