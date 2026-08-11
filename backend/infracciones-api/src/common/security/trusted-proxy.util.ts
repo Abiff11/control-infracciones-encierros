@@ -1,11 +1,6 @@
-export type TrustProxySetting = string | string[];
+export type TrustProxySetting = false | string | string[];
 
-const UNSAFE_TRUST_PROXY_VALUES = new Set([
-  'true',
-  '*',
-  '0.0.0.0/0',
-  '::/0',
-]);
+const UNSAFE_TRUST_PROXY_VALUES = new Set(['true', '*', '0.0.0.0/0', '::/0']);
 
 function parseTrustProxyList(value: string | undefined): string[] {
   return (value ?? '')
@@ -27,7 +22,7 @@ export function resolveTrustProxySetting(params: {
       );
     }
 
-    return 'loopback';
+    return false;
   }
 
   for (const proxy of configuredProxies) {

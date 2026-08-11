@@ -1,0 +1,285 @@
+name: Security verification
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - feature/security-final-verification
+  schedule:
+    - cron: "17 15 * * 4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  api-negative-security:
+    name: API negative security smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: control_infracciones_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d control_infracciones_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: backend/infracciones-api
+
+    env:
+      NODE_ENV: test
+      PORT: 3000
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: control_infracciones_db
+      DB_SYNCHRONIZE: "false"
+      JWT_SECRET: ci_jwt_secret_security_verification_32_chars_minimum
+      CSRF_SECRET: ci_csrf_secret_security_verification_32_chars_minimum
+      CORS_ORIGIN: http://localhost:5173
+      ACCESS_TOKEN_EXPIRES_IN: 15m
+      REFRESH_TOKEN_EXPIRES_IN_MINUTES: 60
+      LOGIN_RATE_LIMIT_WINDOW_MS: 60000
+      LOGIN_RATE_LIMIT_MAX_ATTEMPTS: 6
+      AUTH_MAX_FAILED_ATTEMPTS: 5
+      AUTH_LOCK_MINUTES: 15
+      SECURITY_TEST_BASE_URL: http://127.0.0.1:3000
+      SECURITY_TEST_ADMIN_EMAIL: security-admin@example.com
+      SECURITY_TEST_ADMIN_PASSWORD: Security-admin-passphrase-2026!
+      SECURITY_TEST_CONSULTA_EMAIL: security-consulta@example.com
+      SECURITY_TEST_CONSULTA_PASSWORD: Security-consulta-passphrase-2026!
+      ADMIN_EMAIL: security-admin@example.com
+      ADMIN_PASSWORD: Security-admin-passphrase-2026!
+      ADMIN_NOMBRE: Security CI Admin
+      ADMIN_ROL: ADMIN
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/infracciones-api/package-lock.json
+
+      - name: Install exact backend dependencies
+        run: npm ci
+
+      - name: Build backend
+        run: npm run build
+
+      - name: Apply migrations
+        run: npm run migration:run
+
+      - name: Seed catalogs and ADMIN
+        run: |
+          npm run seed:initial
+          npm run seed:admin
+
+      - name: Seed CONSULTA security test user
+        run: |
+          node <<'NODE'
+          const { Client } = require('pg');
+          const argon2 = require('argon2');
+
+          async function main() {
+            const client = new Client({
+              host: process.env.DB_HOST,
+              port: Number(process.env.DB_PORT),
+              user: process.env.DB_USERNAME,
+              password: process.env.DB_PASSWORD,
+              database: process.env.DB_DATABASE,
+            });
+            await client.connect();
+
+            const roleResult = await client.query(
+              `SELECT id_rol FROM rol WHERE nombre_rol = $1`,
+              ['CONSULTA'],
+            );
+            if (roleResult.rowCount !== 1) {
+              throw new Error('No existe el rol CONSULTA para la prueba de seguridad');
+            }
+
+            const passwordHash = await argon2.hash(
+              process.env.SECURITY_TEST_CONSULTA_PASSWORD,
+              {
+                type: argon2.argon2id,
+                memoryCost: 19456,
+                timeCost: 2,
+                parallelism: 1,
+              },
+            );
+
+            await client.query(
+              `INSERT INTO usuarios (
+                 id_rol,
+                 nombre_usuario,
+                 email,
+                 password_hash,
+                 activo,
+                 auth_session_version,
+                 refresh_token_hash,
+                 refresh_token_expires_at,
+                 failed_login_attempts,
+                 locked_until,
+                 last_login_at,
+                 password_changed_at
+               ) VALUES ($1, $2, $3, $4, TRUE, 0, NULL, NULL, 0, NULL, NULL, NOW())
+               ON CONFLICT (email) DO UPDATE SET
+                 id_rol = EXCLUDED.id_rol,
+                 nombre_usuario = EXCLUDED.nombre_usuario,
+                 password_hash = EXCLUDED.password_hash,
+                 activo = TRUE,
+                 auth_session_version = usuarios.auth_session_version + 1,
+                 refresh_token_hash = NULL,
+                 refresh_token_expires_at = NULL,
+                 failed_login_attempts = 0,
+                 locked_until = NULL,
+                 password_changed_at = NOW()`,
+              [
+                roleResult.rows[0].id_rol,
+                'Security CI Consulta',
+                process.env.SECURITY_TEST_CONSULTA_EMAIL,
+                passwordHash,
+              ],
+            );
+
+            await client.end();
+          }
+
+          main().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Start API and run negative security smoke
+        run: |
+          set -Eeuo pipefail
+          LOG_FILE="$RUNNER_TEMP/security-api.log"
+          node dist/main.js >"$LOG_FILE" 2>&1 &
+          API_PID=$!
+          trap 'kill "$API_PID" 2>/dev/null || true' EXIT
+
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null; then
+              break
+            fi
+            if ! kill -0 "$API_PID" 2>/dev/null; then
+              echo "La API termino antes de estar saludable"
+              cat "$LOG_FILE"
+              exit 1
+            fi
+            if [ "$attempt" -eq 40 ]; then
+              echo "Timeout esperando /api/health"
+              cat "$LOG_FILE"
+              exit 1
+            fi
+            sleep 1
+          done
+
+          node scripts/security-smoke.mjs
+
+      - name: Upload API security log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-security-verification-log
+          path: ${{ runner.temp }}/security-api.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  frontend-passive-dast:
+    name: Frontend passive DAST
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build production frontend image
+        run: docker build --target web-production -t control-infracciones-frontend:dast .
+
+      - name: Start disposable frontend
+        run: |
+          docker run -d --rm \
+            --name security-dast-frontend \
+            -p 8080:8080 \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,size=16m \
+            --tmpfs /var/cache/nginx:rw,noexec,nosuid,size=16m \
+            --tmpfs /var/run:rw,noexec,nosuid,size=4m \
+            --pids-limit 64 \
+            control-infracciones-frontend:dast
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8080/healthz >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          docker logs security-dast-frontend
+          exit 1
+
+      - name: Run OWASP ZAP baseline against disposable frontend
+        run: |
+          set -Eeuo pipefail
+          mkdir -p zap-results
+          chmod 0777 zap-results
+          cp .zap/rules.tsv zap-results/rules.tsv
+
+          DOCKER_HOST_IP="$(ip -f inet -o addr show docker0 | awk '{print $4}' | cut -d '/' -f 1)"
+          if [ -z "$DOCKER_HOST_IP" ]; then
+            echo "No se pudo determinar la IP docker0 del runner"
+            exit 1
+          fi
+
+          set +e
+          docker run --rm \
+            -v "$PWD/zap-results:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+            -t "http://${DOCKER_HOST_IP}:8080" \
+            -c /zap/wrk/rules.tsv \
+            -T 4 \
+            -r zap-report.html \
+            -J zap-report.json \
+            -w zap-report.md
+          ZAP_EXIT=$?
+          set -e
+
+          echo "ZAP baseline exit code: $ZAP_EXIT"
+          if [ "$ZAP_EXIT" -eq 1 ] || [ "$ZAP_EXIT" -eq 3 ]; then
+            exit "$ZAP_EXIT"
+          fi
+
+      - name: Upload ZAP baseline report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-baseline-report
+          path: zap-results/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop disposable frontend
+        if: always()
+        run: docker rm -f security-dast-frontend 2>/dev/null || true

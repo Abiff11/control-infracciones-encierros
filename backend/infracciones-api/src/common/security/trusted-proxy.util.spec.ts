@@ -1,12 +1,12 @@
 import { resolveTrustProxySetting } from './trusted-proxy.util';
 
 describe('resolveTrustProxySetting', () => {
-  it('confia solo en loopback por defecto fuera de produccion', () => {
+  it('no confia headers reenviados por defecto fuera de produccion', () => {
     expect(
       resolveTrustProxySetting({
         nodeEnv: 'development',
       }),
-    ).toBe('loopback');
+    ).toBe(false);
   });
 
   it('exige configuracion explicita en produccion', () => {
@@ -26,14 +26,26 @@ describe('resolveTrustProxySetting', () => {
     ).toEqual(['172.20.0.10', '172.20.0.0/24']);
   });
 
-  it.each(['true', '*', '0.0.0.0/0', '::/0'])('%s se rechaza por ser demasiado amplio', (value) => {
-    expect(() =>
+  it('acepta una sola IP confiable y la conserva como string', () => {
+    expect(
       resolveTrustProxySetting({
-        nodeEnv: 'production',
-        trustProxy: value,
+        nodeEnv: 'test',
+        trustProxy: '172.20.0.10',
       }),
-    ).toThrow('TRUST_PROXY contiene un valor inseguro');
+    ).toBe('172.20.0.10');
   });
+
+  it.each(['true', '*', '0.0.0.0/0', '::/0'])(
+    '%s se rechaza por ser demasiado amplio',
+    (value) => {
+      expect(() =>
+        resolveTrustProxySetting({
+          nodeEnv: 'production',
+          trustProxy: value,
+        }),
+      ).toThrow('TRUST_PROXY contiene un valor inseguro');
+    },
+  );
 
   it('rechaza configuracion basada solamente en numero de saltos', () => {
     expect(() =>
