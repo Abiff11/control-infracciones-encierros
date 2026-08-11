@@ -8,6 +8,7 @@ import { MoreThan, Repository } from 'typeorm';
 
 import {
   hashPassword,
+  passwordHashCanBeSafelyUpgraded,
   passwordHashNeedsUpgrade,
   verifyPassword,
 } from '../../common/security/password-hasher';
@@ -172,7 +173,10 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales invalidas');
     }
 
-    if (passwordHashNeedsUpgrade(usuario.passwordHash)) {
+    if (
+      passwordHashNeedsUpgrade(usuario.passwordHash) &&
+      passwordHashCanBeSafelyUpgraded(usuario.passwordHash, password)
+    ) {
       usuario.passwordHash = await hashPassword(password);
     }
 
