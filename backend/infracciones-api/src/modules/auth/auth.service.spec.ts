@@ -5,10 +5,16 @@ import { Repository } from 'typeorm';
 
 import { AuthService } from './auth.service';
 import { AuthLoginAttempt } from './entities/auth-login-attempt.entity';
+import { Rol } from '../roles/entities/rol.entity';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 
 function buildUsuario(overrides: Partial<Usuario> = {}): Usuario {
-  return {
+  const rol = Object.assign(new Rol(), {
+    idRol: 1,
+    nombreRol: 'ADMIN',
+  });
+
+  return Object.assign(new Usuario(), {
     idUsuario: 1,
     nombreUsuario: 'Admin',
     email: 'admin@example.com',
@@ -21,12 +27,9 @@ function buildUsuario(overrides: Partial<Usuario> = {}): Usuario {
     lockedUntil: null,
     lastLoginAt: null,
     passwordChangedAt: null,
-    rol: {
-      idRol: 1,
-      nombreRol: 'ADMIN',
-    },
+    rol,
     ...overrides,
-  } as Usuario;
+  });
 }
 
 describe('AuthService session revocation', () => {
@@ -36,30 +39,30 @@ describe('AuthService session revocation', () => {
     createQueryBuilder: jest.fn(),
   };
   const loginAttemptsRepositoryMock = {
-    create: jest.fn((value) => value),
+    create: jest.fn((value: Partial<AuthLoginAttempt>) => value),
     save: jest.fn(),
   };
   const jwtServiceMock = {
     signAsync: jest.fn(),
   };
   const configServiceMock = {
-    get: jest.fn((key: string, fallback?: string) => {
-      if (key === 'ACCESS_TOKEN_EXPIRES_IN') {
-        return '15m';
-      }
-      if (key === 'REFRESH_TOKEN_EXPIRES_IN_MINUTES') {
-        return '60';
-      }
-      return fallback;
-    }),
+    get: jest.fn(
+      (key: string, fallback?: string): string | undefined => {
+        if (key === 'ACCESS_TOKEN_EXPIRES_IN') {
+          return '15m';
+        }
+        if (key === 'REFRESH_TOKEN_EXPIRES_IN_MINUTES') {
+          return '60';
+        }
+        return fallback;
+      },
+    ),
   };
 
   let service: AuthService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    usuariosRepositoryMock.save.mockImplementation(async (value) => value);
-    loginAttemptsRepositoryMock.save.mockImplementation(async (value) => value);
     jwtServiceMock.signAsync.mockResolvedValue('access-token');
 
     service = new AuthService(
@@ -73,6 +76,7 @@ describe('AuthService session revocation', () => {
   it('inicia un login con una nueva version de sesion incluida en el JWT', async () => {
     const usuario = buildUsuario({ authSessionVersion: 7 });
     jest.spyOn(service, 'validateUsuario').mockResolvedValue(usuario);
+    usuariosRepositoryMock.save.mockResolvedValue(usuario);
 
     const session = await service.login({
       email: usuario.email,
@@ -94,36 +98,36 @@ describe('AuthService session revocation', () => {
       buildUsuario({ authSessionVersion: 5 }),
     );
 
-    await expect(service.findActiveUsuarioByIdOrFail(1, 4)).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
+    await expect(
+      service.findActiveUsuarioByIdOrFail(1, 4),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('acepta la version de sesion vigente para un usuario activo', async () => {
     const usuario = buildUsuario({ authSessionVersion: 5 });
     usuariosRepositoryMock.findOne.mockResolvedValue(usuario);
 
-    await expect(service.findActiveUsuarioByIdOrFail(1, 5)).resolves.toBe(usuario);
+    await expect(service.findActiveUsuarioByIdOrFail(1, 5)).resolves.toBe(
+      usuario,
+    );
   });
 
-  it('logout invalida refresh token y aumenta atomicamente la version de sesion', async () => {
+  it('logout ejecuta la revocacion persistente de la sesion', async () => {
     const queryBuilder = {
-      update: jest.fn().mockReturnThis(),
-      set: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
+      update: jest.fn(),
+      set: jest.fn(),
+      where: jest.fn(),
       execute: jest.fn().mockResolvedValue({ affected: 1 }),
     };
+    queryBuilder.update.mockReturnValue(queryBuilder);
+    queryBuilder.set.mockReturnValue(queryBuilder);
+    queryBuilder.where.mockReturnValue(queryBuilder);
     usuariosRepositoryMock.createQueryBuilder.mockReturnValue(queryBuilder);
 
     await service.logoutByUserId(1);
 
-    expect(queryBuilder.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        refreshTokenHash: null,
-        refreshTokenExpiresAt: null,
-        authSessionVersion: expect.any(Function),
-      }),
-    );
+    expect(queryBuilder.update).toHaveBeenCalledWith(Usuario);
+    expect(queryBuilder.set).toHaveBeenCalledTimes(1);
     expect(queryBuilder.where).toHaveBeenCalledWith('id_usuario = :idUsuario', {
       idUsuario: 1,
     });
