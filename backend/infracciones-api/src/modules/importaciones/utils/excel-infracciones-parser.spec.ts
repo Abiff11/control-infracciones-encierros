@@ -86,13 +86,15 @@ describe('parseInfraccionesWorkbook security limits', () => {
     ).toThrow('tamaño total descomprimido');
   });
 
-  it('rechaza celdas que exceden el maximo de texto permitido', () => {
-    const row = buildDataRow('1001');
-    row[31] = 'x'.repeat(32_768);
+  it('rechaza hojas que intentan expandir el ancho esperado', () => {
+    const row = new Array<unknown>(65).fill(null);
+    row[0] = 'DELEGACION PRUEBA';
+    row[1] = '1001';
+    row[64] = 'CELDA FUERA DEL LIMITE';
     const buffer = buildWorkbookBuffer([row]);
 
     expect(() =>
       parseInfraccionesWorkbook(buffer, 'infracciones.xlsx'),
-    ).toThrow('Una celda excede el limite');
+    ).toThrow('excede el limite de 64 columnas');
   });
 });
