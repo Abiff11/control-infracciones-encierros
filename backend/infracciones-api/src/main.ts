@@ -14,6 +14,7 @@ import {
 } from './common/csrf.util';
 import { SafeExceptionFilter } from './common/filters/safe-exception.filter';
 import { performanceGuardMiddleware } from './common/middleware/performance-guard.middleware';
+import { resolveTrustProxySetting } from './common/security/trusted-proxy.util';
 
 const DEV_CORS_ORIGINS = [
   'http://localhost:5173',
@@ -68,6 +69,10 @@ async function bootstrap() {
   const allowedOrigins = resolveAllowedOrigins(configService);
   const httpAdapter = app.getHttpAdapter().getInstance() as Express;
   const nodeEnv = configService.get<string>('NODE_ENV') ?? 'development';
+  const trustProxy = resolveTrustProxySetting({
+    nodeEnv,
+    trustProxy: configService.get<string>('TRUST_PROXY'),
+  });
   const csrfSecret =
     configService.get<string>('CSRF_SECRET') ??
     configService.get<string>('JWT_SECRET') ??
@@ -78,7 +83,7 @@ async function bootstrap() {
     cookieSameSite: configService.get<string>('COOKIE_SAME_SITE'),
   });
 
-  httpAdapter.set('trust proxy', 1);
+  httpAdapter.set('trust proxy', trustProxy);
   httpAdapter.disable('x-powered-by');
   app.setGlobalPrefix('api');
 
