@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import { randomUUID } from 'node:crypto';
 import type { Express, NextFunction, Request, Response } from 'express';
 
 import { AppModule } from './app.module';
@@ -14,7 +15,12 @@ import {
 } from './common/csrf.util';
 import { SafeExceptionFilter } from './common/filters/safe-exception.filter';
 import { performanceGuardMiddleware } from './common/middleware/performance-guard.middleware';
+import { getClientIp } from './common/security/client-ip.util';
 import { resolveTrustProxySetting } from './common/security/trusted-proxy.util';
+import {
+  SecurityObservabilityService,
+  type SecurityEventAction,
+} from './modules/auditoria/security-observability.service';
 
 const DEV_CORS_ORIGINS = [
   'http://localhost:5173',
@@ -22,6 +28,14 @@ const DEV_CORS_ORIGINS = [
   'http://localhost:4173',
   'http://127.0.0.1:4173',
 ];
+
+const SECURITY_STATUS_CODES = new Set([401, 403, 429]);
+
+type AuthenticatedRequest = Request & {
+  user?: {
+    idUsuario?: number;
+  };
+};
 
 function parseCsv(value: string | undefined): string[] {
   return (value ?? '')
@@ -61,11 +75,26 @@ function isSwaggerEnabled(configService: ConfigService): boolean {
   return explicitValue?.trim().toLowerCase() === 'true';
 }
 
+function readSingleHeader(request: Request, name: string): string | null {
+  const value = request.headers[name];
+
+  if (typeof value === 'string') {
+    return value.slice(0, 512);
+  }
+
+  if (Array.isArray(value) && value[0]) {
+    return value[0].slice(0, 512);
+  }
+
+  return null;
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log'],
   });
   const configService = app.get(ConfigService);
+  const securityObservability = app.get(SecurityObservabilityService);
   const allowedOrigins = resolveAllowedOrigins(configService);
   const httpAdapter = app.getHttpAdapter().getInstance() as Express;
   const nodeEnv = configService.get<string>('NODE_ENV') ?? 'development';
@@ -86,6 +115,38 @@ async function bootstrap() {
   httpAdapter.set('trust proxy', trustProxy);
   httpAdapter.disable('x-powered-by');
   app.setGlobalPrefix('api');
+
+  app.use((request: AuthenticatedRequest, response: Response, next: NextFunction) => {
+    const requestId = randomUUID();
+    response.locals.requestId = requestId;
+    response.setHeader('X-Request-Id', requestId);
+
+    response.once('finish', () => {
+      if (!SECURITY_STATUS_CODES.has(response.statusCode)) {
+        return;
+      }
+
+      const explicitAction = response.locals.securityEventAction;
+      const securityEventAction =
+        typeof explicitAction === 'string'
+          ? (explicitAction as SecurityEventAction)
+          : null;
+
+      void securityObservability.recordHttpRejection({
+        statusCode: response.statusCode,
+        explicitAction: securityEventAction,
+        requestId,
+        idUsuario: request.user?.idUsuario ?? null,
+        ip: getClientIp(request),
+        httpMethod: request.method,
+        requestPath: request.path,
+        userAgent: readSingleHeader(request, 'user-agent'),
+        cfRay: readSingleHeader(request, 'cf-ray'),
+      });
+    });
+
+    next();
+  });
 
   app.use(performanceGuardMiddleware);
   app.use((_request: Request, response: Response, next: NextFunction) => {
@@ -111,6 +172,7 @@ async function bootstrap() {
     origin: allowedOrigins,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type', 'Accept', 'x-csrf-token'],
+    exposedHeaders: ['X-Request-Id'],
     credentials: true,
     maxAge: 600,
   });
@@ -126,6 +188,7 @@ async function bootstrap() {
       assertValidCsrfRequest(request, csrfSecret);
       next();
     } catch {
+      response.locals.securityEventAction = 'CSRF_REJECTED';
       response.status(403).json({
         statusCode: 403,
         message: 'Token CSRF invalido',
