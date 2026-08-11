@@ -11,7 +11,6 @@ import { AuthController } from './auth.controller';
 import { AuthLoginAttempt } from './entities/auth-login-attempt.entity';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { LoginRateLimitGuard } from './guards/login-rate-limit.guard';
 import { RoleAuthGuard } from './guards/role-auth.guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
@@ -39,7 +38,6 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     AuthService,
     JwtStrategy,
     JwtAuthGuard,
-    LoginRateLimitGuard,
     RoleAuthGuard,
     {
       provide: APP_GUARD,
