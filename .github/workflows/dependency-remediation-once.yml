@@ -38,15 +38,29 @@ jobs:
 
       - name: Remediate backend lockfile without force
         working-directory: backend/infracciones-api
+        shell: bash
         run: |
           npm ci
+          set +e
           npm audit fix --package-lock-only
+          audit_status=$?
+          set -e
+          if [ "$audit_status" -ne 0 ]; then
+            echo "Backend: se aplicaron fixes compatibles disponibles; quedan advisories por tratar manualmente."
+          fi
 
       - name: Remediate frontend lockfile without force
         working-directory: frontend/infracciones-web
+        shell: bash
         run: |
           npm ci
+          set +e
           npm audit fix --package-lock-only
+          audit_status=$?
+          set -e
+          if [ "$audit_status" -ne 0 ]; then
+            echo "Frontend: se aplicaron fixes compatibles disponibles; quedan advisories por tratar manualmente."
+          fi
 
       - name: Commit lockfile-only changes
         run: |
