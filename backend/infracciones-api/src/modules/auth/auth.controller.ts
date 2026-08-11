@@ -29,6 +29,7 @@ import {
 import { readCookie } from '../../common/csrf.util';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
+import { Public } from './decorators/public.decorator';
 import { LoginDto } from './dto/login.dto';
 import {
   LoginResponseDto,
@@ -92,12 +93,14 @@ export class AuthController {
     });
   }
 
+  @Public()
   @Get('token-check')
   @ApiOperation({ summary: 'Preparar validacion de seguridad del navegador' })
   tokenCheck() {
     return { ok: true };
   }
 
+  @Public()
   @UseGuards(LoginRateLimitGuard)
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('login')
@@ -135,6 +138,7 @@ export class AuthController {
     };
   }
 
+  @Public()
   @Post('refresh')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @ApiOperation({ summary: 'Rotar refresh token y renovar access token' })
@@ -202,6 +206,7 @@ export class AuthController {
     return { ok: true as const };
   }
 
+  @Public()
   @Post('logout-tolerant')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({
