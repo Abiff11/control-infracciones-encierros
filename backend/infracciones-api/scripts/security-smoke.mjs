@@ -1,7 +1,9 @@
 const baseUrl = process.env.SECURITY_TEST_BASE_URL ?? 'http://127.0.0.1:3000';
-const adminEmail = process.env.SECURITY_TEST_ADMIN_EMAIL ?? 'security-admin@example.com';
+const adminEmail =
+  process.env.SECURITY_TEST_ADMIN_EMAIL ?? 'security-admin@example.com';
 const adminPassword = process.env.SECURITY_TEST_ADMIN_PASSWORD;
-const consultaEmail = process.env.SECURITY_TEST_CONSULTA_EMAIL ?? 'security-consulta@example.com';
+const consultaEmail =
+  process.env.SECURITY_TEST_CONSULTA_EMAIL ?? 'security-consulta@example.com';
 const consultaPassword = process.env.SECURITY_TEST_CONSULTA_PASSWORD;
 
 if (!adminPassword || !consultaPassword) {
@@ -157,7 +159,7 @@ async function main() {
   assertStatus(anonymousPrivate, 401, 'ruta privada anonima');
   assertRequestId(anonymousPrivate, 'ruta privada anonima');
 
-  console.log('== Security smoke: CSRF ==');
+  console.log('== Security smoke: CSRF en login ==');
   const csrfRejected = await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -190,7 +192,36 @@ async function main() {
   assertStatus(forbiddenAdminRoute, 403, 'CONSULTA sobre /usuarios');
   assertRequestId(forbiddenAdminRoute, 'CONSULTA sobre /usuarios');
 
-  console.log('== Security smoke: login rate limiting ==');
+  console.log('== Security smoke: CSRF en mutaciones autenticadas ==');
+  const mutationWithoutCsrf = await fetch(`${baseUrl}/api/catalogos/regiones`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${adminToken}`,
+      'content-type': 'application/json',
+    },
+    body: '{}',
+  });
+  assertStatus(mutationWithoutCsrf, 403, 'mutacion autenticada sin CSRF');
+  assertRequestId(mutationWithoutCsrf, 'mutacion autenticada sin CSRF');
+
+  const mutationWithCsrf = await fetch(`${baseUrl}/api/catalogos/regiones`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${adminToken}`,
+      'content-type': 'application/json',
+      cookie: csrfCookieHeader(adminCsrf),
+      'x-csrf-token': adminCsrf,
+    },
+    body: '{}',
+  });
+  assertStatus(
+    mutationWithCsrf,
+    400,
+    'mutacion con CSRF valido y body invalido',
+  );
+  assertRequestId(mutationWithCsrf, 'mutacion con CSRF valido');
+
+  console.log('== Security smoke: login rate limiting y X-Forwarded-For ==');
   const attackCsrf = await prepareCsrf('rate-limit');
   let rateLimited = false;
 
@@ -201,6 +232,7 @@ async function main() {
         'content-type': 'application/json',
         cookie: csrfCookieHeader(attackCsrf),
         'x-csrf-token': attackCsrf,
+        'x-forwarded-for': `203.0.113.${attempt}`,
       },
       body: JSON.stringify({
         email: `unknown-${attempt}@example.com`,
@@ -217,7 +249,10 @@ async function main() {
     assertStatus(response, 401, `login invalido intento ${attempt}`);
   }
 
-  assert(rateLimited, 'El login rate limiter no respondio 429 dentro del limite esperado');
+  assert(
+    rateLimited,
+    'El login rate limiter no respondio 429; X-Forwarded-For pudo evadir el limite',
+  );
 
   console.log('== Security smoke: observabilidad ==');
   await new Promise((resolve) => setTimeout(resolve, 500));
@@ -227,21 +262,24 @@ async function main() {
   );
   assertStatus(auditResponse, 200, 'auditoria de seguridad');
   const auditPayload = await responseJson(auditResponse, 'auditoria de seguridad');
-  const actions = new Set(
-    Array.isArray(auditPayload.items)
-      ? auditPayload.items.map((item) => item?.accion)
-      : [],
-  );
+  const auditItems = Array.isArray(auditPayload.items) ? auditPayload.items : [];
+  const expectedAudit = new Map([
+    ['AUTHENTICATION_REJECTED', 'MEDIUM'],
+    ['AUTHORIZATION_REJECTED', 'MEDIUM'],
+    ['CSRF_REJECTED', 'HIGH'],
+    ['RATE_LIMIT_REJECTED', 'HIGH'],
+  ]);
 
-  for (const expectedAction of [
-    'AUTHENTICATION_REJECTED',
-    'AUTHORIZATION_REJECTED',
-    'CSRF_REJECTED',
-    'RATE_LIMIT_REJECTED',
-  ]) {
+  for (const [expectedAction, expectedSeverity] of expectedAudit) {
+    const item = auditItems.find((entry) => entry?.accion === expectedAction);
+    assert(item, `Auditoria no contiene ${expectedAction}`);
     assert(
-      actions.has(expectedAction),
-      `Auditoria no contiene ${expectedAction}`,
+      item.severity === expectedSeverity,
+      `${expectedAction}: severity ${item.severity}; se esperaba ${expectedSeverity}`,
+    );
+    assert(
+      item.requestId || item.request_id,
+      `${expectedAction}: falta requestId de correlacion`,
     );
   }
 
