@@ -19,6 +19,7 @@ services:
       DB_PORT: 5432
       DB_SYNCHRONIZE: "false"
       ENABLE_SWAGGER: "false"
+      TRUST_PROXY: ${TRUST_PROXY:?TRUST_PROXY debe definir la IP o CIDR del proxy confiable}
     expose:
       - "3104"
     networks:
