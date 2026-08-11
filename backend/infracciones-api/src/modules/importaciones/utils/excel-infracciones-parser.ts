@@ -1,6 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import * as XLSX from 'xlsx';
 
+import { assertSafeXlsxContainer } from './xlsx-container-guard';
+
 export const EXCEL_SHEET_NAME = 'INFRACCIONES';
 
 export const EXCEL_HEADERS = [
@@ -81,6 +83,14 @@ export const EXCEL_COLUMN_LETTERS = [
   'AJ',
 ] as const;
 
+const DEFAULT_MAX_DATA_ROWS = 50_000;
+const MAX_WORKSHEET_COLUMNS = 64;
+const MAX_CELL_TEXT_LENGTH = 32_767;
+const DEFAULT_MAX_ZIP_ENTRIES = 2_048;
+const DEFAULT_MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES = 128 * 1024 * 1024;
+const DEFAULT_MAX_ZIP_ENTRY_UNCOMPRESSED_BYTES = 96 * 1024 * 1024;
+const DEFAULT_MAX_ZIP_COMPRESSION_RATIO = 250;
+
 export interface ParsedInfraccionesExcelRow {
   numeroFila: number;
   values: unknown[];
@@ -94,6 +104,45 @@ export interface ParsedInfraccionesExcelWorkbook {
   columnasDetectadas: string[];
   headerRow: string[];
   rows: ParsedInfraccionesExcelRow[];
+}
+
+function readPositiveIntegerEnv(
+  key: string,
+  fallback: number,
+  max: number,
+): number {
+  const value = Number(process.env[key] ?? fallback);
+  return Number.isInteger(value) && value > 0 && value <= max ? value : fallback;
+}
+
+function getImportLimits() {
+  return {
+    maxDataRows: readPositiveIntegerEnv(
+      'EXCEL_IMPORT_MAX_ROWS',
+      DEFAULT_MAX_DATA_ROWS,
+      200_000,
+    ),
+    maxZipEntries: readPositiveIntegerEnv(
+      'EXCEL_IMPORT_MAX_ZIP_ENTRIES',
+      DEFAULT_MAX_ZIP_ENTRIES,
+      10_000,
+    ),
+    maxZipTotalUncompressedBytes: readPositiveIntegerEnv(
+      'EXCEL_IMPORT_MAX_UNCOMPRESSED_BYTES',
+      DEFAULT_MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES,
+      512 * 1024 * 1024,
+    ),
+    maxZipEntryUncompressedBytes: readPositiveIntegerEnv(
+      'EXCEL_IMPORT_MAX_ENTRY_BYTES',
+      DEFAULT_MAX_ZIP_ENTRY_UNCOMPRESSED_BYTES,
+      256 * 1024 * 1024,
+    ),
+    maxZipCompressionRatio: readPositiveIntegerEnv(
+      'EXCEL_IMPORT_MAX_COMPRESSION_RATIO',
+      DEFAULT_MAX_ZIP_COMPRESSION_RATIO,
+      1_000,
+    ),
+  };
 }
 
 function normalizeHeader(value: unknown): string {
@@ -126,11 +175,69 @@ function buildRawRow(values: unknown[]): Record<string, unknown> {
   );
 }
 
+function isZipBasedWorkbook(buffer: Buffer): boolean {
+  return buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4b;
+}
+
+function assertWorksheetShape(worksheet: XLSX.WorkSheet): void {
+  const rangeReference = worksheet['!ref'];
+  if (!rangeReference) {
+    return;
+  }
+
+  try {
+    const range = XLSX.utils.decode_range(rangeReference);
+    if (range.e.c + 1 > MAX_WORKSHEET_COLUMNS) {
+      throw new BadRequestException(
+        `La hoja INFRACCIONES excede el limite de ${MAX_WORKSHEET_COLUMNS} columnas.`,
+      );
+    }
+  } catch (error: unknown) {
+    if (error instanceof BadRequestException) {
+      throw error;
+    }
+
+    throw new BadRequestException('El rango declarado de la hoja no es valido.');
+  }
+}
+
+function assertSafeCellValues(rows: unknown[][]): void {
+  for (const row of rows) {
+    for (const value of row) {
+      if (typeof value === 'string' && value.length > MAX_CELL_TEXT_LENGTH) {
+        throw new BadRequestException(
+          `Una celda excede el limite de ${MAX_CELL_TEXT_LENGTH} caracteres.`,
+        );
+      }
+    }
+  }
+}
+
 export function parseInfraccionesWorkbook(
   buffer: Buffer,
   originalName: string,
 ): ParsedInfraccionesExcelWorkbook {
-  const workbook = XLSX.read(buffer, { type: 'buffer', raw: true });
+  const limits = getImportLimits();
+
+  if (isZipBasedWorkbook(buffer)) {
+    assertSafeXlsxContainer(buffer, {
+      maxEntries: limits.maxZipEntries,
+      maxTotalUncompressedBytes: limits.maxZipTotalUncompressedBytes,
+      maxEntryUncompressedBytes: limits.maxZipEntryUncompressedBytes,
+      maxCompressionRatio: limits.maxZipCompressionRatio,
+    });
+  }
+
+  const workbook = XLSX.read(buffer, {
+    type: 'buffer',
+    raw: true,
+    sheets: [EXCEL_SHEET_NAME],
+    sheetRows: limits.maxDataRows + 3,
+    cellFormula: false,
+    cellHTML: false,
+    cellStyles: false,
+    bookVBA: false,
+  });
   const worksheet = workbook.Sheets[EXCEL_SHEET_NAME];
 
   if (!worksheet) {
@@ -138,6 +245,8 @@ export function parseInfraccionesWorkbook(
       `La hoja ${EXCEL_SHEET_NAME} no existe en el archivo cargado`,
     );
   }
+
+  assertWorksheetShape(worksheet);
 
   const rows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
     header: 1,
@@ -150,6 +259,8 @@ export function parseInfraccionesWorkbook(
       'La hoja INFRACCIONES no contiene encabezados y datos suficientes',
     );
   }
+
+  assertSafeCellValues(rows);
 
   const headerRow = (rows[1] ?? []).map((value) => toCellText(value).trim());
   const columnasDetectadas = headerRow.filter(Boolean);
@@ -170,6 +281,12 @@ export function parseInfraccionesWorkbook(
         ? row.some((cell) => cell !== null && cell !== '')
         : false,
     );
+
+  if (dataRows.length > limits.maxDataRows) {
+    throw new BadRequestException(
+      `La importacion excede el limite de ${limits.maxDataRows} filas de datos.`,
+    );
+  }
 
   return {
     nombreArchivo: originalName,
