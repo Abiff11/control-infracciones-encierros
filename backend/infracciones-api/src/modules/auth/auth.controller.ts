@@ -27,6 +27,7 @@ import {
   REFRESH_TOKEN_COOKIE_NAME,
 } from '../../common/auth-cookie.util';
 import { readCookie } from '../../common/csrf.util';
+import { getClientIp } from '../../common/security/client-ip.util';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
@@ -37,26 +38,6 @@ import {
 } from './dto/login-response.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LoginRateLimitGuard } from './guards/login-rate-limit.guard';
-
-function getClientIp(request: Request): string | undefined {
-  const cfConnectingIp = request.headers['cf-connecting-ip'];
-
-  if (typeof cfConnectingIp === 'string' && cfConnectingIp.trim()) {
-    return cfConnectingIp.trim();
-  }
-
-  const forwardedFor = request.headers['x-forwarded-for'];
-
-  if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
-    return forwardedFor.split(',')[0].trim();
-  }
-
-  if (Array.isArray(forwardedFor) && forwardedFor[0]) {
-    return forwardedFor[0].split(',')[0].trim();
-  }
-
-  return request.ip ?? request.socket.remoteAddress;
-}
 
 function getUserAgent(request: Request): string | undefined {
   const userAgent = request.headers['user-agent'];
