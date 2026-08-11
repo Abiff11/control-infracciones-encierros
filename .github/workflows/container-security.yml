@@ -1,0 +1,61 @@
+name: Container security
+
+on:
+  push:
+    branches:
+      - main
+      - feature/security-supply-chain
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: "23 14 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-image:
+    name: Backend image vulnerability scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build production backend image
+        run: docker build --target api-production -t control-infracciones-backend:security-scan .
+
+      - name: Scan backend image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: control-infracciones-backend:security-scan
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+
+  frontend-image:
+    name: Frontend image vulnerability scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build production frontend image
+        run: docker build --target web-production -t control-infracciones-frontend:security-scan .
+
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: control-infracciones-frontend:security-scan
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
