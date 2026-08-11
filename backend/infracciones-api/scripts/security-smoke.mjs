@@ -124,6 +124,68 @@ async function authGet(path, token) {
   });
 }
 
+async function waitForSecurityAudit(
+  token,
+  expectedAudit,
+  timeoutMs = 10000,
+  intervalMs = 250,
+) {
+  const deadline = Date.now() + timeoutMs;
+  let lastItems = [];
+
+  while (Date.now() <= deadline) {
+    const auditResponse = await authGet(
+      '/api/auditoria?entidad=SEGURIDAD&limit=100',
+      token,
+    );
+    assertStatus(auditResponse, 200, 'auditoria de seguridad');
+
+    const auditPayload = await responseJson(
+      auditResponse,
+      'auditoria de seguridad',
+    );
+    lastItems = Array.isArray(auditPayload.items) ? auditPayload.items : [];
+
+    const allPresent = [...expectedAudit].every(
+      ([expectedAction, expectedSeverity]) => {
+        const item = lastItems.find(
+          (entry) => entry?.accion === expectedAction,
+        );
+
+        return Boolean(
+          item &&
+            item.severity === expectedSeverity &&
+            (item.requestId || item.request_id),
+        );
+      },
+    );
+
+    if (allPresent) {
+      return lastItems;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  const missing = [...expectedAudit]
+    .filter(([expectedAction, expectedSeverity]) => {
+      const item = lastItems.find((entry) => entry?.accion === expectedAction);
+      return !(
+        item &&
+        item.severity === expectedSeverity &&
+        (item.requestId || item.request_id)
+      );
+    })
+    .map(([action]) => action);
+  const observed = Array.from(
+    new Set(lastItems.map((entry) => entry?.accion).filter(Boolean)),
+  );
+
+  throw new Error(
+    `Auditoria no completo eventos esperados en ${timeoutMs}ms. Faltantes: ${missing.join(', ')}. Observados: ${observed.join(', ') || 'ninguno'}`,
+  );
+}
+
 async function main() {
   console.log('== Security smoke: headers y superficie publica ==');
   const health = await fetch(`${baseUrl}/api/health`);
@@ -255,20 +317,13 @@ async function main() {
   );
 
   console.log('== Security smoke: observabilidad ==');
-  await new Promise((resolve) => setTimeout(resolve, 500));
-  const auditResponse = await authGet(
-    '/api/auditoria?entidad=SEGURIDAD&limit=100',
-    adminToken,
-  );
-  assertStatus(auditResponse, 200, 'auditoria de seguridad');
-  const auditPayload = await responseJson(auditResponse, 'auditoria de seguridad');
-  const auditItems = Array.isArray(auditPayload.items) ? auditPayload.items : [];
   const expectedAudit = new Map([
     ['AUTHENTICATION_REJECTED', 'MEDIUM'],
     ['AUTHORIZATION_REJECTED', 'MEDIUM'],
     ['CSRF_REJECTED', 'HIGH'],
     ['RATE_LIMIT_REJECTED', 'HIGH'],
   ]);
+  const auditItems = await waitForSecurityAudit(adminToken, expectedAudit);
 
   for (const [expectedAction, expectedSeverity] of expectedAudit) {
     const item = auditItems.find((entry) => entry?.accion === expectedAction);
