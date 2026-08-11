@@ -1,21 +1,27 @@
-import { refresh as refreshAuthSession } from './auth.api';
+import { AuthApiError, refresh as refreshAuthSession } from "./auth.api";
 import {
   clearAuthSession,
   getAuthSession,
   updateAuthSession,
-} from './authSession';
-import { apiUrl, swaggerUrl } from './apiConfig';
+} from "./authSession";
+import { apiUrl, swaggerUrl } from "./apiConfig";
+import type { SessionState } from "../../types/auth.types";
 
-const CSRF_COOKIE_NAME = 'cie_csrf_token';
-const CSRF_HEADER_NAME = 'x-csrf-token';
-const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-const GET_CACHE_TTL_MS = Number(import.meta.env.VITE_API_GET_CACHE_TTL_MS ?? 1500);
+const CSRF_COOKIE_NAME = "cie_csrf_token";
+const CSRF_HEADER_NAME = "x-csrf-token";
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const GET_CACHE_TTL_MS = Number(
+  import.meta.env.VITE_API_GET_CACHE_TTL_MS ?? 1500,
+);
 
 let csrfTokenPromise: Promise<void> | null = null;
 let sessionRefreshPromise: Promise<void> | null = null;
 
 const pendingGetRequests = new Map<string, Promise<unknown>>();
-const recentGetResponses = new Map<string, { expiresAt: number; value: unknown }>();
+const recentGetResponses = new Map<
+  string,
+  { expiresAt: number; value: unknown }
+>();
 
 export class ApiError extends Error {
   status: number;
@@ -23,7 +29,7 @@ export class ApiError extends Error {
   constructor(status: number, message: string) {
     super(message);
     this.status = status;
-    this.name = 'ApiError';
+    this.name = "ApiError";
   }
 }
 
@@ -31,7 +37,7 @@ type QueryValue = string | number | boolean | null | undefined;
 
 export function buildQuery<T extends object>(params?: T): string {
   if (!params) {
-    return '';
+    return "";
   }
 
   const searchParams = new URLSearchParams();
@@ -39,7 +45,7 @@ export function buildQuery<T extends object>(params?: T): string {
   for (const [key, value] of Object.entries(
     params as Record<string, QueryValue>,
   )) {
-    if (value === null || value === undefined || value === '') {
+    if (value === null || value === undefined || value === "") {
       continue;
     }
 
@@ -47,7 +53,7 @@ export function buildQuery<T extends object>(params?: T): string {
   }
 
   const query = searchParams.toString();
-  return query ? `?${query}` : '';
+  return query ? `?${query}` : "";
 }
 
 function extractErrorMessage(payload: string): string {
@@ -58,14 +64,14 @@ function extractErrorMessage(payload: string): string {
     };
 
     if (Array.isArray(parsed.message)) {
-      return parsed.message.join(', ');
+      return parsed.message.join(", ");
     }
 
-    if (typeof parsed.message === 'string' && parsed.message.trim()) {
+    if (typeof parsed.message === "string" && parsed.message.trim()) {
       return parsed.message;
     }
 
-    if (typeof parsed.error === 'string' && parsed.error.trim()) {
+    if (typeof parsed.error === "string" && parsed.error.trim()) {
       return parsed.error;
     }
   } catch {
@@ -77,12 +83,12 @@ function extractErrorMessage(payload: string): string {
 
 function readCookie(cookieName: string): string {
   const cookie = document.cookie
-    .split(';')
+    .split(";")
     .map((item) => item.trim())
     .find((item) => item.startsWith(`${cookieName}=`));
 
   if (!cookie) {
-    return '';
+    return "";
   }
 
   return decodeURIComponent(cookie.slice(cookieName.length + 1));
@@ -95,13 +101,13 @@ export async function ensureCsrfToken(forceRefresh = false): Promise<void> {
 
   if (!csrfTokenPromise) {
     csrfTokenPromise = fetch(`${apiUrl}/auth/token-check`, {
-      credentials: 'include',
+      credentials: "include",
     })
       .then((response) => {
         if (!response.ok) {
           throw new ApiError(
             response.status,
-            'No se pudo preparar la sesion segura.',
+            "No se pudo preparar la sesion segura.",
           );
         }
       })
@@ -121,10 +127,22 @@ async function refreshSession(): Promise<void> {
         updateAuthSession(response.accessToken, response.usuario);
         clearGetRequestCache();
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         clearAuthSession();
         clearGetRequestCache();
-        throw new ApiError(401, 'La sesion expiro. Vuelve a iniciar sesion.');
+
+        if (error instanceof AuthApiError) {
+          if (error.status === 401) {
+            throw new ApiError(
+              401,
+              "La sesion expiro. Vuelve a iniciar sesion.",
+            );
+          }
+
+          throw new ApiError(error.status, error.message);
+        }
+
+        throw new ApiError(0, getErrorMessage(error));
       })
       .finally(() => {
         sessionRefreshPromise = null;
@@ -134,8 +152,21 @@ async function refreshSession(): Promise<void> {
   return sessionRefreshPromise;
 }
 
+export async function restoreAuthSession(): Promise<SessionState | null> {
+  try {
+    await refreshSession();
+    return getAuthSession();
+  } catch (error) {
+    if (isUnauthorizedError(error)) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
 function resolveMethod(method?: string): string {
-  return (method ?? 'GET').toUpperCase();
+  return (method ?? "GET").toUpperCase();
 }
 
 function clearGetRequestCache() {
@@ -144,14 +175,21 @@ function clearGetRequestCache() {
 }
 
 function shouldReuseGetRequest(method: string, options: RequestInit) {
-  return method === 'GET' && !options.body && GET_CACHE_TTL_MS > 0;
+  return method === "GET" && !options.body && GET_CACHE_TTL_MS > 0;
 }
 
-function getRequestCacheKey(path: string, method: string, token: string | null) {
-  return `${method}:${token ?? 'anon'}:${path}`;
+function getRequestCacheKey(
+  path: string,
+  method: string,
+  token: string | null,
+) {
+  return `${method}:${token ?? "anon"}:${path}`;
 }
 
-async function withGetRequestReuse<T>(key: string, factory: () => Promise<T>): Promise<T> {
+async function withGetRequestReuse<T>(
+  key: string,
+  factory: () => Promise<T>,
+): Promise<T> {
   const cached = recentGetResponses.get(key);
   const now = Date.now();
 
@@ -193,10 +231,14 @@ export async function request<T>(
     await ensureCsrfToken(false);
   }
 
-  const executeRequest = () => requestOnce<T>(path, options, sessionToken, isMutating, true, true);
+  const executeRequest = () =>
+    requestOnce<T>(path, options, sessionToken, isMutating, true, true);
 
   if (shouldReuseGetRequest(method, options)) {
-    return withGetRequestReuse<T>(getRequestCacheKey(path, method, sessionToken), executeRequest);
+    return withGetRequestReuse<T>(
+      getRequestCacheKey(path, method, sessionToken),
+      executeRequest,
+    );
   }
 
   return executeRequest();
@@ -213,10 +255,10 @@ async function requestOnce<T>(
   const method = resolveMethod(options.method);
   const headers = new Headers(options.headers);
   const isFormData =
-    typeof FormData !== 'undefined' && options.body instanceof FormData;
+    typeof FormData !== "undefined" && options.body instanceof FormData;
 
-  if (options.body && !isFormData && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
+  if (options.body && !isFormData && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
   }
 
   if (isMutating) {
@@ -227,7 +269,7 @@ async function requestOnce<T>(
   }
 
   if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+    headers.set("Authorization", `Bearer ${token}`);
   }
 
   let response: Response;
@@ -237,14 +279,14 @@ async function requestOnce<T>(
       ...options,
       method,
       headers,
-      credentials: 'include',
+      credentials: "include",
     });
   } catch (error) {
     throw new ApiError(
       0,
       error instanceof Error
         ? `No se pudo conectar con el servidor: ${error.message}`
-        : 'No se pudo conectar con el servidor.',
+        : "No se pudo conectar con el servidor.",
     );
   }
 
@@ -260,7 +302,11 @@ async function requestOnce<T>(
     );
   }
 
-  if (response.status === 401 && allowAuthRetry && (token || getAuthSession())) {
+  if (
+    response.status === 401 &&
+    allowAuthRetry &&
+    (token || getAuthSession())
+  ) {
     await refreshSession();
     return requestOnce<T>(
       path,
@@ -302,7 +348,7 @@ export function getErrorMessage(error: unknown): string {
     return error.message;
   }
 
-  return 'Ocurrio un error inesperado.';
+  return "Ocurrio un error inesperado.";
 }
 
 export function getSwaggerUrl(): string {

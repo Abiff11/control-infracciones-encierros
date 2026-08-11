@@ -1,62 +1,85 @@
-import { useState } from 'react';
+import { useEffect, useState } from "react";
 
-import { AppLayout } from '../components/layout/AppLayout';
-import { Sidebar } from '../components/layout/Sidebar';
-import { Button } from '../components/ui/Button';
-import { ErrorMessage } from '../components/ui/ErrorMessage';
-import { useAuth } from '../hooks/useAuth';
-import { useCatalogos } from '../hooks/useCatalogos';
-import { getSwaggerUrl } from '../services/api/apiClient';
-import { createRetencion, createSalida } from '../services/api/encierros.api';
-import { createLiberacion } from '../services/api/liberaciones.api';
-import { createPago } from '../services/api/pagos.api';
-import { createInfraccion, getInfraccionFlujo } from '../services/api/infracciones.api';
-import CatalogosPage from '../pages/CatalogosPage';
-import DashboardPage from '../modules/dashboard/DashboardPage';
-import EncierrosVehiculosPage from '../modules/encierros/EncierrosVehiculosPage';
-import FlujoOperativoPage from '../modules/infracciones/FlujoOperativoPage';
-import ImportacionesPage from '../modules/importaciones/ImportacionesPage';
-import InfraccionCreatePage from '../modules/infracciones/InfraccionCreatePage';
-import InfraccionesListPage from '../modules/infracciones/InfraccionesListPage';
-import InfraccionesReportPage from '../modules/infracciones/InfraccionesReportPage';
-import UsuariosPage from '../modules/usuarios/UsuariosPage';
-import LiberacionCreatePage from '../modules/liberaciones/LiberacionCreatePage';
-import LoginPage from '../modules/auth/LoginPage';
-import PagoCreatePage from '../modules/pagos/PagoCreatePage';
-import RetencionCreatePage from '../modules/encierros/RetencionCreatePage';
-import SalidaCreatePage from '../modules/encierros/SalidaCreatePage';
-import type { PageKey } from './app.types';
-import { NAV_ITEMS } from './navigation';
+import { AppLayout } from "../components/layout/AppLayout";
+import { Sidebar } from "../components/layout/Sidebar";
+import { Button } from "../components/ui/Button";
+import { ErrorMessage } from "../components/ui/ErrorMessage";
+import { LoadingMessage } from "../components/ui/LoadingMessage";
+import { useAuth } from "../hooks/useAuth";
+import { useCatalogos } from "../hooks/useCatalogos";
+import { getSwaggerUrl } from "../services/api/apiClient";
+import { createRetencion, createSalida } from "../services/api/encierros.api";
+import { createLiberacion } from "../services/api/liberaciones.api";
+import { createPago } from "../services/api/pagos.api";
+import {
+  createInfraccion,
+  getInfraccionFlujo,
+} from "../services/api/infracciones.api";
+import CatalogosPage from "../pages/CatalogosPage";
+import DashboardPage from "../modules/dashboard/DashboardPage";
+import EncierrosVehiculosPage from "../modules/encierros/EncierrosVehiculosPage";
+import FlujoOperativoPage from "../modules/infracciones/FlujoOperativoPage";
+import ImportacionesPage from "../modules/importaciones/ImportacionesPage";
+import InfraccionCreatePage from "../modules/infracciones/InfraccionCreatePage";
+import InfraccionesListPage from "../modules/infracciones/InfraccionesListPage";
+import InfraccionesReportPage from "../modules/infracciones/InfraccionesReportPage";
+import UsuariosPage from "../modules/usuarios/UsuariosPage";
+import LiberacionCreatePage from "../modules/liberaciones/LiberacionCreatePage";
+import LoginPage from "../modules/auth/LoginPage";
+import PagoCreatePage from "../modules/pagos/PagoCreatePage";
+import RetencionCreatePage from "../modules/encierros/RetencionCreatePage";
+import SalidaCreatePage from "../modules/encierros/SalidaCreatePage";
+import type { PageKey } from "./app.types";
+import { NAV_ITEMS } from "./navigation";
 import type {
   CreateInfraccionCompletaPayload,
   InfraccionFlujoResponse,
-} from '../types/infracciones.types';
+} from "../types/infracciones.types";
 import type {
   GenerarLiberacionPayload,
   RegistrarPagoPayload,
   RegistrarRetencionPayload,
   RegistrarSalidaPayload,
-} from '../types/operaciones.types';
-import '../app/App.css';
-import '../app/App.restore.css';
+} from "../types/operaciones.types";
+import "../app/App.css";
+import "../app/App.restore.css";
 
 function App() {
-  const { authLoading, authMessage, bootstrapping, login, logout, runProtectedRequest, session } =
-    useAuth();
+  const {
+    authLoading,
+    authMessage,
+    authStatus,
+    login,
+    logout,
+    runProtectedRequest,
+    session,
+  } = useAuth();
   const {
     catalogs,
     error: catalogsError,
     loading: catalogsLoading,
     refresh: refreshCatalogs,
-  } = useCatalogos();
-  const [currentPage, setCurrentPage] = useState<PageKey>('dashboard');
+    reset: resetCatalogs,
+  } = useCatalogos({
+    enabled: authStatus === "authenticated",
+  });
+  const [currentPage, setCurrentPage] = useState<PageKey>("dashboard");
   const [refreshKey, setRefreshKey] = useState(0);
   const [pagoInitialId, setPagoInitialId] = useState<number | null>(null);
-  const [liberacionInitialId, setLiberacionInitialId] = useState<number | null>(null);
+  const [liberacionInitialId, setLiberacionInitialId] = useState<number | null>(
+    null,
+  );
   const [salidaInitialId, setSalidaInitialId] = useState<number | null>(null);
-  const [operationReturnPage, setOperationReturnPage] = useState<PageKey>('infracciones');
+  const [operationReturnPage, setOperationReturnPage] =
+    useState<PageKey>("infracciones");
   const roleName = session?.user.rol?.nombreRol?.toUpperCase();
-  const isAdmin = roleName === 'ADMIN';
+  const isAdmin = roleName === "ADMIN";
+
+  useEffect(() => {
+    if (authStatus === "unauthenticated") {
+      resetCatalogs();
+    }
+  }, [authStatus, resetCatalogs]);
 
   function bumpRefresh(): void {
     setRefreshKey((current) => current + 1);
@@ -64,8 +87,8 @@ function App() {
 
   function handleNavigate(page: PageKey): void {
     if (
-      roleName === 'INFRACCIONES' &&
-      ['encierros-vehiculos', 'importaciones', 'catalogos'].includes(page)
+      roleName === "INFRACCIONES" &&
+      ["encierros-vehiculos", "importaciones", "catalogos"].includes(page)
     ) {
       return;
     }
@@ -80,89 +103,113 @@ function App() {
   function openPagoFrom(page: PageKey, idInfraccion: number): void {
     setOperationReturnPage(page);
     setPagoInitialId(idInfraccion);
-    setCurrentPage('pago');
+    setCurrentPage("pago");
   }
 
   function openLiberacionFrom(page: PageKey, idInfraccion: number): void {
     setOperationReturnPage(page);
     setLiberacionInitialId(idInfraccion);
-    setCurrentPage('liberacion');
+    setCurrentPage("liberacion");
   }
 
   function openSalidaFrom(page: PageKey, idRetencionVehiculo: number): void {
     setOperationReturnPage(page);
     setSalidaInitialId(idRetencionVehiculo);
-    setCurrentPage('salida');
+    setCurrentPage("salida");
   }
 
-  async function handleCreateInfraccion(payload: CreateInfraccionCompletaPayload) {
+  async function handleCreateInfraccion(
+    payload: CreateInfraccionCompletaPayload,
+  ) {
     if (!session?.token) {
-      throw new Error('Sesion no valida');
+      throw new Error("Sesion no valida");
     }
 
-    const response = await runProtectedRequest((token) => createInfraccion(token, payload));
+    const response = await runProtectedRequest((token) =>
+      createInfraccion(token, payload),
+    );
     bumpRefresh();
-    setCurrentPage('infracciones');
+    setCurrentPage("infracciones");
     return response;
   }
 
   async function handleRegistrarPago(payload: RegistrarPagoPayload) {
     if (!session?.token) {
-      throw new Error('Sesion no valida');
+      throw new Error("Sesion no valida");
     }
 
-    const response = await runProtectedRequest((token) => createPago(token, payload));
+    const response = await runProtectedRequest((token) =>
+      createPago(token, payload),
+    );
     bumpRefresh();
     return response;
   }
 
   async function handleGenerarLiberacion(payload: GenerarLiberacionPayload) {
     if (!session?.token) {
-      throw new Error('Sesion no valida');
+      throw new Error("Sesion no valida");
     }
 
-    const response = await runProtectedRequest((token) => createLiberacion(token, payload));
+    const response = await runProtectedRequest((token) =>
+      createLiberacion(token, payload),
+    );
     bumpRefresh();
     return response;
   }
 
   async function handleRegistrarRetencion(payload: RegistrarRetencionPayload) {
     if (!session?.token) {
-      throw new Error('Sesion no valida');
+      throw new Error("Sesion no valida");
     }
 
-    const response = await runProtectedRequest((token) => createRetencion(token, payload));
+    const response = await runProtectedRequest((token) =>
+      createRetencion(token, payload),
+    );
     bumpRefresh();
     return response;
   }
 
   async function handleRegistrarSalida(payload: RegistrarSalidaPayload) {
     if (!session?.token) {
-      throw new Error('Sesion no valida');
+      throw new Error("Sesion no valida");
     }
 
-    const response = await runProtectedRequest((token) => createSalida(token, payload));
+    const response = await runProtectedRequest((token) =>
+      createSalida(token, payload),
+    );
     bumpRefresh();
     return response;
   }
 
-  async function handleFetchFlujo(folioInfraccion: string): Promise<InfraccionFlujoResponse> {
+  async function handleFetchFlujo(
+    folioInfraccion: string,
+  ): Promise<InfraccionFlujoResponse> {
     if (!session?.token) {
-      throw new Error('Sesion no valida');
+      throw new Error("Sesion no valida");
     }
 
-    return runProtectedRequest((token) => getInfraccionFlujo(token, folioInfraccion));
+    return runProtectedRequest((token) =>
+      getInfraccionFlujo(token, folioInfraccion),
+    );
   }
 
-  if (authLoading || bootstrapping) {
-    return <LoginPage loading error={authMessage} onSubmit={login} />;
+  if (authStatus === "checking") {
+    return (
+      <main className="login-access-shell">
+        <section className="login-access-card">
+          <LoadingMessage message="Restaurando sesion..." />
+        </section>
+      </main>
+    );
   }
 
-  if (!session) {
-    return <LoginPage loading={authLoading} error={authMessage} onSubmit={login} />;
+  if (authStatus === "unauthenticated" || !session) {
+    return (
+      <LoginPage loading={authLoading} error={authMessage} onSubmit={login} />
+    );
   }
 
-  const apiStatusLabel = 'En linea';
+  const apiStatusLabel = "En linea";
 
   return (
     <AppLayout
@@ -193,7 +240,7 @@ function App() {
             </div>
             <div>
               <p className="session-label">Rol</p>
-              <strong>{session.user.rol?.nombreRol ?? 'Sin rol'}</strong>
+              <strong>{session.user.rol?.nombreRol ?? "Sin rol"}</strong>
             </div>
             <Button variant="secondary" type="button" onClick={logout}>
               Cerrar sesion
@@ -202,11 +249,12 @@ function App() {
         </div>
       }
     >
-      {catalogsLoading ? <p className="notice">Cargando catalogos operativos...</p> : null}
+      {catalogsLoading ? (
+        <p className="notice">Cargando catalogos operativos...</p>
+      ) : null}
       <ErrorMessage message={catalogsError} />
 
-
-      {currentPage === 'dashboard' ? (
+      {currentPage === "dashboard" ? (
         <DashboardPage
           catalogs={catalogs}
           apiStatusLabel={apiStatusLabel}
@@ -216,20 +264,20 @@ function App() {
         />
       ) : null}
 
-      {currentPage === 'infracciones' ? (
+      {currentPage === "infracciones" ? (
         <InfraccionesListPage
           catalogs={catalogs}
           refreshKey={refreshKey}
           token={session.token}
-          onNavigateCreate={() => setCurrentPage('nueva-infraccion')}
+          onNavigateCreate={() => setCurrentPage("nueva-infraccion")}
         />
       ) : null}
 
-      {currentPage === 'reportes-infracciones' ? (
+      {currentPage === "reportes-infracciones" ? (
         <InfraccionesReportPage refreshKey={refreshKey} token={session.token} />
       ) : null}
 
-      {currentPage === 'usuarios' && isAdmin ? (
+      {currentPage === "usuarios" && isAdmin ? (
         <UsuariosPage
           currentUser={session.user}
           runProtectedRequest={runProtectedRequest}
@@ -237,11 +285,13 @@ function App() {
         />
       ) : null}
 
-      {currentPage === 'usuarios' && !isAdmin ? (
-        <p className="notice notice-error">No tienes permisos para ver la sección de usuarios.</p>
+      {currentPage === "usuarios" && !isAdmin ? (
+        <p className="notice notice-error">
+          No tienes permisos para ver la sección de usuarios.
+        </p>
       ) : null}
 
-      {currentPage === 'nueva-infraccion' ? (
+      {currentPage === "nueva-infraccion" ? (
         <InfraccionCreatePage
           catalogs={catalogs}
           loading={catalogsLoading}
@@ -250,7 +300,7 @@ function App() {
         />
       ) : null}
 
-      {currentPage === 'pago' ? (
+      {currentPage === "pago" ? (
         <PagoCreatePage
           initialIdInfraccion={pagoInitialId}
           onCompleted={completeOperation}
@@ -258,7 +308,7 @@ function App() {
         />
       ) : null}
 
-      {currentPage === 'liberacion' ? (
+      {currentPage === "liberacion" ? (
         <LiberacionCreatePage
           initialIdInfraccion={liberacionInitialId}
           onCompleted={completeOperation}
@@ -266,7 +316,7 @@ function App() {
         />
       ) : null}
 
-      {currentPage === 'retencion' ? (
+      {currentPage === "retencion" ? (
         <RetencionCreatePage
           catalogs={catalogs}
           onCompleted={completeOperation}
@@ -274,7 +324,7 @@ function App() {
         />
       ) : null}
 
-      {currentPage === 'salida' ? (
+      {currentPage === "salida" ? (
         <SalidaCreatePage
           initialIdRetencionVehiculo={salidaInitialId}
           onCompleted={completeOperation}
@@ -282,11 +332,11 @@ function App() {
         />
       ) : null}
 
-      {currentPage === 'flujo-operativo' ? (
+      {currentPage === "flujo-operativo" ? (
         <FlujoOperativoPage onSubmit={handleFetchFlujo} />
       ) : null}
 
-      {currentPage === 'catalogos' ? (
+      {currentPage === "catalogos" ? (
         <CatalogosPage
           catalogs={catalogs}
           loading={catalogsLoading}
@@ -296,7 +346,7 @@ function App() {
         />
       ) : null}
 
-      {currentPage === 'importaciones' ? (
+      {currentPage === "importaciones" ? (
         <ImportacionesPage
           catalogs={catalogs}
           token={session.token}
@@ -307,17 +357,19 @@ function App() {
         />
       ) : null}
 
-      {currentPage === 'encierros-vehiculos' ? (
+      {currentPage === "encierros-vehiculos" ? (
         <EncierrosVehiculosPage
           catalogs={catalogs}
           refreshKey={refreshKey}
           token={session.token}
-          onNavigatePago={(idInfraccion) => openPagoFrom('encierros-vehiculos', idInfraccion)}
+          onNavigatePago={(idInfraccion) =>
+            openPagoFrom("encierros-vehiculos", idInfraccion)
+          }
           onNavigateLiberacion={(idInfraccion) =>
-            openLiberacionFrom('encierros-vehiculos', idInfraccion)
+            openLiberacionFrom("encierros-vehiculos", idInfraccion)
           }
           onNavigateSalida={(idRetencionVehiculo) =>
-            openSalidaFrom('encierros-vehiculos', idRetencionVehiculo)
+            openSalidaFrom("encierros-vehiculos", idRetencionVehiculo)
           }
         />
       ) : null}
@@ -326,4 +378,3 @@ function App() {
 }
 
 export default App;
-

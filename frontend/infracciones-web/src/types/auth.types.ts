@@ -18,7 +18,7 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   accessToken: string;
-  tokenType: 'Bearer';
+  tokenType: "Bearer";
   expiresIn: string;
   usuario: LoginResponseUsuario;
 }
@@ -27,3 +27,5 @@ export interface SessionState {
   token: string;
   user: LoginResponseUsuario;
 }
+
+export type AuthStatus = "checking" | "authenticated" | "unauthenticated";
