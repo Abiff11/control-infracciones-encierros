@@ -23,6 +23,8 @@ export class AuditoriaController {
     @Query('accion') accion?: string,
     @Query('entidad') entidad?: string,
     @Query('idUsuario') idUsuario?: string,
+    @Query('severity') severity?: string,
+    @Query('requestId') requestId?: string,
   ) {
     return this.auditoriaService.findAll({
       page: page ? Number(page) : undefined,
@@ -30,6 +32,8 @@ export class AuditoriaController {
       accion,
       entidad,
       idUsuario: idUsuario ? Number(idUsuario) : undefined,
+      severity,
+      requestId,
     });
   }
 }
