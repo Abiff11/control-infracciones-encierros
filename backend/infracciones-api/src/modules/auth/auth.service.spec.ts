@@ -1,6 +1,7 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcryptjs';
 import { Repository } from 'typeorm';
 
 import { AuthService } from './auth.service';
@@ -91,6 +92,25 @@ describe('AuthService session revocation', () => {
     expect(session.accessToken).toBe('access-token');
     expect(usuario.refreshTokenHash).toMatch(/^[a-f0-9]{64}$/);
     expect(usuario.refreshTokenExpiresAt).toBeInstanceOf(Date);
+  });
+
+  it('rehash de bcrypt a Argon2id tras autenticacion correcta sin cambiar passwordChangedAt', async () => {
+    const password = 'contraseña heredada suficientemente larga';
+    const passwordChangedAt = new Date('2026-01-01T00:00:00.000Z');
+    const usuario = buildUsuario({
+      passwordHash: await bcrypt.hash(password, 10),
+      passwordChangedAt,
+    });
+    usuariosRepositoryMock.findOne.mockResolvedValue(usuario);
+    usuariosRepositoryMock.save.mockResolvedValue(usuario);
+    loginAttemptsRepositoryMock.save.mockResolvedValue({});
+
+    const validated = await service.validateUsuario(usuario.email, password);
+
+    expect(validated.passwordHash).toMatch(/^\$argon2id\$/);
+    expect(validated.passwordChangedAt).toBe(passwordChangedAt);
+    expect(validated.failedLoginAttempts).toBe(0);
+    expect(validated.lockedUntil).toBeNull();
   });
 
   it('rechaza un access token cuya version ya fue revocada', async () => {
