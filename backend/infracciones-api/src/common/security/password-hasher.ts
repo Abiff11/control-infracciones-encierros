@@ -10,7 +10,7 @@ const ARGON2_OPTIONS = {
   memoryCost: 19_456,
   timeCost: 2,
   parallelism: 1,
-};
+} as const;
 
 function isArgon2Hash(hash: string): boolean {
   return hash.startsWith('$argon2');
