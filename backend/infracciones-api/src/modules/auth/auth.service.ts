@@ -20,6 +20,7 @@ type JwtPayload = {
   sub: number;
   email: string;
   rol?: string;
+  sv: number;
 };
 
 export interface AuthSessionBundle extends LoginResponseDto {
@@ -58,6 +59,7 @@ export class AuthService {
       userAgent,
     );
 
+    usuario.authSessionVersion = (usuario.authSessionVersion ?? 0) + 1;
     return this.buildSessionBundle(usuario);
   }
 
@@ -77,7 +79,7 @@ export class AuthService {
 
     if (usuario) {
       if (!usuario.activo || this.isUserLocked(usuario)) {
-        await this.clearRefreshSession(usuario.idUsuario);
+        await this.revokeSession(usuario.idUsuario);
         throw new UnauthorizedException('Credenciales invalidas');
       }
 
@@ -90,7 +92,7 @@ export class AuthService {
     });
 
     if (staleUsuario) {
-      await this.clearRefreshSession(staleUsuario.idUsuario);
+      await this.revokeSession(staleUsuario.idUsuario);
     }
 
     await this.registerLoginAttempt(
@@ -105,7 +107,7 @@ export class AuthService {
   }
 
   async logoutByUserId(idUsuario: number): Promise<void> {
-    await this.clearRefreshSession(idUsuario);
+    await this.revokeSession(idUsuario);
   }
 
   async logoutByRefreshToken(refreshToken: string): Promise<void> {
@@ -115,7 +117,7 @@ export class AuthService {
       return;
     }
 
-    await this.clearRefreshSession(usuario.idUsuario);
+    await this.revokeSession(usuario.idUsuario);
   }
 
   async validateUsuario(
@@ -186,13 +188,22 @@ export class AuthService {
     return usuario;
   }
 
-  async findActiveUsuarioByIdOrFail(idUsuario: number): Promise<Usuario> {
+  async findActiveUsuarioByIdOrFail(
+    idUsuario: number,
+    expectedSessionVersion: number,
+  ): Promise<Usuario> {
     const usuario = await this.usuariosRepository.findOne({
       where: { idUsuario },
       relations: { rol: true },
     });
 
-    if (!usuario || !usuario.activo || this.isUserLocked(usuario)) {
+    if (
+      !usuario ||
+      !usuario.activo ||
+      this.isUserLocked(usuario) ||
+      !Number.isInteger(expectedSessionVersion) ||
+      usuario.authSessionVersion !== expectedSessionVersion
+    ) {
       throw new UnauthorizedException('Credenciales invalidas');
     }
 
@@ -204,6 +215,7 @@ export class AuthService {
       sub: usuario.idUsuario,
       email: usuario.email,
       rol: usuario.rol?.nombreRol,
+      sv: usuario.authSessionVersion ?? 0,
     };
   }
 
@@ -291,18 +303,17 @@ export class AuthService {
     });
   }
 
-  private async clearRefreshSession(idUsuario: number): Promise<void> {
-    const usuario = await this.usuariosRepository.findOne({
-      where: { idUsuario },
-    });
-
-    if (!usuario) {
-      return;
-    }
-
-    usuario.refreshTokenHash = null;
-    usuario.refreshTokenExpiresAt = null;
-    await this.usuariosRepository.save(usuario);
+  private async revokeSession(idUsuario: number): Promise<void> {
+    await this.usuariosRepository
+      .createQueryBuilder()
+      .update(Usuario)
+      .set({
+        refreshTokenHash: null,
+        refreshTokenExpiresAt: null,
+        authSessionVersion: () => '"auth_session_version" + 1',
+      })
+      .where('id_usuario = :idUsuario', { idUsuario })
+      .execute();
   }
 
   private createRefreshToken(): string {

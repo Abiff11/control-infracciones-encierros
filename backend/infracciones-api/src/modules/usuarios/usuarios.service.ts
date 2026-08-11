@@ -99,6 +99,7 @@ export class UsuariosService {
       nombreUsuario,
       email,
       passwordHash: await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS),
+      passwordChangedAt: new Date(),
       activo: dto.activo ?? true,
       rol,
     });
@@ -135,6 +136,13 @@ export class UsuariosService {
         ? await this.findRolOrFail(dto.idRol)
         : usuario.rol;
     const nextActivo = dto.activo !== undefined ? dto.activo : usuario.activo;
+    const passwordWillChange =
+      dto.password !== undefined && dto.password.trim() !== '';
+    const securityContextChanged =
+      passwordWillChange ||
+      nextEmail !== usuario.email ||
+      nextRol.idRol !== usuario.rol.idRol ||
+      nextActivo !== usuario.activo;
 
     await this.assertAdminSafety({
       targetUsuario: usuario,
@@ -151,11 +159,16 @@ export class UsuariosService {
     usuario.rol = nextRol;
     usuario.activo = nextActivo;
 
-    if (dto.password !== undefined && dto.password.trim() !== '') {
+    if (passwordWillChange) {
       usuario.passwordHash = await bcrypt.hash(
-        dto.password,
+        dto.password as string,
         BCRYPT_SALT_ROUNDS,
       );
+      usuario.passwordChangedAt = new Date();
+    }
+
+    if (securityContextChanged) {
+      this.invalidateSession(usuario);
     }
 
     const saved = await this.usuariosRepository.save(usuario);
@@ -189,6 +202,7 @@ export class UsuariosService {
     });
 
     usuario.activo = false;
+    this.invalidateSession(usuario);
     const saved = await this.usuariosRepository.save(usuario);
     await this.auditoriaService.registrar({
       accion: 'DESACTIVAR_USUARIO',
@@ -245,6 +259,12 @@ export class UsuariosService {
 
   private normalizeEmail(value: string): string {
     return value.trim().toLowerCase();
+  }
+
+  private invalidateSession(usuario: Usuario): void {
+    usuario.authSessionVersion = (usuario.authSessionVersion ?? 0) + 1;
+    usuario.refreshTokenHash = null;
+    usuario.refreshTokenExpiresAt = null;
   }
 
   private async assertAdminSafety(params: {

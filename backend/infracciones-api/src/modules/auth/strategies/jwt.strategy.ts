@@ -10,6 +10,7 @@ type JwtPayload = {
   sub?: number;
   email?: string;
   rol?: string;
+  sv?: number;
 };
 
 @Injectable()
@@ -27,12 +28,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload): Promise<LoginResponseUsuarioDto> {
-    if (!payload.sub) {
+    if (!payload.sub || !Number.isInteger(payload.sv)) {
       throw new UnauthorizedException('Credenciales invalidas');
     }
 
     const usuario = await this.authService.findActiveUsuarioByIdOrFail(
       payload.sub,
+      payload.sv as number,
     );
 
     return this.authService.sanitizeUsuario(usuario);

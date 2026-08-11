@@ -1,0 +1,5 @@
+import { SetMetadata } from '@nestjs/common';
+
+export const IS_PUBLIC_KEY = 'auth:is_public';
+
+export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);

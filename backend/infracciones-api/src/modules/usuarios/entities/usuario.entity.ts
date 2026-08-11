@@ -29,6 +29,9 @@ export class Usuario {
   @Column({ name: 'activo', type: 'boolean', default: true })
   activo!: boolean;
 
+  @Column({ name: 'auth_session_version', type: 'integer', default: 0 })
+  authSessionVersion!: number;
+
   @Column({
     name: 'refresh_token_hash',
     type: 'varchar',
