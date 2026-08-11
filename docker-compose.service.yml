@@ -9,6 +9,7 @@ services:
       target: api-production
     image: control-infracciones-backend:local
     restart: unless-stopped
+    init: true
     env_file:
       - .env
       - /opt/intranet/infra/security/control_infracciones.db.env
@@ -25,6 +26,11 @@ services:
     networks:
       - intranet_proxy
       - intranet_db
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+      - /app/tmp:rw,noexec,nosuid,size=64m,uid=1000,gid=1000
+    pids_limit: 128
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3104/api/health >/dev/null || exit 1"]
       interval: 30s
@@ -49,6 +55,7 @@ services:
         VITE_SOCKET_PATH: /socket.io
     image: control-infracciones-frontend:local
     restart: unless-stopped
+    init: true
     depends_on:
       backend:
         condition: service_healthy
@@ -58,9 +65,10 @@ services:
       - intranet_proxy
     read_only: true
     tmpfs:
-      - /tmp
-      - /var/cache/nginx
-      - /var/run
+      - /tmp:rw,noexec,nosuid,size=16m
+      - /var/cache/nginx:rw,noexec,nosuid,size=16m
+      - /var/run:rw,noexec,nosuid,size=4m
+    pids_limit: 64
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1"]
       interval: 30s
