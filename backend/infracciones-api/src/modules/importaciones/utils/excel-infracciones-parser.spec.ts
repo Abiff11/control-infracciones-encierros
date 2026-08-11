@@ -35,7 +35,8 @@ function buildDataRow(folio: string): unknown[] {
 
 describe('parseInfraccionesWorkbook security limits', () => {
   const originalMaxRows = process.env.EXCEL_IMPORT_MAX_ROWS;
-  const originalMaxUncompressed = process.env.EXCEL_IMPORT_MAX_UNCOMPRESSED_BYTES;
+  const originalMaxUncompressed =
+    process.env.EXCEL_IMPORT_MAX_UNCOMPRESSED_BYTES;
 
   afterEach(() => {
     if (originalMaxRows === undefined) {

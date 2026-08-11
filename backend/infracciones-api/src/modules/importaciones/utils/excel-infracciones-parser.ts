@@ -112,7 +112,9 @@ function readPositiveIntegerEnv(
   max: number,
 ): number {
   const value = Number(process.env[key] ?? fallback);
-  return Number.isInteger(value) && value > 0 && value <= max ? value : fallback;
+  return Number.isInteger(value) && value > 0 && value <= max
+    ? value
+    : fallback;
 }
 
 function getImportLimits() {
@@ -197,7 +199,9 @@ function assertWorksheetShape(worksheet: XLSX.WorkSheet): void {
       throw error;
     }
 
-    throw new BadRequestException('El rango declarado de la hoja no es valido.');
+    throw new BadRequestException(
+      'El rango declarado de la hoja no es valido.',
+    );
   }
 }
 

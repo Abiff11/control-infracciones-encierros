@@ -11,7 +11,10 @@ export class LoginDto {
   @MaxLength(100)
   email!: string;
 
-  @ApiProperty({ example: 'Frase de acceso segura', maxLength: PASSWORD_MAX_LENGTH })
+  @ApiProperty({
+    example: 'Frase de acceso segura',
+    maxLength: PASSWORD_MAX_LENGTH,
+  })
   @IsString()
   @IsNotEmpty()
   @MaxLength(PASSWORD_MAX_LENGTH)

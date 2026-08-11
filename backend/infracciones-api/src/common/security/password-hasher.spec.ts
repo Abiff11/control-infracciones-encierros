@@ -21,9 +21,9 @@ describe('password-hasher', () => {
   it('rechaza una contraseña incorrecta', async () => {
     const hash = await hashPassword(password);
 
-    await expect(verifyPassword(hash, 'otra contraseña distinta')).resolves.toBe(
-      false,
-    );
+    await expect(
+      verifyPassword(hash, 'otra contraseña distinta'),
+    ).resolves.toBe(false);
   });
 
   it('acepta bcrypt heredado y lo marca para actualización', async () => {

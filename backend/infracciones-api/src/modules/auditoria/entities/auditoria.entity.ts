@@ -48,7 +48,12 @@ export class Auditoria {
   @Column({ name: 'http_method', type: 'varchar', length: 10, nullable: true })
   httpMethod!: string | null;
 
-  @Column({ name: 'request_path', type: 'varchar', length: 512, nullable: true })
+  @Column({
+    name: 'request_path',
+    type: 'varchar',
+    length: 512,
+    nullable: true,
+  })
   requestPath!: string | null;
 
   @Column({ name: 'user_agent', type: 'varchar', length: 512, nullable: true })
