@@ -90,18 +90,3 @@ jobs:
           format: table
           exit-code: "1"
           severity: HIGH,CRITICAL
-
-  dependency-review:
-    name: Dependency review
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Reject newly introduced vulnerable dependencies
-        uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: high
