@@ -58,12 +58,15 @@ jobs:
       - name: Build backend
         run: npm run build
 
-      - name: Lint semantic dashboard code without fixes
+      - name: Lint security and dashboard code without fixes
         run: >-
           npx eslint
+          "src/modules/auth/**/*.ts"
+          "src/modules/usuarios/**/*.ts"
           "src/modules/dashboard/**/*.ts"
           "src/database/migrations/1880000000000-AddDashboardAnalyticsIndexes.ts"
           "src/database/migrations/1890000000000-EnsurePagadaSinRetencionStatus.ts"
+          "src/database/migrations/1900000000000-AddAuthSessionVersion.ts"
           --rule 'prettier/prettier: off'
 
       - name: Run backend tests
@@ -72,7 +75,7 @@ jobs:
       - name: Run migrations on disposable PostgreSQL
         run: npm run migration:run
 
-      - name: Assert payment and dashboard schema
+      - name: Assert payment, dashboard and auth schema
         run: |
           node <<'NODE'
           const { Client } = require('pg');
@@ -99,16 +102,27 @@ jobs:
               }
             }
 
-            const columns = await client.query(`
+            const paymentColumns = await client.query(`
               SELECT column_name
               FROM information_schema.columns
               WHERE table_schema = 'public'
                 AND table_name = 'pago_infraccion'
                 AND column_name IN ('folio_pago', 'folio_linea_captura')
             `);
-            const columnNames = new Set(columns.rows.map((row) => row.column_name));
-            if (!columnNames.has('folio_linea_captura') || columnNames.has('folio_pago')) {
+            const paymentColumnNames = new Set(paymentColumns.rows.map((row) => row.column_name));
+            if (!paymentColumnNames.has('folio_linea_captura') || paymentColumnNames.has('folio_pago')) {
               throw new Error('La migracion de folio linea de captura no quedo aplicada');
+            }
+
+            const authColumns = await client.query(`
+              SELECT column_name
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = 'usuarios'
+                AND column_name = 'auth_session_version'
+            `);
+            if (authColumns.rowCount !== 1) {
+              throw new Error('No existe auth_session_version en usuarios');
             }
 
             const expectedIndexes = [
@@ -146,8 +160,9 @@ jobs:
           });
           NODE
 
-      - name: Revert dashboard and payment migrations
+      - name: Revert security, dashboard and payment migrations
         run: |
+          npm run migration:revert
           npm run migration:revert
           npm run migration:revert
           npm run migration:revert
