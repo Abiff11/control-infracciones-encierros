@@ -2,6 +2,7 @@ import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { AppService } from './app.service';
+import { Public } from './modules/auth/decorators/public.decorator';
 
 type HealthResponse = {
   status: 'ok' | 'error';
@@ -22,6 +23,7 @@ export class AppController {
     return this.appService.getHello();
   }
 
+  @Public()
   @Get('health')
   async health(): Promise<HealthResponse> {
     const timestamp = new Date().toISOString();
