@@ -2,11 +2,15 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
-import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
 import type { StringValue } from 'ms';
 import { MoreThan, Repository } from 'typeorm';
 
+import {
+  hashPassword,
+  passwordHashNeedsUpgrade,
+  verifyPassword,
+} from '../../common/security/password-hasher';
 import { sanitizeAuditPayload } from '../../common/redact-sensitive-data';
 import { AuthLoginAttempt } from './entities/auth-login-attempt.entity';
 import { LoginDto } from './dto/login.dto';
@@ -145,10 +149,7 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales invalidas');
     }
 
-    const passwordMatches = await bcrypt.compare(
-      password,
-      usuario.passwordHash,
-    );
+    const passwordMatches = await verifyPassword(usuario.passwordHash, password);
 
     if (!passwordMatches) {
       usuario.failedLoginAttempts = (usuario.failedLoginAttempts ?? 0) + 1;
@@ -171,10 +172,13 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales invalidas');
     }
 
+    if (passwordHashNeedsUpgrade(usuario.passwordHash)) {
+      usuario.passwordHash = await hashPassword(password);
+    }
+
     usuario.failedLoginAttempts = 0;
     usuario.lockedUntil = null;
     usuario.lastLoginAt = new Date();
-    usuario.passwordChangedAt = usuario.passwordChangedAt ?? null;
     await this.usuariosRepository.save(usuario);
     await this.registerLoginAttempt(
       normalizedEmail,
