@@ -63,8 +63,10 @@ jobs:
           npx eslint
           "src/main.ts"
           "src/common/security/**/*.ts"
+          "src/common/middleware/**/*.ts"
           "src/modules/auth/**/*.ts"
           "src/modules/auditoria/**/*.ts"
+          "src/modules/importaciones/**/*.ts"
           "src/modules/usuarios/**/*.ts"
           "src/modules/dashboard/**/*.ts"
           "src/database/migrations/1880000000000-AddDashboardAnalyticsIndexes.ts"
