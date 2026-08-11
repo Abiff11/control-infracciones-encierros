@@ -72,6 +72,25 @@ jobs:
       - name: Block HIGH/CRITICAL vulnerabilities in complete dependency tree
         run: npm audit --audit-level=high
 
+  repository-security:
+    name: Repository secrets and misconfiguration scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Scan repository for exposed secrets and unsafe configuration
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: secret,misconfig
+          format: table
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+
   dependency-review:
     name: Dependency review
     if: github.event_name == 'pull_request'
