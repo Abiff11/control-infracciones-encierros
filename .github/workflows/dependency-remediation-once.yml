@@ -6,6 +6,11 @@ on:
       - feature/security-supply-chain
     paths:
       - .github/workflows/dependency-remediation-once.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/dependency-remediation-once.yml
   workflow_dispatch:
 
 permissions:
@@ -14,7 +19,9 @@ permissions:
 jobs:
   remediate:
     name: Apply semver-compatible audit fixes
-    if: github.ref == 'refs/heads/feature/security-supply-chain'
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/feature/security-supply-chain') ||
+      (github.event_name == 'pull_request' && github.head_ref == 'feature/security-supply-chain')
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
