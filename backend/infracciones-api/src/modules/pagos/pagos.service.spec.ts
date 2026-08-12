@@ -42,7 +42,9 @@ function createServiceFixture() {
         return conceptosRepository;
       }
 
-      throw new Error(`Repositorio no esperado: ${entity?.name ?? 'desconocido'}`);
+      throw new Error(
+        `Repositorio no esperado: ${entity?.name ?? 'desconocido'}`,
+      );
     }),
     query: jest.fn((_sql: string, values: string[]) =>
       Promise.resolve([
@@ -129,14 +131,18 @@ describe('PagosService registrarPago', () => {
         nombreEstatus: ESTATUS_INFRACCION.PAGADA,
       }),
     );
-    expect(fixture.auditoriaService.registrar).toHaveBeenCalledWith(
-      expect.objectContaining({
-        despuesJson: expect.objectContaining({
-          folioLineaCaptura: 'LC-123',
-          monto: '200.00',
-        }),
-      }),
-    );
+    const [auditoriaPayload] = fixture.auditoriaService.registrar.mock
+      .calls[0] as [
+      {
+        despuesJson: {
+          folioLineaCaptura: string;
+          monto: string;
+        };
+      },
+    ];
+
+    expect(auditoriaPayload.despuesJson.folioLineaCaptura).toBe('LC-123');
+    expect(auditoriaPayload.despuesJson.monto).toBe('200.00');
   });
 
   it('cierra una INFRACCION_SIN_RETENCION como PAGADA_SIN_RETENCION', async () => {
@@ -219,15 +225,22 @@ describe('PagosService findConceptos', () => {
 
     await fixture.service.findConceptos(' ab ', 10);
 
-    expect(fixture.conceptosRepository.find).toHaveBeenCalledWith({
-      where: {
-        activo: true,
-        claveConcepto: expect.anything(),
+    const [findOptions] = fixture.conceptosRepository.find.mock.calls[0] as [
+      {
+        where: {
+          activo: boolean;
+          claveConcepto?: unknown;
+        };
+        order: {
+          claveConcepto: string;
+        };
+        take: number;
       },
-      order: {
-        claveConcepto: 'ASC',
-      },
-      take: 10,
-    });
+    ];
+
+    expect(findOptions.where.activo).toBe(true);
+    expect(findOptions.where).toHaveProperty('claveConcepto');
+    expect(findOptions.order.claveConcepto).toBe('ASC');
+    expect(findOptions.take).toBe(10);
   });
 });

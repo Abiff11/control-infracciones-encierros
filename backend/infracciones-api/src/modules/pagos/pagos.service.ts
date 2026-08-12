@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, ILike, Repository } from 'typeorm';
 
@@ -123,11 +127,15 @@ export class PagosService {
 
     const folioLineaCaptura = params.folioLineaCaptura.trim();
     if (!folioLineaCaptura) {
-      throw new BadRequestException('El folio de linea de captura es obligatorio');
+      throw new BadRequestException(
+        'El folio de linea de captura es obligatorio',
+      );
     }
 
     const conceptos = this.normalizeConceptos(params.conceptos);
-    const montoTotal = this.sumMoney(conceptos.map((concepto) => concepto.monto));
+    const montoTotal = this.sumMoney(
+      conceptos.map((concepto) => concepto.monto),
+    );
 
     const idPagoInfraccion = await this.dataSource.transaction(
       async (manager): Promise<number> => {
@@ -253,7 +261,7 @@ export class PagosService {
     manager: EntityManager,
     claveConcepto: string,
   ): Promise<ConceptoPago> {
-    const rows = (await manager.query(
+    const rows: ConceptoPagoUpsertRow[] = await manager.query(
       `
         INSERT INTO concepto_pago (clave_concepto, activo)
         VALUES ($1, TRUE)
@@ -265,7 +273,7 @@ export class PagosService {
           activo
       `,
       [claveConcepto],
-    )) as ConceptoPagoUpsertRow[];
+    );
 
     const row = rows[0];
     if (!row) {
