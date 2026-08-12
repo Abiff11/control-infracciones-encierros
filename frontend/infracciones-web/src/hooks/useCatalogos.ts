@@ -17,8 +17,13 @@ interface CatalogosCache {
   data: CatalogosBundle;
 }
 
+interface UseCatalogosOptions {
+  enabled?: boolean;
+}
+
 const CATALOGOS_CACHE_KEY = "cie_catalogos_bundle_v2";
 const CATALOGOS_CACHE_TTL_MS = 10 * 60 * 1000;
+let catalogosLoadPromise: Promise<CatalogosBundle> | null = null;
 
 function readCatalogosCache(): CatalogosBundle | null {
   try {
@@ -57,6 +62,10 @@ function writeCatalogosCache(data: CatalogosBundle): void {
   }
 }
 
+export function clearCatalogosCache(): void {
+  window.sessionStorage.removeItem(CATALOGOS_CACHE_KEY);
+}
+
 function createInitialState<T>(): LoadState<T> {
   const cachedData = readCatalogosCache() as T | null;
 
@@ -75,11 +84,26 @@ function createInitialState<T>(): LoadState<T> {
   };
 }
 
-export function useCatalogos() {
+function loadCatalogosBundle(): Promise<CatalogosBundle> {
+  if (!catalogosLoadPromise) {
+    catalogosLoadPromise = getCatalogosBundle().finally(() => {
+      catalogosLoadPromise = null;
+    });
+  }
+
+  return catalogosLoadPromise;
+}
+
+export function useCatalogos(options: UseCatalogosOptions = {}) {
+  const { enabled = true } = options;
   const [state, setState] =
     useState<LoadState<CatalogosBundle>>(createInitialState<CatalogosBundle>());
 
   const refresh = useCallback(async (): Promise<void> => {
+    if (!enabled) {
+      return;
+    }
+
     setState((current) => ({
       status: current.data ? "ready" : "loading",
       data: current.data,
@@ -87,7 +111,7 @@ export function useCatalogos() {
     }));
 
     try {
-      const data = await getCatalogosBundle();
+      const data = await loadCatalogosBundle();
       writeCatalogosCache(data);
       setState({
         status: "ready",
@@ -101,20 +125,34 @@ export function useCatalogos() {
         error: getErrorMessage(error),
       }));
     }
+  }, [enabled]);
+
+  const reset = useCallback((): void => {
+    clearCatalogosCache();
+    setState({
+      status: "idle",
+      data: null,
+      error: null,
+    });
   }, []);
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     const timeoutId = window.setTimeout(() => {
       void refresh();
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [refresh]);
+  }, [enabled, refresh]);
 
   return {
     catalogs: state.data,
     error: state.error,
-    loading: state.status === "loading" || state.status === "idle",
+    loading: enabled && (state.status === "loading" || state.status === "idle"),
     refresh,
+    reset,
   };
 }

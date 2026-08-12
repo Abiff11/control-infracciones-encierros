@@ -22,7 +22,11 @@ function findEndOfCentralDirectory(buffer: Buffer): number {
     buffer.length - EOCD_MIN_LENGTH - MAX_ZIP_COMMENT_LENGTH,
   );
 
-  for (let offset = buffer.length - EOCD_MIN_LENGTH; offset >= start; offset -= 1) {
+  for (
+    let offset = buffer.length - EOCD_MIN_LENGTH;
+    offset >= start;
+    offset -= 1
+  ) {
     if (buffer.readUInt32LE(offset) === EOCD_SIGNATURE) {
       return offset;
     }

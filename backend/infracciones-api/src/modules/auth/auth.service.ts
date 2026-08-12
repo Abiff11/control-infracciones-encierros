@@ -150,7 +150,10 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales invalidas');
     }
 
-    const passwordMatches = await verifyPassword(usuario.passwordHash, password);
+    const passwordMatches = await verifyPassword(
+      usuario.passwordHash,
+      password,
+    );
 
     if (!passwordMatches) {
       usuario.failedLoginAttempts = (usuario.failedLoginAttempts ?? 0) + 1;

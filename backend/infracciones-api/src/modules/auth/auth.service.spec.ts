@@ -47,17 +47,15 @@ describe('AuthService session revocation', () => {
     signAsync: jest.fn(),
   };
   const configServiceMock = {
-    get: jest.fn(
-      (key: string, fallback?: string): string | undefined => {
-        if (key === 'ACCESS_TOKEN_EXPIRES_IN') {
-          return '15m';
-        }
-        if (key === 'REFRESH_TOKEN_EXPIRES_IN_MINUTES') {
-          return '60';
-        }
-        return fallback;
-      },
-    ),
+    get: jest.fn((key: string, fallback?: string): string | undefined => {
+      if (key === 'ACCESS_TOKEN_EXPIRES_IN') {
+        return '15m';
+      }
+      if (key === 'REFRESH_TOKEN_EXPIRES_IN_MINUTES') {
+        return '60';
+      }
+      return fallback;
+    }),
   };
 
   let service: AuthService;

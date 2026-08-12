@@ -12,7 +12,9 @@ describe('JwtStrategy', () => {
   };
   const configServiceMock = {
     get: jest.fn((key: string) =>
-      key === 'JWT_SECRET' ? 'unit-test-secret-with-at-least-32-chars' : undefined,
+      key === 'JWT_SECRET'
+        ? 'unit-test-secret-with-at-least-32-chars'
+        : undefined,
     ),
   };
 
@@ -50,6 +52,9 @@ describe('JwtStrategy', () => {
     authServiceMock.sanitizeUsuario.mockReturnValue(sanitized);
 
     await expect(strategy.validate({ sub: 1, sv: 3 })).resolves.toBe(sanitized);
-    expect(authServiceMock.findActiveUsuarioByIdOrFail).toHaveBeenCalledWith(1, 3);
+    expect(authServiceMock.findActiveUsuarioByIdOrFail).toHaveBeenCalledWith(
+      1,
+      3,
+    );
   });
 });

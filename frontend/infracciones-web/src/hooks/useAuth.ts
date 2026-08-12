@@ -1,30 +1,33 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from "react";
 
 import {
   clearAuthSession,
   getAuthSession,
   subscribeAuthSession,
   updateAuthSession,
-} from '../services/api/authSession';
+} from "../services/api/authSession";
 import {
   ensureCsrfToken,
   getErrorMessage,
   isUnauthorizedError,
-} from '../services/api/apiClient';
+  restoreAuthSession,
+} from "../services/api/apiClient";
 import {
   login as loginRequest,
   logout as logoutRequest,
   logoutTolerant as logoutTolerantRequest,
-  refresh as refreshRequest,
-} from '../services/api/auth.api';
+} from "../services/api/auth.api";
 import type {
+  AuthStatus,
   LoginRequest,
   LoginResponseUsuario,
   SessionState,
-} from '../types/auth.types';
+} from "../types/auth.types";
 
 export function useAuth() {
-  const [bootstrapping, setBootstrapping] = useState(true);
+  const [authStatus, setAuthStatus] = useState<AuthStatus>(() =>
+    getAuthSession() ? "authenticated" : "checking",
+  );
   const [authLoading, setAuthLoading] = useState(false);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [session, setSession] = useState<SessionState | null>(getAuthSession());
@@ -32,29 +35,37 @@ export function useAuth() {
   useEffect(
     () =>
       subscribeAuthSession(() => {
-        setSession(getAuthSession());
+        const nextSession = getAuthSession();
+        setSession(nextSession);
+        setAuthStatus(nextSession ? "authenticated" : "unauthenticated");
       }),
     [],
   );
 
   useEffect(() => {
+    if (getAuthSession()) {
+      return;
+    }
+
     let cancelled = false;
 
     async function bootstrapSession(): Promise<void> {
       try {
-        await ensureCsrfToken();
-        const response = await refreshRequest();
+        const restoredSession = await restoreAuthSession();
+
         if (!cancelled) {
-          updateAuthSession(response.accessToken, response.usuario);
+          setSession(restoredSession);
+          setAuthStatus(restoredSession ? "authenticated" : "unauthenticated");
           setAuthMessage(null);
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
           clearAuthSession();
-        }
-      } finally {
-        if (!cancelled) {
-          setBootstrapping(false);
+          setSession(null);
+          setAuthStatus("unauthenticated");
+          setAuthMessage(
+            `No se pudo restaurar la sesion: ${getErrorMessage(error)}`,
+          );
         }
       }
     }
@@ -70,14 +81,16 @@ export function useAuth() {
     clearAuthSession();
     setAuthMessage(message);
     setAuthLoading(false);
-    setBootstrapping(false);
+    setSession(null);
+    setAuthStatus("unauthenticated");
   }, []);
 
   const activateSession = useCallback(
     async (user: LoginResponseUsuario, token: string): Promise<void> => {
       updateAuthSession(token, user);
+      setSession({ token, user });
+      setAuthStatus("authenticated");
       setAuthMessage(null);
-      setBootstrapping(false);
     },
     [],
   );
@@ -95,7 +108,6 @@ export function useAuth() {
         setAuthMessage(`No se pudo iniciar sesion: ${getErrorMessage(error)}`);
       } finally {
         setAuthLoading(false);
-        setBootstrapping(false);
       }
     },
     [activateSession],
@@ -115,26 +127,27 @@ export function useAuth() {
       await logoutTolerantRequest();
     } finally {
       clearAuthSession();
+      setSession(null);
+      setAuthStatus("unauthenticated");
       setAuthMessage(null);
       setAuthLoading(false);
-      setBootstrapping(false);
     }
   }, [session]);
 
   const runProtectedRequest = useCallback(
-    async <T,>(action: (token: string) => Promise<T>): Promise<T> => {
+    async <T>(action: (token: string) => Promise<T>): Promise<T> => {
       const token = session?.token;
 
       if (!token) {
-        throw new Error('No hay una sesion activa.');
+        throw new Error("No hay una sesion activa.");
       }
 
       try {
         return await action(token);
       } catch (error) {
         if (isUnauthorizedError(error)) {
-          handleSessionExpired('La sesion expiro. Vuelve a iniciar sesion.');
-          throw new Error('La sesion expiro. Vuelve a iniciar sesion.', {
+          handleSessionExpired("La sesion expiro. Vuelve a iniciar sesion.");
+          throw new Error("La sesion expiro. Vuelve a iniciar sesion.", {
             cause: error,
           });
         }
@@ -148,7 +161,8 @@ export function useAuth() {
   return {
     authLoading,
     authMessage,
-    bootstrapping,
+    authStatus,
+    bootstrapping: authStatus === "checking",
     login,
     logout,
     runProtectedRequest,
