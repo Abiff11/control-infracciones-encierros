@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { InfraccionWriteLock } from '../../common/concurrency/infraccion-write-lock.interceptor';
 import { PAYMENT_ROLES, READ_ROLES } from '../auth/constants/roles.constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { LoginResponseUsuarioDto } from '../auth/dto/login-response.dto';
@@ -48,6 +49,7 @@ export class PagosController {
 
   @Roles(...PAYMENT_ROLES)
   @Post()
+  @InfraccionWriteLock('body.idInfraccion')
   @ApiOperation({ summary: 'Registrar pago por línea de captura' })
   registrarPago(
     @Body() registrarPagoDto: RegistrarPagoDto,
