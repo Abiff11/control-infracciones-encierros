@@ -1,0 +1,132 @@
+name: Concurrency verification
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - feature/concurrency-hardening
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  concurrent-api-writes:
+    name: Multi-user API concurrency smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: control_infracciones_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d control_infracciones_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: backend/infracciones-api
+
+    env:
+      NODE_ENV: test
+      PORT: 3000
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: control_infracciones_db
+      DB_SYNCHRONIZE: "false"
+      DB_POOL_MAX: 20
+      JWT_SECRET: ci_jwt_secret_concurrency_verification_32_chars_minimum
+      CSRF_SECRET: ci_csrf_secret_concurrency_verification_32_chars_minimum
+      CORS_ORIGIN: http://localhost:5173
+      ACCESS_TOKEN_EXPIRES_IN: 15m
+      REFRESH_TOKEN_EXPIRES_IN_MINUTES: 60
+      AUTH_MAX_FAILED_ATTEMPTS: 5
+      AUTH_LOCK_MINUTES: 15
+      CONCURRENCY_LOCK_TIMEOUT_MS: 10000
+      CONCURRENCY_LOCK_RETRY_MS: 25
+      THROTTLE_DEFAULT_LIMIT: 500
+      THROTTLE_READ_LIMIT: 500
+      THROTTLE_WRITE_LIMIT: 200
+      THROTTLE_AUTH_LIMIT: 50
+      CONCURRENCY_TEST_BASE_URL: http://127.0.0.1:3000
+      CONCURRENCY_TEST_ADMIN_EMAIL: concurrency-admin-a@example.com
+      CONCURRENCY_TEST_ADMIN_PASSWORD: Concurrency-admin-A-passphrase-2026!
+      CONCURRENCY_TEST_SECOND_ADMIN_EMAIL: concurrency-admin-b@example.com
+      CONCURRENCY_TEST_SECOND_ADMIN_PASSWORD: Concurrency-admin-B-passphrase-2026!
+      ADMIN_EMAIL: concurrency-admin-a@example.com
+      ADMIN_PASSWORD: Concurrency-admin-A-passphrase-2026!
+      ADMIN_NOMBRE: Concurrency Admin A
+      ADMIN_ROL: ADMIN
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/infracciones-api/package-lock.json
+
+      - name: Install exact backend dependencies
+        run: npm ci
+
+      - name: Build backend
+        run: npm run build
+
+      - name: Apply migrations
+        run: npm run migration:run
+
+      - name: Seed catalogs and first ADMIN
+        run: |
+          npm run seed:initial
+          npm run seed:admin
+
+      - name: Start API and run multi-user concurrency smoke
+        run: |
+          set -Eeuo pipefail
+          LOG_FILE="$RUNNER_TEMP/concurrency-api.log"
+          node dist/main.js >"$LOG_FILE" 2>&1 &
+          API_PID=$!
+          trap 'kill "$API_PID" 2>/dev/null || true' EXIT
+
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null; then
+              break
+            fi
+            if ! kill -0 "$API_PID" 2>/dev/null; then
+              echo "La API termino antes de estar saludable"
+              cat "$LOG_FILE"
+              exit 1
+            fi
+            if [ "$attempt" -eq 40 ]; then
+              echo "Timeout esperando /api/health"
+              cat "$LOG_FILE"
+              exit 1
+            fi
+            sleep 1
+          done
+
+          node scripts/concurrency-smoke.mjs
+
+      - name: Upload concurrency API log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: concurrency-api-verification-log
+          path: ${{ runner.temp }}/concurrency-api.log
+          if-no-files-found: warn
+          retention-days: 14

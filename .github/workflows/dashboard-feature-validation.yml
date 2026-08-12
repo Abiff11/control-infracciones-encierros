@@ -58,21 +58,27 @@ jobs:
       - name: Build backend
         run: npm run build
 
-      - name: Lint security and dashboard code without fixes
+      - name: Lint security, concurrency and dashboard code without fixes
         run: >-
           npx eslint
           "src/main.ts"
           "src/common/security/**/*.ts"
+          "src/common/concurrency/**/*.ts"
+          "src/common/filters/safe-exception.filter.ts"
           "src/common/middleware/**/*.ts"
           "src/modules/auth/**/*.ts"
           "src/modules/auditoria/**/*.ts"
           "src/modules/importaciones/**/*.ts"
           "src/modules/usuarios/**/*.ts"
           "src/modules/dashboard/**/*.ts"
+          "src/modules/pagos/pagos.controller.ts"
+          "src/modules/liberaciones/liberaciones.controller.ts"
+          "src/modules/encierros/encierros.controller.ts"
           "src/database/migrations/1880000000000-AddDashboardAnalyticsIndexes.ts"
           "src/database/migrations/1890000000000-EnsurePagadaSinRetencionStatus.ts"
           "src/database/migrations/1900000000000-AddAuthSessionVersion.ts"
           "src/database/migrations/1910000000000-AddSecurityAuditMetadata.ts"
+          "src/database/migrations/1920000000000-AddConcurrencyIntegrityConstraints.ts"
           --rule 'prettier/prettier: off'
 
       - name: Run backend tests
@@ -81,7 +87,7 @@ jobs:
       - name: Run migrations on disposable PostgreSQL
         run: npm run migration:run
 
-      - name: Assert payment, dashboard, auth and security audit schema
+      - name: Assert payment, dashboard, auth, security and concurrency schema
         run: |
           node <<'NODE'
           const { Client } = require('pg');
@@ -152,6 +158,10 @@ jobs:
               'idx_auditoria_entidad_created_at',
               'idx_auditoria_severity_created_at',
               'idx_auditoria_request_id',
+              'uq_retencion_vehiculo_id_infraccion',
+              'uq_salida_vehiculo_id_retencion_vehiculo',
+              'uq_pago_infraccion_folio_linea_captura',
+              'uq_liberacion_vehiculo_folio_liberacion',
             ];
             const indexes = await client.query(
               `SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = ANY($1)`,
@@ -183,8 +193,9 @@ jobs:
           });
           NODE
 
-      - name: Revert security, dashboard and payment migrations
+      - name: Revert concurrency, security, dashboard and payment migrations
         run: |
+          npm run migration:revert
           npm run migration:revert
           npm run migration:revert
           npm run migration:revert

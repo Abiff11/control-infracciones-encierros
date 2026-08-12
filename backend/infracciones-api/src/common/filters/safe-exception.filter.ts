@@ -14,6 +14,15 @@ interface ErrorPayload {
   error?: string;
 }
 
+interface DatabaseErrorLike {
+  code?: unknown;
+  driverError?: {
+    code?: unknown;
+  };
+}
+
+const DATABASE_CONFLICT_CODES = new Set(['23505', '40001', '40P01', '55P03']);
+
 function normalizeMessage(message: unknown): string | string[] {
   if (Array.isArray(message)) {
     return message.map((item) => String(item));
@@ -24,6 +33,17 @@ function normalizeMessage(message: unknown): string | string[] {
   }
 
   return 'Error interno del servidor';
+}
+
+function getDatabaseErrorCode(exception: unknown): string | null {
+  if (typeof exception !== 'object' || exception === null) {
+    return null;
+  }
+
+  const error = exception as DatabaseErrorLike;
+  const code = error.driverError?.code ?? error.code;
+
+  return typeof code === 'string' ? code : null;
 }
 
 function getExceptionPayload(exception: unknown): ErrorPayload {
@@ -43,6 +63,18 @@ function getExceptionPayload(exception: unknown): ErrorPayload {
     return {
       statusCode,
       message: normalizeMessage(response),
+    };
+  }
+
+  const databaseErrorCode = getDatabaseErrorCode(exception);
+  if (databaseErrorCode && DATABASE_CONFLICT_CODES.has(databaseErrorCode)) {
+    return {
+      statusCode: HttpStatus.CONFLICT,
+      message:
+        databaseErrorCode === '23505'
+          ? 'La operacion ya fue registrada o entra en conflicto con un registro existente.'
+          : 'El registro fue actualizado por otro usuario. Actualiza la informacion e intenta nuevamente.',
+      error: 'Conflict',
     };
   }
 

@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { InfraccionWriteLock } from '../../common/concurrency/infraccion-write-lock.interceptor';
 import { READ_ROLES, RELEASE_ROLES } from '../auth/constants/roles.constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { LoginResponseUsuarioDto } from '../auth/dto/login-response.dto';
@@ -42,6 +43,7 @@ export class LiberacionesController {
 
   @Roles(...RELEASE_ROLES)
   @Post()
+  @InfraccionWriteLock('body.idInfraccion')
   @ApiOperation({ summary: 'Generar liberación vehicular' })
   generarLiberacion(
     @Body() generarLiberacionDto: GenerarLiberacionDto,

@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { InfraccionWriteLockInterceptor } from './common/concurrency/infraccion-write-lock.interceptor';
 import { SelectiveThrottlerGuard } from './common/selective-throttler.guard';
 import appConfig from './config/app.config';
 import { validateEnv } from './config/env.validation';
@@ -118,6 +119,10 @@ import { VehiculosModule } from './modules/vehiculos/vehiculos.module';
     {
       provide: APP_GUARD,
       useClass: SelectiveThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: InfraccionWriteLockInterceptor,
     },
   ],
 })
