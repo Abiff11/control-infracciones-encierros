@@ -252,6 +252,22 @@ export function validateEnv(config: EnvRecord): EnvRecord {
       3600000,
       errors,
     ),
+    CONCURRENCY_LOCK_TIMEOUT_MS: parseNumber(
+      config,
+      'CONCURRENCY_LOCK_TIMEOUT_MS',
+      5000,
+      500,
+      30000,
+      errors,
+    ),
+    CONCURRENCY_LOCK_RETRY_MS: parseNumber(
+      config,
+      'CONCURRENCY_LOCK_RETRY_MS',
+      50,
+      10,
+      500,
+      errors,
+    ),
     LOGIN_RATE_LIMIT_WINDOW_MS: parseNumber(
       config,
       'LOGIN_RATE_LIMIT_WINDOW_MS',
