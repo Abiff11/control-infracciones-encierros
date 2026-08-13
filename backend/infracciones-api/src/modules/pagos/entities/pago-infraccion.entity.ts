@@ -42,7 +42,12 @@ export class PagoInfraccion {
   @Column({ name: 'monto', type: 'decimal', precision: 10, scale: 2 })
   monto!: string;
 
-  @Column({ name: 'monto_infraccion', type: 'decimal', precision: 10, scale: 2 })
+  @Column({
+    name: 'monto_infraccion',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+  })
   montoInfraccion!: string;
 
   @Column({ name: 'dias_piso_cobrados', type: 'int' })

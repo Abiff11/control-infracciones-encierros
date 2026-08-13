@@ -5,9 +5,7 @@ interface DuplicateRow {
   total: string | number;
 }
 
-export class AddConcurrencyIntegrityConstraints1920000000000
-  implements MigrationInterface
-{
+export class AddConcurrencyIntegrityConstraints1920000000000 implements MigrationInterface {
   name = 'AddConcurrencyIntegrityConstraints1920000000000';
   transaction = false;
 

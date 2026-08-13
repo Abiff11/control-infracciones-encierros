@@ -88,10 +88,10 @@ export class InfraccionWriteLockInterceptor implements NestInterceptor {
     } finally {
       if (lockAcquired && idInfraccion !== null) {
         try {
-          await queryRunner.query(
-            'SELECT pg_advisory_unlock($1, $2)',
-            [ADVISORY_LOCK_NAMESPACE, idInfraccion],
-          );
+          await queryRunner.query('SELECT pg_advisory_unlock($1, $2)', [
+            ADVISORY_LOCK_NAMESPACE,
+            idInfraccion,
+          ]);
         } catch {
           // La conexion se libera de todos modos; PostgreSQL elimina locks de sesion al cerrarla.
         }
