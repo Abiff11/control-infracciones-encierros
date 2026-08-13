@@ -1,10 +1,18 @@
 import type { ReactNode } from 'react';
 
+import { APP_TIME_ZONE } from './timezone';
+
 const EMPTY_LABEL = 'Sin informacion registrada';
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DATE_TIME_FORMAT = new Intl.DateTimeFormat('es-MX', {
   dateStyle: 'medium',
   timeStyle: 'short',
   hour12: true,
+  timeZone: APP_TIME_ZONE,
+});
+const DATE_FORMAT = new Intl.DateTimeFormat('es-MX', {
+  dateStyle: 'medium',
+  timeZone: APP_TIME_ZONE,
 });
 const TIME_OF_DAY_FORMAT = new Intl.DateTimeFormat('es-MX', {
   hour: 'numeric',
@@ -38,6 +46,16 @@ function buildTimeDate(value: string): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function buildDateForDisplay(value: string): Date {
+  if (DATE_ONLY_PATTERN.test(value)) {
+    // Una fecha civil no representa un instante. Usamos mediodia UTC para
+    // evitar que el formateo en America/Mexico_City la desplace al dia previo.
+    return new Date(`${value}T12:00:00.000Z`);
+  }
+
+  return new Date(value);
+}
+
 export function formatEmptyValue(value: string | null | undefined): string {
   return value?.trim() || EMPTY_LABEL;
 }
@@ -60,14 +78,12 @@ export function formatDate(value: string | null | undefined): string {
     return EMPTY_LABEL;
   }
 
-  const parsed = new Date(value);
+  const parsed = buildDateForDisplay(value);
   if (Number.isNaN(parsed.getTime())) {
     return value;
   }
 
-  return new Intl.DateTimeFormat('es-MX', {
-    dateStyle: 'medium',
-  }).format(parsed);
+  return DATE_FORMAT.format(parsed);
 }
 
 export function formatTimeOfDay(value: string | null | undefined): string {
