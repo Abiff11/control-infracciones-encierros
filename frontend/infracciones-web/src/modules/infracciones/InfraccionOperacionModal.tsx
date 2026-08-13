@@ -24,6 +24,10 @@ import {
   formatFullName,
   formatTimeOfDay,
 } from "../../utils/formatters";
+import {
+  dateTimeLocalToIso,
+  formatDateTimeLocalInput,
+} from "../../utils/timezone";
 import { confirmAction } from "../../utils/sweetAlert";
 import type { CatalogosBundle } from "../../types/catalogos.types";
 import type { InfraccionListItem } from "../../types/infracciones.types";
@@ -81,7 +85,7 @@ interface OperationFormState {
 }
 
 function getCurrentDateTimeLocal(): string {
-  return new Date().toISOString().slice(0, 16);
+  return formatDateTimeLocalInput();
 }
 
 function toNullableString(value: string): string | null {
@@ -90,7 +94,7 @@ function toNullableString(value: string): string | null {
 }
 
 function toIsoDateTime(value: string): string | undefined {
-  return value ? new Date(value).toISOString() : undefined;
+  return dateTimeLocalToIso(value);
 }
 
 function toMoney(value: string): string {
