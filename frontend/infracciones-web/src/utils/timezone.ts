@@ -59,6 +59,24 @@ function getTimeZoneOffsetMs(date: Date, timeZone: string): number {
   return zonedAsUtc - instantRoundedToSecond;
 }
 
+export function formatDateInput(
+  date = new Date(),
+  timeZone = APP_TIME_ZONE,
+): string {
+  const parts = getZonedDateTimeParts(date, timeZone);
+
+  return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}`;
+}
+
+export function formatTimeInput(
+  date = new Date(),
+  timeZone = APP_TIME_ZONE,
+): string {
+  const parts = getZonedDateTimeParts(date, timeZone);
+
+  return `${pad(parts.hour)}:${pad(parts.minute)}`;
+}
+
 export function formatDateTimeLocalInput(
   date = new Date(),
   timeZone = APP_TIME_ZONE,
