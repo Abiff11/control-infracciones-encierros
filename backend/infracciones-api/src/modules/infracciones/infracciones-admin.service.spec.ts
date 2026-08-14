@@ -3,6 +3,8 @@ import type { DataSource, EntityManager } from 'typeorm';
 
 import { InfraccionesAdminService } from './infracciones-admin.service';
 
+const VERSION_EXPEDIENTE = '0'.repeat(64);
+
 function buildCore(observaciones = 'antes') {
   return {
     idInfraccion: 7,
@@ -121,6 +123,7 @@ describe('InfraccionesAdminService', () => {
       service.eliminarExpediente(
         7,
         {
+          versionExpediente: VERSION_EXPEDIENTE,
           folioConfirmacion: 'OTRO-FOLIO',
           motivoEliminacion: 'Correccion de captura',
         },
@@ -139,6 +142,7 @@ describe('InfraccionesAdminService', () => {
     const result = await service.eliminarExpediente(
       7,
       {
+        versionExpediente: VERSION_EXPEDIENTE,
         folioConfirmacion: 'TEST-007',
         motivoEliminacion: 'Registro duplicado de prueba',
       },
@@ -172,6 +176,7 @@ describe('InfraccionesAdminService', () => {
     const result = await service.actualizarExpediente(
       7,
       {
+        versionExpediente: VERSION_EXPEDIENTE,
         motivoEdicion: 'Corregir observaciones',
         infraccion: {
           observaciones: 'despues',
