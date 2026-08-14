@@ -337,7 +337,8 @@ export class InfraccionesAdminService {
     }
 
     if (patch.folioInfraccion !== undefined) {
-      const duplicate = (await manager.query(
+      const duplicate = await this.queryRows<IdRow>(
+        manager,
         `
           SELECT id_infraccion AS id
           FROM infracciones
@@ -346,7 +347,7 @@ export class InfraccionesAdminService {
           LIMIT 1
         `,
         [patch.folioInfraccion, idInfraccion],
-      )) as IdRow[];
+      );
       if (duplicate.length > 0) {
         throw new ConflictException(
           'Ya existe otra infraccion con el folio indicado',
@@ -370,10 +371,11 @@ export class InfraccionesAdminService {
     if (patch.motivos !== undefined) {
       const uniqueMotivos = [...new Set(patch.motivos)];
       if (uniqueMotivos.length > 0) {
-        const rows = (await manager.query(
+        const rows = await this.queryRows<IdRow>(
+          manager,
           'SELECT id_motivo AS id FROM motivo WHERE id_motivo = ANY($1::int[])',
           [uniqueMotivos],
-        )) as IdRow[];
+        );
         if (rows.length !== uniqueMotivos.length) {
           throw new BadRequestException(
             'Uno o mas motivos seleccionados no existen',
@@ -502,7 +504,8 @@ export class InfraccionesAdminService {
     }
 
     const nombre = dto.lugarInfraccion.nombreLugarInfraccion.trim();
-    const rows = (await manager.query(
+    const rows = await this.queryRows<IdRow>(
+      manager,
       `
         SELECT id_lugar_infraccion AS id
         FROM lugar_infraccion
@@ -510,18 +513,19 @@ export class InfraccionesAdminService {
         LIMIT 1
       `,
       [nombre],
-    )) as IdRow[];
+    );
 
     let idLugar = rows[0]?.id;
     if (!idLugar) {
-      const inserted = (await manager.query(
+      const inserted = await this.queryRows<IdRow>(
+        manager,
         `
           INSERT INTO lugar_infraccion (nombre_lugar_infraccion)
           VALUES ($1)
           RETURNING id_lugar_infraccion AS id
         `,
         [nombre],
-      )) as IdRow[];
+      );
       idLugar = inserted[0]?.id;
     }
 
@@ -597,7 +601,8 @@ export class InfraccionesAdminService {
       );
 
       if (patch.folioLineaCaptura !== undefined) {
-        const duplicate = (await manager.query(
+        const duplicate = await this.queryRows<IdRow>(
+          manager,
           `
             SELECT id_pago_infraccion AS id
             FROM pago_infraccion
@@ -606,7 +611,7 @@ export class InfraccionesAdminService {
             LIMIT 1
           `,
           [patch.folioLineaCaptura, patch.idPagoInfraccion],
-        )) as IdRow[];
+        );
         if (duplicate.length > 0) {
           throw new ConflictException(
             'Ya existe otro pago con la linea de captura indicada',
@@ -659,7 +664,8 @@ export class InfraccionesAdminService {
 
         for (const [index, concepto] of patch.conceptos.entries()) {
           const clave = concepto.claveConcepto.trim().toUpperCase();
-          const conceptRows = (await manager.query(
+          const conceptRows = await this.queryRows<IdRow>(
+            manager,
             `
               INSERT INTO concepto_pago (clave_concepto, activo)
               VALUES ($1, TRUE)
@@ -668,7 +674,7 @@ export class InfraccionesAdminService {
               RETURNING id_concepto_pago AS id
             `,
             [clave],
-          )) as IdRow[];
+          );
           const idConcepto = conceptRows[0]?.id;
           if (!idConcepto) {
             throw new BadRequestException(
@@ -713,7 +719,8 @@ export class InfraccionesAdminService {
       );
 
       if (patch.folioLiberacion !== undefined) {
-        const duplicate = (await manager.query(
+        const duplicate = await this.queryRows<IdRow>(
+          manager,
           `
             SELECT id_liberacion_vehiculo AS id
             FROM liberacion_vehiculo
@@ -722,7 +729,7 @@ export class InfraccionesAdminService {
             LIMIT 1
           `,
           [patch.folioLiberacion, patch.idLiberacionVehiculo],
-        )) as IdRow[];
+        );
         if (duplicate.length > 0) {
           throw new ConflictException(
             'Ya existe otra liberacion con el folio indicado',
@@ -755,7 +762,8 @@ export class InfraccionesAdminService {
     salidas: NonNullable<AdminActualizarExpedienteDto['salidas']>,
   ): Promise<void> {
     for (const patch of salidas) {
-      const rows = (await manager.query(
+      const rows = await this.queryRows<IdRow>(
+        manager,
         `
           SELECT s.id_salida_vehiculo AS id
           FROM salida_vehiculo s
@@ -766,7 +774,7 @@ export class InfraccionesAdminService {
           LIMIT 1
         `,
         [patch.idSalidaVehiculo, idInfraccion],
-      )) as IdRow[];
+      );
       if (rows.length === 0) {
         throw new BadRequestException(
           'La salida indicada no pertenece a esta infraccion',
@@ -796,7 +804,8 @@ export class InfraccionesAdminService {
     manager: EntityManager,
     idInfraccion: number,
   ): Promise<void> {
-    const rows = (await manager.query(
+    const rows = await this.queryRows<TipoProcedimientoReglasRow>(
+      manager,
       `
         SELECT
           tp.nombre_tipo_procedimiento AS "nombreTipoProcedimiento",
@@ -815,7 +824,7 @@ export class InfraccionesAdminService {
         LIMIT 1
       `,
       [idInfraccion],
-    )) as TipoProcedimientoReglasRow[];
+    );
     const row = rows[0];
     if (!row) {
       throw new NotFoundException(`Infraccion ${idInfraccion} no encontrada`);
@@ -863,7 +872,8 @@ export class InfraccionesAdminService {
     manager: EntityManager,
     idInfraccion: number,
   ): Promise<AdminExpedienteSnapshot> {
-    const coreRows = (await manager.query(
+    const coreRows = await this.queryRows<CoreSnapshot>(
+      manager,
       `
         SELECT
           i.id_infraccion AS "idInfraccion",
@@ -906,13 +916,14 @@ export class InfraccionesAdminService {
         LIMIT 1
       `,
       [idInfraccion],
-    )) as CoreSnapshot[];
+    );
     const core = coreRows[0];
     if (!core) {
       throw new NotFoundException(`Infraccion ${idInfraccion} no encontrada`);
     }
 
-    const motivoRows = (await manager.query(
+    const motivoRows = await this.queryRows<IdRow>(
+      manager,
       `
         SELECT id_motivo AS id
         FROM infraccion_motivo
@@ -920,9 +931,10 @@ export class InfraccionesAdminService {
         ORDER BY id_infraccion_motivo ASC
       `,
       [idInfraccion],
-    )) as IdRow[];
+    );
 
-    const retencionRows = (await manager.query(
+    const retencionRows = await this.queryRows<Record<string, unknown>>(
+      manager,
       `
         SELECT
           id_retencion_vehiculo AS "idRetencionVehiculo",
@@ -938,9 +950,10 @@ export class InfraccionesAdminService {
         LIMIT 1
       `,
       [idInfraccion],
-    )) as Array<Record<string, unknown>>;
+    );
 
-    const pagos = (await manager.query(
+    const pagos = await this.queryRows<PagoSnapshot>(
+      manager,
       `
         SELECT
           id_pago_infraccion AS "idPagoInfraccion",
@@ -956,10 +969,11 @@ export class InfraccionesAdminService {
         ORDER BY id_pago_infraccion ASC
       `,
       [idInfraccion],
-    )) as PagoSnapshot[];
+    );
 
     for (const pago of pagos) {
-      pago.conceptos = (await manager.query(
+      pago.conceptos = await this.queryRows<PagoSnapshot['conceptos'][number]>(
+        manager,
         `
           SELECT
             pc.id_pago_concepto AS "idPagoConcepto",
@@ -973,10 +987,11 @@ export class InfraccionesAdminService {
           ORDER BY pc.orden ASC, pc.id_pago_concepto ASC
         `,
         [pago.idPagoInfraccion],
-      )) as PagoSnapshot['conceptos'];
+      );
     }
 
-    const liberaciones = (await manager.query(
+    const liberaciones = await this.queryRows<Record<string, unknown>>(
+      manager,
       `
         SELECT
           id_liberacion_vehiculo AS "idLiberacionVehiculo",
@@ -991,9 +1006,10 @@ export class InfraccionesAdminService {
         ORDER BY id_liberacion_vehiculo ASC
       `,
       [idInfraccion],
-    )) as Array<Record<string, unknown>>;
+    );
 
-    const salidas = (await manager.query(
+    const salidas = await this.queryRows<Record<string, unknown>>(
+      manager,
       `
         SELECT
           s.id_salida_vehiculo AS "idSalidaVehiculo",
@@ -1011,7 +1027,7 @@ export class InfraccionesAdminService {
         ORDER BY s.id_salida_vehiculo ASC
       `,
       [idInfraccion],
-    )) as Array<Record<string, unknown>>;
+    );
 
     return {
       infraccion: core,
@@ -1023,6 +1039,18 @@ export class InfraccionesAdminService {
     };
   }
 
+  private async queryRows<T>(
+    manager: EntityManager,
+    sql: string,
+    parameters: readonly unknown[] = [],
+  ): Promise<T[]> {
+    const result: unknown = await manager.query(sql, [...parameters]);
+    if (!Array.isArray(result)) {
+      throw new Error('La consulta administrativa no devolvio un arreglo de filas');
+    }
+    return result as T[];
+  }
+
   private async assertExists(
     manager: EntityManager,
     table: string,
@@ -1030,10 +1058,11 @@ export class InfraccionesAdminService {
     id: number,
     label: string,
   ): Promise<void> {
-    const rows = (await manager.query(
+    const rows = await this.queryRows<Record<string, unknown>>(
+      manager,
       `SELECT 1 FROM "${table}" WHERE "${idColumn}" = $1 LIMIT 1`,
       [id],
-    )) as unknown[];
+    );
     if (rows.length === 0) {
       throw new BadRequestException(`El ${label} seleccionado no existe`);
     }
@@ -1047,7 +1076,8 @@ export class InfraccionesAdminService {
     idInfraccion: number,
     label: string,
   ): Promise<void> {
-    const rows = (await manager.query(
+    const rows = await this.queryRows<Record<string, unknown>>(
+      manager,
       `
         SELECT 1
         FROM "${table}"
@@ -1056,7 +1086,7 @@ export class InfraccionesAdminService {
         LIMIT 1
       `,
       [id, idInfraccion],
-    )) as unknown[];
+    );
     if (rows.length === 0) {
       throw new BadRequestException(
         `El registro de ${label} indicado no pertenece a esta infraccion`,
@@ -1093,10 +1123,11 @@ export class InfraccionesAdminService {
     table: string,
     idInfraccion: number,
   ): Promise<number> {
-    const rows = (await manager.query(
+    const rows = await this.queryRows<{ total: number | string }>(
+      manager,
       `SELECT COUNT(*)::int AS total FROM "${table}" WHERE id_infraccion = $1`,
       [idInfraccion],
-    )) as Array<{ total: number | string }>;
+    );
     return Number(rows[0]?.total ?? 0);
   }
 
