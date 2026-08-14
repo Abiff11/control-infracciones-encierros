@@ -20,14 +20,14 @@ function buildContext(request: Record<string, unknown>): ExecutionContext {
 
 describe('InfraccionWriteLockInterceptor', () => {
   it('acquires and releases the advisory lock using params.idInfraccion', async () => {
-    const query = jest.fn(async (sql: string, params?: unknown[]) => {
+    const query = jest.fn((sql: string) => {
       if (sql.includes('pg_try_advisory_lock')) {
-        return [{ locked: true }];
+        return Promise.resolve([{ locked: true }]);
       }
       if (sql.includes('pg_advisory_unlock')) {
-        return [{ pg_advisory_unlock: true }];
+        return Promise.resolve([{ pg_advisory_unlock: true }]);
       }
-      return [];
+      return Promise.resolve([]);
     });
     const queryRunner = {
       connect: jest.fn().mockResolvedValue(undefined),
