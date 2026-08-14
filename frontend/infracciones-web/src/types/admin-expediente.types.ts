@@ -98,7 +98,7 @@ export interface AdminActualizarPagoConceptoPayload {
 }
 
 export interface AdminActualizarExpedientePayload {
-  versionExpediente: string;
+  versionExpediente?: string;
   motivoEdicion: string;
   infraccion?: {
     idDelegacion?: number;
@@ -171,7 +171,7 @@ export interface AdminActualizarExpedientePayload {
 }
 
 export interface AdminEliminarInfraccionPayload {
-  versionExpediente: string;
+  versionExpediente?: string;
   folioConfirmacion: string;
   motivoEliminacion: string;
 }
