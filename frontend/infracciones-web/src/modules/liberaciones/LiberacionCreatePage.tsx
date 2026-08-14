@@ -4,10 +4,10 @@ import { OperationResultCard } from "../../components/operation/OperationResultC
 import type { GenerarLiberacionPayload } from "../../types/operaciones.types";
 import { getResponseText } from "../../utils/response";
 import { confirmAction } from "../../utils/sweetAlert";
-
-function getCurrentDateTimeLocal(): string {
-  return new Date().toISOString().slice(0, 16);
-}
+import {
+  dateTimeLocalToIso,
+  formatDateTimeLocalInput,
+} from "../../utils/timezone";
 
 function toNullableString(value: string): string | null | undefined {
   if (value.trim() === "") {
@@ -33,7 +33,7 @@ function createInitialForm(initialIdInfraccion?: number | null) {
     idPagoInfraccion: "",
     folioLiberacion: "",
     liberadoPor: "",
-    fechaLiberacion: getCurrentDateTimeLocal(),
+    fechaLiberacion: formatDateTimeLocalInput(),
     observacion: "",
   };
 }
@@ -128,7 +128,7 @@ function LiberacionCreatePage({
         liberadoPor: form.liberadoPor.trim(),
         nombreRecibeLiberacion: null,
         fechaLiberacion: form.fechaLiberacion
-          ? new Date(form.fechaLiberacion).toISOString()
+          ? dateTimeLocalToIso(form.fechaLiberacion)
           : undefined,
         observacion: toNullableString(form.observacion) ?? null,
       });

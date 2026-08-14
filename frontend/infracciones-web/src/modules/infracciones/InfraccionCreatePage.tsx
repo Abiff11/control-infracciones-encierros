@@ -11,6 +11,7 @@ import type {
   CreateInfraccionCompletaPayload,
   InfraccionFlujoResponse,
 } from "../../types/infracciones.types";
+import { formatDateInput, formatTimeInput } from "../../utils/timezone";
 import "./InfraccionCreatePage.css";
 
 const MAX_MOTIVOS = 5;
@@ -18,11 +19,11 @@ const DEFAULT_TIPO_PROCEDIMIENTO_CLAVE = "INFRACCION";
 const DEFAULT_ESTATUS_INFRACCION = "CAPTURADA";
 
 function getTodayDate(): string {
-  return new Date().toISOString().slice(0, 10);
+  return formatDateInput();
 }
 
 function getCurrentTime(): string {
-  return new Date().toTimeString().slice(0, 5);
+  return formatTimeInput();
 }
 
 function normalizeCatalogText(value: string): string {

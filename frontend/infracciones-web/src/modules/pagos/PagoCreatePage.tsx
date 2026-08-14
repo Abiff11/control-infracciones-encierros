@@ -5,13 +5,13 @@ import type { RegistrarPagoPayload } from "../../types/operaciones.types";
 import { getResponseText } from "../../utils/response";
 import { confirmAction } from "../../utils/sweetAlert";
 import {
+  dateTimeLocalToIso,
+  formatDateTimeLocalInput,
+} from "../../utils/timezone";
+import {
   createEmptyPagoConceptoRow,
   type PagoConceptoFormRow,
 } from "../infracciones/pago-conceptos-form";
-
-function getCurrentDateTimeLocal(): string {
-  return new Date().toISOString().slice(0, 16);
-}
 
 function toNullableString(value: string): string | null {
   const normalized = value.trim();
@@ -38,7 +38,7 @@ function createInitialForm(initialIdInfraccion?: number | null) {
   return {
     idInfraccion: initialIdInfraccion ? String(initialIdInfraccion) : "",
     folioLineaCaptura: "",
-    fechaPago: getCurrentDateTimeLocal(),
+    fechaPago: formatDateTimeLocalInput(),
     observaciones: "",
   };
 }
@@ -194,9 +194,7 @@ function PagoCreatePage({
           claveConcepto: concepto.claveConcepto.trim().toUpperCase(),
           monto: toMoney(concepto.monto),
         })),
-        fechaPago: form.fechaPago
-          ? new Date(form.fechaPago).toISOString()
-          : undefined,
+        fechaPago: form.fechaPago ? dateTimeLocalToIso(form.fechaPago) : undefined,
         observaciones: toNullableString(form.observaciones),
       };
 

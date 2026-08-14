@@ -84,17 +84,13 @@ interface OperationFormState {
   observacionesSalida: string;
 }
 
-function getCurrentDateTimeLocal(): string {
-  return formatDateTimeLocalInput();
-}
-
 function toNullableString(value: string): string | null {
   const normalized = value.trim();
   return normalized === "" ? null : normalized;
 }
 
 function toIsoDateTime(value: string): string | undefined {
-  return dateTimeLocalToIso(value);
+  return value ? dateTimeLocalToIso(value) : undefined;
 }
 
 function toMoney(value: string): string {
@@ -110,7 +106,7 @@ function toMoney(value: string): string {
 function createInitialForm(
   type: InfraccionOperacionTipo | null,
 ): OperationFormState {
-  const now = getCurrentDateTimeLocal();
+  const now = formatDateTimeLocalInput();
 
   return {
     idEncierro: "",

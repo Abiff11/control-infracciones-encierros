@@ -4,10 +4,10 @@ import { OperationResultCard } from "../../components/operation/OperationResultC
 import type { RegistrarSalidaPayload } from "../../types/operaciones.types";
 import { getResponseText } from "../../utils/response";
 import { confirmAction } from "../../utils/sweetAlert";
-
-function getCurrentDateTimeLocal(): string {
-  return new Date().toISOString().slice(0, 16);
-}
+import {
+  dateTimeLocalToIso,
+  formatDateTimeLocalInput,
+} from "../../utils/timezone";
 
 function toNullableString(value: string): string | null | undefined {
   if (value.trim() === "") {
@@ -35,7 +35,7 @@ function createInitialForm(initialIdRetencionVehiculo?: number | null) {
     idLiberacionVehiculo: "",
     validadoPor: "",
     personaRecibeVehiculo: "",
-    fechaSalida: getCurrentDateTimeLocal(),
+    fechaSalida: formatDateTimeLocalInput(),
     observacionesSalida: "",
     estadoSalida: "",
   };
@@ -130,7 +130,7 @@ function SalidaCreatePage({
         validadoPor: form.validadoPor.trim(),
         personaRecibeVehiculo: form.personaRecibeVehiculo.trim(),
         fechaSalida: form.fechaSalida
-          ? new Date(form.fechaSalida).toISOString()
+          ? dateTimeLocalToIso(form.fechaSalida)
           : undefined,
         observacionesSalida: toNullableString(form.observacionesSalida) ?? null,
         estadoSalida: form.estadoSalida.trim(),

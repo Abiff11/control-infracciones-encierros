@@ -10,14 +10,21 @@ const DATE_TIME_FORMAT = new Intl.DateTimeFormat('es-MX', {
   hour12: true,
   timeZone: APP_TIME_ZONE,
 });
-const DATE_FORMAT = new Intl.DateTimeFormat('es-MX', {
-  dateStyle: 'medium',
-  timeZone: APP_TIME_ZONE,
-});
 const TIME_OF_DAY_FORMAT = new Intl.DateTimeFormat('es-MX', {
   hour: 'numeric',
   minute: '2-digit',
   hour12: true,
+  timeZone: 'UTC',
+});
+const TIME_OF_DAY_WITH_TIME_ZONE_FORMAT = new Intl.DateTimeFormat('es-MX', {
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+  timeZone: APP_TIME_ZONE,
+});
+const DATE_FORMAT = new Intl.DateTimeFormat('es-MX', {
+  dateStyle: 'medium',
+  timeZone: APP_TIME_ZONE,
 });
 
 function buildTimeDate(value: string): Date | null {
@@ -29,17 +36,17 @@ function buildTimeDate(value: string): Date | null {
 
   if (/^\d{1,2}$/.test(trimmed)) {
     const hours = Number(trimmed);
-    return new Date(2000, 0, 1, hours, 0, 0);
+    return new Date(Date.UTC(2000, 0, 1, hours, 0, 0));
   }
 
   if (/^\d{1,2}:\d{2}$/.test(trimmed)) {
     const [hours, minutes] = trimmed.split(':').map(Number);
-    return new Date(2000, 0, 1, hours, minutes, 0);
+    return new Date(Date.UTC(2000, 0, 1, hours, minutes, 0));
   }
 
   if (/^\d{1,2}:\d{2}:\d{2}$/.test(trimmed)) {
     const [hours, minutes, seconds] = trimmed.split(':').map(Number);
-    return new Date(2000, 0, 1, hours, minutes, seconds);
+    return new Date(Date.UTC(2000, 0, 1, hours, minutes, seconds));
   }
 
   const parsed = new Date(trimmed);
@@ -96,7 +103,11 @@ export function formatTimeOfDay(value: string | null | undefined): string {
     return EMPTY_LABEL;
   }
 
-  return TIME_OF_DAY_FORMAT.format(parsed);
+  if (/^\d{1,2}(:\d{2}){0,2}$/.test(value.trim())) {
+    return TIME_OF_DAY_FORMAT.format(parsed);
+  }
+
+  return TIME_OF_DAY_WITH_TIME_ZONE_FORMAT.format(parsed);
 }
 
 export function formatCurrencyMxn(value: string | number | null | undefined): string {
