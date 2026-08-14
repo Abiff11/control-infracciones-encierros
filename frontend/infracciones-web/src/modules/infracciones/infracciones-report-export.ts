@@ -1,5 +1,6 @@
 import type { InfraccionListItem } from '../../types/infracciones.types';
 import { formatDateTime } from '../../utils/formatters';
+import { formatDateInput } from '../../utils/timezone';
 import {
   getInfraccionesFieldsByIds,
   type InfraccionesReportFieldId,
@@ -112,21 +113,24 @@ ${bodyRows}
 }
 
 export function downloadInfraccionesExcelReport(payload: InfraccionesReportPayload): void {
+  const reportDate = formatDateInput();
+
   downloadBlob(
     new Blob([`\ufeff${buildReportHtml(payload)}`], {
       type: 'application/vnd.ms-excel;charset=utf-8',
     }),
-    `${normalizeFileName(payload.title)}-${new Date().toISOString().slice(0, 10)}.xls`,
+    `${normalizeFileName(payload.title)}-${reportDate}.xls`,
   );
 }
 
 export function downloadInfraccionesPdfReport(payload: InfraccionesReportPayload): void {
   const reportWindow = window.open('', '_blank');
+  const reportDate = formatDateInput();
 
   if (!reportWindow) {
     downloadBlob(
       new Blob([buildReportHtml(payload)], { type: 'text/html;charset=utf-8' }),
-      `${normalizeFileName(payload.title)}-${new Date().toISOString().slice(0, 10)}.html`,
+      `${normalizeFileName(payload.title)}-${reportDate}.html`,
     );
     return;
   }

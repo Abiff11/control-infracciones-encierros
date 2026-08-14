@@ -5,10 +5,10 @@ import type { CatalogosBundle } from "../../types/catalogos.types";
 import type { RegistrarRetencionPayload } from "../../types/operaciones.types";
 import { getResponseText } from "../../utils/response";
 import { confirmAction } from "../../utils/sweetAlert";
-
-function getCurrentDateTimeLocal(): string {
-  return new Date().toISOString().slice(0, 16);
-}
+import {
+  dateTimeLocalToIso,
+  formatDateTimeLocalInput,
+} from "../../utils/timezone";
 
 function toNullableString(value: string): string | null | undefined {
   if (value.trim() === "") {
@@ -33,7 +33,7 @@ function createInitialForm(initialIdInfraccion?: number | null) {
   return {
     idInfraccion: initialIdInfraccion ? String(initialIdInfraccion) : "",
     idEncierro: "",
-    fechaIngreso: getCurrentDateTimeLocal(),
+    fechaIngreso: formatDateTimeLocalInput(),
     recibidoPor: "",
     folioResguardo: "",
     observacionesIngreso: "",
@@ -129,7 +129,7 @@ function RetencionCreatePage({
         idInfraccion: Number(form.idInfraccion),
         idEncierro: Number(form.idEncierro),
         fechaIngreso: form.fechaIngreso
-          ? new Date(form.fechaIngreso).toISOString()
+          ? dateTimeLocalToIso(form.fechaIngreso)
           : undefined,
         recibidoPor: form.recibidoPor.trim(),
         folioResguardo: toNullableString(form.folioResguardo) ?? null,

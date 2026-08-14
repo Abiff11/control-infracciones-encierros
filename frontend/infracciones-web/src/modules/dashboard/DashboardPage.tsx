@@ -21,9 +21,11 @@ import type {
   DashboardTrendQuery,
 } from "../../types/dashboard.types";
 import type { ConceptoPagoOption } from "../../types/operaciones.types";
+import { formatDateInput } from "../../utils/timezone";
 import { DashboardAnalyticsOverview } from "./DashboardAnalyticsOverview";
 import { DashboardDistributionsOverview } from "./DashboardDistributionsOverview";
 import { DashboardRevenueOverview } from "./DashboardRevenueOverview";
+import { formatDateTime as formatAppDateTime } from "../../utils/formatters";
 
 import "./DashboardPage.css";
 import "./DashboardExtra.css";
@@ -67,7 +69,7 @@ const CONDICION_LABELS: Record<DashboardCondicionExpediente, string> = {
 };
 
 function formatInputDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  return formatDateInput(date);
 }
 
 function createDefaultFilters(): DashboardFilters {
@@ -153,16 +155,6 @@ function formatCurrency(value: number): string {
     minimumFractionDigits: 2,
     style: "currency",
   }).format(value);
-}
-
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-
-  return new Intl.DateTimeFormat("es-MX", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(date);
 }
 
 function DashboardPage({
@@ -368,7 +360,7 @@ function DashboardPage({
         <div className="dashboard-refresh-box">
           <span>
             {analyticsResumen?.updatedAt
-              ? `Actualizado: ${formatDateTime(analyticsResumen.updatedAt)}`
+              ? `Actualizado: ${formatAppDateTime(analyticsResumen.updatedAt)}`
               : apiStatusLabel}
           </span>
           <button

@@ -24,6 +24,10 @@ import {
   formatFullName,
   formatTimeOfDay,
 } from "../../utils/formatters";
+import {
+  dateTimeLocalToIso,
+  formatDateTimeLocalInput,
+} from "../../utils/timezone";
 import { confirmAction } from "../../utils/sweetAlert";
 import type { CatalogosBundle } from "../../types/catalogos.types";
 import type { InfraccionListItem } from "../../types/infracciones.types";
@@ -80,17 +84,13 @@ interface OperationFormState {
   observacionesSalida: string;
 }
 
-function getCurrentDateTimeLocal(): string {
-  return new Date().toISOString().slice(0, 16);
-}
-
 function toNullableString(value: string): string | null {
   const normalized = value.trim();
   return normalized === "" ? null : normalized;
 }
 
 function toIsoDateTime(value: string): string | undefined {
-  return value ? new Date(value).toISOString() : undefined;
+  return value ? dateTimeLocalToIso(value) : undefined;
 }
 
 function toMoney(value: string): string {
@@ -106,7 +106,7 @@ function toMoney(value: string): string {
 function createInitialForm(
   type: InfraccionOperacionTipo | null,
 ): OperationFormState {
-  const now = getCurrentDateTimeLocal();
+  const now = formatDateTimeLocalInput();
 
   return {
     idEncierro: "",
