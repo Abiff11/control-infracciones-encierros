@@ -83,6 +83,7 @@ export interface AdminSalidaSnapshot {
 }
 
 export interface AdminExpedienteSnapshot {
+  versionExpediente: string;
   infraccion: AdminExpedienteInfraccion;
   motivos: number[];
   retencion: AdminRetencionSnapshot | null;
@@ -97,6 +98,7 @@ export interface AdminActualizarPagoConceptoPayload {
 }
 
 export interface AdminActualizarExpedientePayload {
+  versionExpediente: string;
   motivoEdicion: string;
   infraccion?: {
     idDelegacion?: number;
@@ -169,6 +171,7 @@ export interface AdminActualizarExpedientePayload {
 }
 
 export interface AdminEliminarInfraccionPayload {
+  versionExpediente: string;
   folioConfirmacion: string;
   motivoEliminacion: string;
 }
