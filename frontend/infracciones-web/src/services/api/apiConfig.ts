@@ -1,25 +1,25 @@
 const DEFAULT_API_URL = '/api';
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1']);
 
-function alignLocalApiHostname(value: string): string {
-  if (!import.meta.env.DEV || typeof window === 'undefined') {
-    return value;
-  }
+interface ApiUrlContext {
+  isDev: boolean;
+  browserHostname: string | null;
+}
 
-  if (value.startsWith('/')) {
+function alignLocalApiHostname(value: string, context: ApiUrlContext): string {
+  if (!context.isDev || !context.browserHostname || value.startsWith('/')) {
     return value;
   }
 
   try {
     const configuredUrl = new URL(value);
-    const browserHostname = window.location.hostname;
 
     if (
       LOCAL_HOSTNAMES.has(configuredUrl.hostname) &&
-      LOCAL_HOSTNAMES.has(browserHostname) &&
-      configuredUrl.hostname !== browserHostname
+      LOCAL_HOSTNAMES.has(context.browserHostname) &&
+      configuredUrl.hostname !== context.browserHostname
     ) {
-      configuredUrl.hostname = browserHostname;
+      configuredUrl.hostname = context.browserHostname;
       return configuredUrl.toString().replace(/\/$/u, '');
     }
   } catch {
@@ -29,7 +29,10 @@ function alignLocalApiHostname(value: string): string {
   return value;
 }
 
-function normalizeApiUrl(value: string | undefined): string {
+export function resolveApiUrl(
+  value: string | undefined,
+  context: ApiUrlContext,
+): string {
   const configuredValue = value?.trim();
 
   if (!configuredValue) {
@@ -41,8 +44,14 @@ function normalizeApiUrl(value: string | undefined): string {
   }
 
   const normalized = configuredValue.replace(/\/+$/u, '');
-  return alignLocalApiHostname(normalized);
+  return alignLocalApiHostname(normalized, context);
 }
 
-export const apiUrl = normalizeApiUrl(import.meta.env.VITE_API_URL);
+const browserHostname =
+  typeof window === 'undefined' ? null : window.location.hostname;
+
+export const apiUrl = resolveApiUrl(import.meta.env.VITE_API_URL, {
+  isDev: import.meta.env.DEV,
+  browserHostname,
+});
 export const swaggerUrl = `${apiUrl}/docs`;
