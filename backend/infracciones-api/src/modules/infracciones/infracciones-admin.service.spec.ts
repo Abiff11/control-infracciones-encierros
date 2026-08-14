@@ -43,33 +43,33 @@ function buildCore(observaciones = 'antes') {
 
 function createHarness() {
   let updated = false;
-  const query = jest.fn(async (sql: string) => {
+  const query = jest.fn((sql: string) => {
     if (
       sql.includes('FROM infracciones i') &&
       sql.includes('INNER JOIN infractor inf')
     ) {
-      return [buildCore(updated ? 'despues' : 'antes')];
+      return Promise.resolve([buildCore(updated ? 'despues' : 'antes')]);
     }
     if (sql.includes('FROM infraccion_motivo') && sql.includes('SELECT id_motivo')) {
-      return [];
+      return Promise.resolve([]);
     }
     if (sql.includes('FROM retencion_vehiculo') && sql.includes('fecha_ingreso')) {
-      return [];
+      return Promise.resolve([]);
     }
     if (sql.includes('FROM pago_infraccion') && sql.includes('monto_infraccion')) {
-      return [];
+      return Promise.resolve([]);
     }
     if (
       sql.includes('FROM liberacion_vehiculo') &&
       sql.includes('folio_liberacion')
     ) {
-      return [];
+      return Promise.resolve([]);
     }
     if (sql.includes('FROM salida_vehiculo s')) {
-      return [];
+      return Promise.resolve([]);
     }
     if (sql.includes('tp.nombre_tipo_procedimiento')) {
-      return [
+      return Promise.resolve([
         {
           nombreTipoProcedimiento: 'INFRACCION',
           activo: true,
@@ -81,22 +81,22 @@ function createHarness() {
           folioInfraccion: 'TEST-007',
           numParteInformativo: null,
         },
-      ];
+      ]);
     }
     if (sql.includes('SELECT COUNT(*)::int AS total')) {
-      return [{ total: 0 }];
+      return Promise.resolve([{ total: 0 }]);
     }
     if (sql.startsWith('UPDATE "infracciones"')) {
       updated = true;
-      return [];
+      return Promise.resolve([]);
     }
-    return [];
+    return Promise.resolve([]);
   });
 
   const manager = { query } as unknown as EntityManager;
   const dataSource = {
-    transaction: jest.fn(async (callback: (value: EntityManager) => unknown) =>
-      callback(manager),
+    transaction: jest.fn((callback: (value: EntityManager) => unknown) =>
+      Promise.resolve(callback(manager)),
     ),
   } as unknown as DataSource;
 
