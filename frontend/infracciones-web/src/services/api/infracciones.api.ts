@@ -1,6 +1,12 @@
 import { buildQuery, request } from './apiClient';
 import { getPagosByInfraccion } from './pagos.api';
 import type {
+  AdminActualizarExpedientePayload,
+  AdminEliminarInfraccionPayload,
+  AdminEliminarInfraccionResponse,
+  AdminExpedienteSnapshot,
+} from '../../types/admin-expediente.types';
+import type {
   CreateInfraccionCompletaPayload,
   InfraccionDetalleResponse,
   InfraccionFlujoResponse,
@@ -72,6 +78,47 @@ export async function getInfraccionDetalle(
         .sort((first, second) => first.orden - second.orden),
     })),
   } as InfraccionDetalleResponse;
+}
+
+export function getAdminExpediente(
+  token: string,
+  idInfraccion: number,
+): Promise<AdminExpedienteSnapshot> {
+  return request<AdminExpedienteSnapshot>(
+    `/infracciones/${idInfraccion}/admin`,
+    {},
+    token,
+  );
+}
+
+export function updateAdminExpediente(
+  token: string,
+  idInfraccion: number,
+  payload: AdminActualizarExpedientePayload,
+): Promise<AdminExpedienteSnapshot> {
+  return request<AdminExpedienteSnapshot>(
+    `/infracciones/${idInfraccion}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
+}
+
+export function deleteAdminExpediente(
+  token: string,
+  idInfraccion: number,
+  payload: AdminEliminarInfraccionPayload,
+): Promise<AdminEliminarInfraccionResponse> {
+  return request<AdminEliminarInfraccionResponse>(
+    `/infracciones/${idInfraccion}`,
+    {
+      method: 'DELETE',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export function createInfraccion(
