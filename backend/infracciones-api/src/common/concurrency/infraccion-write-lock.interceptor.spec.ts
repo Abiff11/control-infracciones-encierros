@@ -29,10 +29,12 @@ describe('InfraccionWriteLockInterceptor', () => {
       }
       return Promise.resolve([]);
     });
+    const connect = jest.fn().mockResolvedValue(undefined);
+    const release = jest.fn().mockResolvedValue(undefined);
     const queryRunner = {
-      connect: jest.fn().mockResolvedValue(undefined),
+      connect,
       query,
-      release: jest.fn().mockResolvedValue(undefined),
+      release,
     } as unknown as QueryRunner;
     const dataSource = {
       createQueryRunner: () => queryRunner,
@@ -48,7 +50,8 @@ describe('InfraccionWriteLockInterceptor', () => {
       dataSource,
       configService,
     );
-    const next = { handle: jest.fn(() => of('ok')) } as CallHandler;
+    const handle = jest.fn(() => of('ok'));
+    const next = { handle } as CallHandler;
 
     const result = await lastValueFrom(
       interceptor.intercept(
@@ -66,16 +69,18 @@ describe('InfraccionWriteLockInterceptor', () => {
       734_221,
       42,
     ]);
-    expect(next.handle).toHaveBeenCalledTimes(1);
-    expect(queryRunner.release).toHaveBeenCalledTimes(1);
+    expect(handle).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
   });
 
   it('does not acquire a lock when the route param is invalid', async () => {
     const query = jest.fn().mockResolvedValue([]);
+    const connect = jest.fn().mockResolvedValue(undefined);
+    const release = jest.fn().mockResolvedValue(undefined);
     const queryRunner = {
-      connect: jest.fn().mockResolvedValue(undefined),
+      connect,
       query,
-      release: jest.fn().mockResolvedValue(undefined),
+      release,
     } as unknown as QueryRunner;
     const dataSource = {
       createQueryRunner: () => queryRunner,
@@ -91,7 +96,8 @@ describe('InfraccionWriteLockInterceptor', () => {
       dataSource,
       configService,
     );
-    const next = { handle: jest.fn(() => of('ok')) } as CallHandler;
+    const handle = jest.fn(() => of('ok'));
+    const next = { handle } as CallHandler;
 
     const result = await lastValueFrom(
       interceptor.intercept(
@@ -102,7 +108,7 @@ describe('InfraccionWriteLockInterceptor', () => {
 
     expect(result).toBe('ok');
     expect(query).not.toHaveBeenCalled();
-    expect(next.handle).toHaveBeenCalledTimes(1);
-    expect(queryRunner.release).toHaveBeenCalledTimes(1);
+    expect(handle).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
   });
 });
