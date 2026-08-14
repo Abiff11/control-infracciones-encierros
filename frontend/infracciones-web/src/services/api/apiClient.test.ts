@@ -120,4 +120,18 @@ describe("apiClient.restoreAuthSession", () => {
     await expect(restoreAuthSession()).resolves.toBeNull();
     expect(getAuthSession()).toBeNull();
   });
+
+  it("reporta configuracion CSRF cuando token-check no deja una cookie legible", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200 } as Response),
+    );
+
+    const { restoreAuthSession } = await import("./apiClient");
+
+    await expect(restoreAuthSession()).rejects.toThrow(
+      "No se pudo leer la cookie CSRF",
+    );
+    expect(refreshAuthSession).not.toHaveBeenCalled();
+  });
 });
