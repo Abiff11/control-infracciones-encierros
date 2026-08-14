@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
@@ -12,6 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { createHash } from 'node:crypto';
 import type { Request } from 'express';
 
 import { InfraccionWriteLock } from '../../common/concurrency/infraccion-write-lock.interceptor';
@@ -35,11 +37,16 @@ import { FindInfraccionesQueryDto } from './dto/find-infracciones-query.dto';
 import { RegistrarMovimientoDto } from './dto/registrar-movimiento.dto';
 import {
   type AdminAuditContext,
+  type AdminExpedienteSnapshot,
   InfraccionesAdminService,
 } from './infracciones-admin.service';
 import { InfraccionesListService } from './infracciones-list.service';
 import { InfraccionesService } from './infracciones.service';
 import { redactOperationalSensitiveDataForConsulta } from './infracciones.visibility';
+
+interface VersionedAdminExpedienteSnapshot extends AdminExpedienteSnapshot {
+  versionExpediente: string;
+}
 
 @ApiTags('infracciones')
 @ApiBearerAuth('JWT-auth')
@@ -110,11 +117,14 @@ export class InfraccionesController {
 
   @Roles(ROLES.ADMIN)
   @Get(':idInfraccion/admin')
+  @InfraccionWriteLock('params.idInfraccion')
   @ApiOperation({ summary: 'Obtener expediente editable para administracion' })
-  findAdminSnapshot(
+  async findAdminSnapshot(
     @Param('idInfraccion', ParseIntPipe) idInfraccion: number,
-  ) {
-    return this.infraccionesAdminService.getEditableSnapshot(idInfraccion);
+  ): Promise<VersionedAdminExpedienteSnapshot> {
+    const snapshot =
+      await this.infraccionesAdminService.getEditableSnapshot(idInfraccion);
+    return this.withVersion(snapshot);
   }
 
   @Get(':idInfraccion/movimientos')
@@ -162,29 +172,38 @@ export class InfraccionesController {
   @Patch(':idInfraccion')
   @InfraccionWriteLock('params.idInfraccion')
   @ApiOperation({ summary: 'Editar expediente completo como administrador' })
-  actualizarExpedienteAdmin(
+  async actualizarExpedienteAdmin(
     @Param('idInfraccion', ParseIntPipe) idInfraccion: number,
     @Body() dto: AdminActualizarExpedienteDto,
     @CurrentUser() currentUser: LoginResponseUsuarioDto,
     @Req() request: Request,
-  ) {
-    return this.infraccionesAdminService.actualizarExpediente(
+  ): Promise<VersionedAdminExpedienteSnapshot> {
+    const current =
+      await this.infraccionesAdminService.getEditableSnapshot(idInfraccion);
+    this.assertVersion(dto.versionExpediente, current);
+
+    const updated = await this.infraccionesAdminService.actualizarExpediente(
       idInfraccion,
       dto,
       this.buildAuditContext(request, currentUser),
     );
+    return this.withVersion(updated);
   }
 
   @Roles(ROLES.ADMIN)
   @Delete(':idInfraccion')
   @InfraccionWriteLock('params.idInfraccion')
   @ApiOperation({ summary: 'Eliminar expediente completo como administrador' })
-  eliminarExpedienteAdmin(
+  async eliminarExpedienteAdmin(
     @Param('idInfraccion', ParseIntPipe) idInfraccion: number,
     @Body() dto: EliminarInfraccionAdminDto,
     @CurrentUser() currentUser: LoginResponseUsuarioDto,
     @Req() request: Request,
   ) {
+    const current =
+      await this.infraccionesAdminService.getEditableSnapshot(idInfraccion);
+    this.assertVersion(dto.versionExpediente, current);
+
     return this.infraccionesAdminService.eliminarExpediente(
       idInfraccion,
       dto,
@@ -203,6 +222,30 @@ export class InfraccionesController {
       ...registrarMovimientoDto,
       idUsuario: currentUser.idUsuario,
     });
+  }
+
+  private withVersion(
+    snapshot: AdminExpedienteSnapshot,
+  ): VersionedAdminExpedienteSnapshot {
+    return {
+      ...snapshot,
+      versionExpediente: this.createVersion(snapshot),
+    };
+  }
+
+  private assertVersion(
+    expectedVersion: string,
+    snapshot: AdminExpedienteSnapshot,
+  ): void {
+    if (this.createVersion(snapshot) !== expectedVersion) {
+      throw new ConflictException(
+        'El expediente cambio desde que lo cargaste. Recarga los datos antes de continuar.',
+      );
+    }
+  }
+
+  private createVersion(snapshot: AdminExpedienteSnapshot): string {
+    return createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
   }
 
   private buildAuditContext(
