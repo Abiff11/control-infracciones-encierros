@@ -94,6 +94,17 @@ function readCookie(cookieName: string): string {
   return decodeURIComponent(cookie.slice(cookieName.length + 1));
 }
 
+function assertCsrfCookieReadable(): void {
+  if (readCookie(CSRF_COOKIE_NAME)) {
+    return;
+  }
+
+  throw new ApiError(
+    0,
+    "No se pudo leer la cookie CSRF. En desarrollo, abre frontend y API con el mismo hostname (localhost o 127.0.0.1) o utiliza VITE_API_URL=/api.",
+  );
+}
+
 export async function ensureCsrfToken(forceRefresh = false): Promise<void> {
   if (!forceRefresh && readCookie(CSRF_COOKIE_NAME)) {
     return;
@@ -110,6 +121,8 @@ export async function ensureCsrfToken(forceRefresh = false): Promise<void> {
             "No se pudo preparar la sesion segura.",
           );
         }
+
+        assertCsrfCookieReadable();
       })
       .finally(() => {
         csrfTokenPromise = null;
@@ -140,6 +153,10 @@ async function refreshSession(): Promise<void> {
           }
 
           throw new ApiError(error.status, error.message);
+        }
+
+        if (error instanceof ApiError) {
+          throw error;
         }
 
         throw new ApiError(0, getErrorMessage(error));
