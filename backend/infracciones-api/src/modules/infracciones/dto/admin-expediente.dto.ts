@@ -33,6 +33,10 @@ function nullablePositiveInt(value: unknown): unknown {
 }
 
 export class EliminarInfraccionAdminDto {
+  @IsString()
+  @Matches(/^[a-f0-9]{64}$/)
+  versionExpediente!: string;
+
   @Transform(({ value }): unknown =>
     typeof value === 'string' ? value.trim() : value,
   )
@@ -399,6 +403,10 @@ export class AdminActualizarSalidaDto {
 }
 
 export class AdminActualizarExpedienteDto {
+  @IsString()
+  @Matches(/^[a-f0-9]{64}$/)
+  versionExpediente!: string;
+
   @Transform(({ value }): unknown =>
     typeof value === 'string' ? value.trim() : value,
   )
