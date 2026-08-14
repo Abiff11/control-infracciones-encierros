@@ -14,6 +14,7 @@ import { Vehiculo } from '../vehiculos/entities/vehiculo.entity';
 import { InfraccionMotivo } from './entities/infraccion-motivo.entity';
 import { InfraccionMovimiento } from './entities/infraccion-movimiento.entity';
 import { Infraccion } from './entities/infraccion.entity';
+import { InfraccionesAdminService } from './infracciones-admin.service';
 import { InfraccionesController } from './infracciones.controller';
 import { InfraccionesListService } from './infracciones-list.service';
 import { InfraccionesService } from './infracciones.service';
@@ -37,7 +38,11 @@ import { InfraccionesService } from './infracciones.service';
     ]),
   ],
   controllers: [InfraccionesController],
-  providers: [InfraccionesService, InfraccionesListService],
+  providers: [
+    InfraccionesService,
+    InfraccionesListService,
+    InfraccionesAdminService,
+  ],
   exports: [InfraccionesService],
 })
 export class InfraccionesModule {}
