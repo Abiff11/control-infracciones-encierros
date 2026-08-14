@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LoginResponse } from "../../types/auth.types";
 
 const refreshAuthSession = vi.fn();
+const CSRF_COOKIE_NAME = "cie_csrf_token";
 
 class MockAuthApiError extends Error {
   status: number;
@@ -31,6 +32,14 @@ function createDeferred<T>() {
   return { promise, resolve, reject };
 }
 
+function setReadableCsrfCookie(): void {
+  document.cookie = `${CSRF_COOKIE_NAME}=csrf-test-token; Path=/; SameSite=Lax`;
+}
+
+function clearReadableCsrfCookie(): void {
+  document.cookie = `${CSRF_COOKIE_NAME}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
+
 const TEST_RESPONSE: LoginResponse = {
   accessToken: "token-restaurado",
   tokenType: "Bearer",
@@ -52,6 +61,7 @@ describe("apiClient.restoreAuthSession", () => {
     vi.resetModules();
     vi.unstubAllGlobals();
     refreshAuthSession.mockReset();
+    clearReadableCsrfCookie();
 
     const authSession = await import("./authSession");
     authSession.clearAuthSession();
@@ -60,7 +70,10 @@ describe("apiClient.restoreAuthSession", () => {
   it("deduplica refresh concurrentes durante el bootstrap", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ ok: true, status: 200 } as Response),
+      vi.fn().mockImplementation(async () => {
+        setReadableCsrfCookie();
+        return { ok: true, status: 200 } as Response;
+      }),
     );
 
     const deferred = createDeferred<LoginResponse>();
@@ -92,7 +105,10 @@ describe("apiClient.restoreAuthSession", () => {
   it("interpreta un 401 de refresh como ausencia normal de sesion", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ ok: true, status: 200 } as Response),
+      vi.fn().mockImplementation(async () => {
+        setReadableCsrfCookie();
+        return { ok: true, status: 200 } as Response;
+      }),
     );
     refreshAuthSession.mockRejectedValue(
       new MockAuthApiError(401, "Credenciales invalidas"),
