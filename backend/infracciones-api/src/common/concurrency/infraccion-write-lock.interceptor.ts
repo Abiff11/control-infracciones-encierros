@@ -17,7 +17,8 @@ export const INFRACCION_WRITE_LOCK_KEY = 'concurrency:infraccion-write-lock';
 
 export type InfraccionWriteLockSource =
   | 'body.idInfraccion'
-  | 'body.idRetencionVehiculo';
+  | 'body.idRetencionVehiculo'
+  | 'params.idInfraccion';
 
 export const InfraccionWriteLock = (source: InfraccionWriteLockSource) =>
   SetMetadata(INFRACCION_WRITE_LOCK_KEY, source);
@@ -106,8 +107,11 @@ export class InfraccionWriteLockInterceptor implements NestInterceptor {
     request: Request,
     queryRunner: QueryRunner,
   ): Promise<number | null> {
-    const body = this.readBody(request);
+    if (source === 'params.idInfraccion') {
+      return this.toPositiveInt(request.params?.idInfraccion);
+    }
 
+    const body = this.readBody(request);
     if (source === 'body.idInfraccion') {
       return this.toPositiveInt(body.idInfraccion);
     }
