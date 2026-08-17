@@ -311,6 +311,9 @@ export class AdminActualizarPagoDto {
   @IsString()
   observaciones?: string | null;
 
+  @Transform(({ value }): unknown =>
+    Array.isArray(value) && value.length === 0 ? undefined : value,
+  )
   @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
