@@ -11,6 +11,7 @@ const INFRACCIONES_HIDDEN_KEYS = new Set<SidebarItem['key']>([
   'catalogos',
   'usuarios',
   'admin-expedientes',
+  'admin-operaciones',
 ]);
 
 export interface SidebarItem {
@@ -57,7 +58,7 @@ export function Sidebar({ currentPage, items, onLogout, onNavigate, swaggerUrl, 
       return !INFRACCIONES_HIDDEN_KEYS.has(item.key);
     }
 
-    return !['usuarios', 'admin-expedientes'].includes(item.key);
+    return !['usuarios', 'admin-expedientes', 'admin-operaciones'].includes(item.key);
   });
   const groups = Array.from(new Set(visibleItems.map((item) => item.group)));
 
