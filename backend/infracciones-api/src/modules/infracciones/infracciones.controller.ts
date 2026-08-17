@@ -32,9 +32,14 @@ import {
   AdminActualizarExpedienteDto,
   EliminarInfraccionAdminDto,
 } from './dto/admin-expediente.dto';
+import {
+  EliminarOperacionAdminDto,
+  EliminarOperacionAdminParamsDto,
+} from './dto/eliminar-operacion-admin.dto';
 import { CreateInfraccionCompletaDto } from './dto/create-infraccion-completa.dto';
 import { FindInfraccionesQueryDto } from './dto/find-infracciones-query.dto';
 import { RegistrarMovimientoDto } from './dto/registrar-movimiento.dto';
+import { InfraccionesAdminOperacionesService } from './infracciones-admin-operaciones.service';
 import {
   type AdminAuditContext,
   type AdminExpedienteSnapshot,
@@ -58,6 +63,7 @@ export class InfraccionesController {
     private readonly infraccionesService: InfraccionesService,
     private readonly infraccionesListService: InfraccionesListService,
     private readonly infraccionesAdminService: InfraccionesAdminService,
+    private readonly infraccionesAdminOperacionesService: InfraccionesAdminOperacionesService,
   ) {}
 
   @Get()
@@ -187,6 +193,36 @@ export class InfraccionesController {
       dto,
       this.buildAuditContext(request, currentUser),
     );
+    return this.withVersion(updated);
+  }
+
+  @Roles(ROLES.ADMIN)
+  @Delete(':idInfraccion/admin/operaciones/:tipo/:idOperacion')
+  @InfraccionWriteLock('params.idInfraccion')
+  @ApiOperation({
+    summary: 'Eliminar una operacion vinculada del expediente como administrador',
+  })
+  async eliminarOperacionAdmin(
+    @Param('idInfraccion', ParseIntPipe) idInfraccion: number,
+    @Param() params: EliminarOperacionAdminParamsDto,
+    @Body() dto: EliminarOperacionAdminDto,
+    @CurrentUser() currentUser: LoginResponseUsuarioDto,
+    @Req() request: Request,
+  ): Promise<VersionedAdminExpedienteSnapshot> {
+    const current =
+      await this.infraccionesAdminService.getEditableSnapshot(idInfraccion);
+    this.assertVersion(dto.versionExpediente, current);
+
+    await this.infraccionesAdminOperacionesService.eliminarOperacion(
+      idInfraccion,
+      params.tipo,
+      params.idOperacion,
+      dto,
+      this.buildAuditContext(request, currentUser),
+    );
+
+    const updated =
+      await this.infraccionesAdminService.getEditableSnapshot(idInfraccion);
     return this.withVersion(updated);
   }
 
