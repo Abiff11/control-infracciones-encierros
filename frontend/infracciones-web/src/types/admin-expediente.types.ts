@@ -182,3 +182,11 @@ export interface AdminEliminarInfraccionResponse {
   eliminado: true;
   relacionesEliminadas: Record<string, number>;
 }
+
+export type AdminOperacionTipo = 'PAGO' | 'LIBERACION' | 'SALIDA' | 'RETENCION';
+
+export interface AdminEliminarOperacionPayload {
+  versionExpediente?: string;
+  motivoEliminacion: string;
+  confirmarDependencias?: boolean;
+}
