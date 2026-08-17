@@ -37,10 +37,7 @@ import { EliminarOperacionAdminDto } from './dto/eliminar-operacion-admin.dto';
 import { CreateInfraccionCompletaDto } from './dto/create-infraccion-completa.dto';
 import { FindInfraccionesQueryDto } from './dto/find-infracciones-query.dto';
 import { RegistrarMovimientoDto } from './dto/registrar-movimiento.dto';
-import {
-  type AdminOperacionTipo,
-  InfraccionesAdminOperacionesService,
-} from './infracciones-admin-operaciones.service';
+import { InfraccionesAdminOperacionesService } from './infracciones-admin-operaciones.service';
 import {
   type AdminAuditContext,
   type AdminExpedienteSnapshot,
@@ -225,7 +222,7 @@ export class InfraccionesController {
 
     await this.infraccionesAdminOperacionesService.eliminarOperacion(
       idInfraccion,
-      tipo as AdminOperacionTipo,
+      tipo,
       idOperacion,
       dto,
       this.buildAuditContext(request, currentUser),
