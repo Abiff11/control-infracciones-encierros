@@ -4,7 +4,9 @@ import type {
   AdminActualizarExpedientePayload,
   AdminEliminarInfraccionPayload,
   AdminEliminarInfraccionResponse,
+  AdminEliminarOperacionPayload,
   AdminExpedienteSnapshot,
+  AdminOperacionTipo,
 } from '../../types/admin-expediente.types';
 import type {
   CreateInfraccionCompletaPayload,
@@ -121,6 +123,29 @@ export async function updateAdminExpediente(
     `/infracciones/${idInfraccion}`,
     {
       method: 'PATCH',
+      body: JSON.stringify({ ...payload, versionExpediente }),
+    },
+    token,
+  );
+  adminExpedienteVersions.set(idInfraccion, response.versionExpediente);
+  return response;
+}
+
+export async function deleteAdminOperacion(
+  token: string,
+  idInfraccion: number,
+  tipo: AdminOperacionTipo,
+  idOperacion: number,
+  payload: AdminEliminarOperacionPayload,
+): Promise<AdminExpedienteSnapshot> {
+  const versionExpediente = resolveAdminVersion(
+    idInfraccion,
+    payload.versionExpediente,
+  );
+  const response = await request<AdminExpedienteSnapshot>(
+    `/infracciones/${idInfraccion}/admin/operaciones/${tipo}/${idOperacion}`,
+    {
+      method: 'DELETE',
       body: JSON.stringify({ ...payload, versionExpediente }),
     },
     token,
