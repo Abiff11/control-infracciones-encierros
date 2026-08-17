@@ -1,4 +1,5 @@
 import { showApiErrorAlert } from './apiAlerts';
+import { getAuthSession } from './authSession';
 
 type FetchInput = Parameters<typeof fetch>[0];
 type FetchInit = Parameters<typeof fetch>[1];
@@ -47,7 +48,11 @@ function shouldSuppressAuthRetryNoise(response: Response, input: FetchInput): bo
   const url = resolveUrl(input);
   const pathname = url?.pathname ?? '';
 
-  return !pathname.includes('/auth/refresh');
+  if (!pathname.includes('/auth/refresh')) {
+    return true;
+  }
+
+  return getAuthSession() === null;
 }
 
 function shouldSuppressCsrfRetryNoise(response: Response, input: FetchInput, init?: FetchInit): boolean {
