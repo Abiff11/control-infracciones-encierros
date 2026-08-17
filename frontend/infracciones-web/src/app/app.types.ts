@@ -10,5 +10,7 @@ export type PageKey =
   | 'flujo-operativo'
   | 'reportes-infracciones'
   | 'usuarios'
+  | 'admin-expedientes'
+  | 'admin-operaciones'
   | 'importaciones'
   | 'catalogos';

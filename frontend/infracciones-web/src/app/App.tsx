@@ -18,6 +18,8 @@ import {
 import CatalogosPage from "../pages/CatalogosPage";
 import DashboardPage from "../modules/dashboard/DashboardPage";
 import EncierrosVehiculosPage from "../modules/encierros/EncierrosVehiculosPage";
+import AdminExpedientesPage from "../modules/infracciones/AdminExpedientesPage";
+import AdminOperacionesPage from "../modules/infracciones/AdminOperacionesPage";
 import FlujoOperativoPage from "../modules/infracciones/FlujoOperativoPage";
 import ImportacionesPage from "../modules/importaciones/ImportacionesPage";
 import InfraccionCreatePage from "../modules/infracciones/InfraccionCreatePage";
@@ -86,6 +88,10 @@ function App() {
   }
 
   function handleNavigate(page: PageKey): void {
+    if (["admin-expedientes", "admin-operaciones"].includes(page) && !isAdmin) {
+      return;
+    }
+
     if (
       roleName === "INFRACCIONES" &&
       ["encierros-vehiculos", "importaciones", "catalogos"].includes(page)
@@ -288,6 +294,30 @@ function App() {
       {currentPage === "usuarios" && !isAdmin ? (
         <p className="notice notice-error">
           No tienes permisos para ver la sección de usuarios.
+        </p>
+      ) : null}
+
+      {currentPage === "admin-expedientes" && isAdmin ? (
+        <AdminExpedientesPage
+          catalogs={catalogs}
+          token={session.token}
+          onChanged={bumpRefresh}
+        />
+      ) : null}
+
+      {currentPage === "admin-expedientes" && !isAdmin ? (
+        <p className="notice notice-error">
+          No tienes permisos para administrar expedientes.
+        </p>
+      ) : null}
+
+      {currentPage === "admin-operaciones" && isAdmin ? (
+        <AdminOperacionesPage token={session.token} onChanged={bumpRefresh} />
+      ) : null}
+
+      {currentPage === "admin-operaciones" && !isAdmin ? (
+        <p className="notice notice-error">
+          No tienes permisos para corregir operaciones.
         </p>
       ) : null}
 
