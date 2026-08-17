@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   backend:
-    name: Backend build, tests and migrations
+    name: Backend build, lint, tests and migrations
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -58,28 +58,8 @@ jobs:
       - name: Build backend
         run: npm run build
 
-      - name: Lint security, concurrency and dashboard code without fixes
-        run: >-
-          npx eslint
-          "src/main.ts"
-          "src/common/security/**/*.ts"
-          "src/common/concurrency/**/*.ts"
-          "src/common/filters/safe-exception.filter.ts"
-          "src/common/middleware/**/*.ts"
-          "src/modules/auth/**/*.ts"
-          "src/modules/auditoria/**/*.ts"
-          "src/modules/importaciones/**/*.ts"
-          "src/modules/usuarios/**/*.ts"
-          "src/modules/dashboard/**/*.ts"
-          "src/modules/pagos/pagos.controller.ts"
-          "src/modules/liberaciones/liberaciones.controller.ts"
-          "src/modules/encierros/encierros.controller.ts"
-          "src/database/migrations/1880000000000-AddDashboardAnalyticsIndexes.ts"
-          "src/database/migrations/1890000000000-EnsurePagadaSinRetencionStatus.ts"
-          "src/database/migrations/1900000000000-AddAuthSessionVersion.ts"
-          "src/database/migrations/1910000000000-AddSecurityAuditMetadata.ts"
-          "src/database/migrations/1920000000000-AddConcurrencyIntegrityConstraints.ts"
-          --rule 'prettier/prettier: off'
+      - name: Lint complete backend without fixes
+        run: npm run lint
 
       - name: Run backend tests
         run: npm test -- --runInBand
@@ -137,15 +117,26 @@ jobs:
               throw new Error('No existe auth_session_version en usuarios');
             }
 
-            const securityColumns = await client.query(`
-              SELECT column_name
-              FROM information_schema.columns
-              WHERE table_schema = 'public'
-                AND table_name = 'auditoria'
-                AND column_name = ANY($1)
-            `, [['severity', 'request_id', 'http_method', 'request_path', 'user_agent']]);
-            const securityColumnNames = new Set(securityColumns.rows.map((row) => row.column_name));
-            for (const columnName of ['severity', 'request_id', 'http_method', 'request_path', 'user_agent']) {
+            const securityColumns = await client.query(
+              `
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'auditoria'
+                  AND column_name = ANY($1)
+              `,
+              [['severity', 'request_id', 'http_method', 'request_path', 'user_agent']],
+            );
+            const securityColumnNames = new Set(
+              securityColumns.rows.map((row) => row.column_name),
+            );
+            for (const columnName of [
+              'severity',
+              'request_id',
+              'http_method',
+              'request_path',
+              'user_agent',
+            ]) {
               if (!securityColumnNames.has(columnName)) {
                 throw new Error(`No existe auditoria.${columnName}`);
               }
@@ -210,7 +201,7 @@ jobs:
         run: npm run migration:show
 
   frontend:
-    name: Frontend lint and build
+    name: Frontend lint, tests and build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -231,6 +222,9 @@ jobs:
 
       - name: Lint frontend
         run: npm run lint
+
+      - name: Test frontend
+        run: npm run test
 
       - name: Build frontend
         run: npm run build
