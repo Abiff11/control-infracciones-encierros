@@ -90,7 +90,7 @@ export default function AdminOperacionesPage({
   }
 
   return (
-    <section className="admin-expedientes-page page-stack">
+    <section className="admin-expedientes-page admin-operaciones-page page-stack">
       <header className="admin-expedientes-hero">
         <div>
           <p className="eyebrow">Administración</p>
@@ -107,7 +107,7 @@ export default function AdminOperacionesPage({
         </div>
       </header>
 
-      <Card className="admin-search-card">
+      <Card className="admin-search-card admin-operaciones-search-card">
         <div className="admin-search-heading">
           <div>
             <p className="section-label">Localizar infracción</p>
@@ -141,41 +141,16 @@ export default function AdminOperacionesPage({
       <ErrorMessage message={error} />
 
       {snapshot ? (
-        <div className="admin-editor-layout">
-          <Card className="admin-editor-card">
-            <div className="admin-editor-intro">
-              <p className="section-label">Infracción cargada</p>
-              <h2>Infracción {snapshot.infraccion.folioInfraccion}</h2>
-              <p>
-                {fullName(snapshot) || "Sin nombre"} · {snapshot.infraccion.placas || "Sin placas"}
-              </p>
-            </div>
-
-            <div className="admin-record-meta-grid">
-              <div className="admin-meta-item">
-                <span>Pagos</span>
-                <strong>{snapshot.pagos.length}</strong>
+        <div className="admin-operaciones-workspace">
+          <Card className="admin-operaciones-summary-card">
+            <div className="admin-operaciones-summary-head">
+              <div>
+                <p className="section-label">Infracción cargada</p>
+                <h2>Infracción {snapshot.infraccion.folioInfraccion}</h2>
+                <p className="admin-record-subtitle">
+                  {fullName(snapshot) || "Sin nombre"} · {snapshot.infraccion.placas || "Sin placas"}
+                </p>
               </div>
-              <div className="admin-meta-item">
-                <span>Retención</span>
-                <strong>{snapshot.retencion ? 1 : 0}</strong>
-              </div>
-              <div className="admin-meta-item">
-                <span>Liberaciones</span>
-                <strong>{snapshot.liberaciones.length}</strong>
-              </div>
-              <div className="admin-meta-item">
-                <span>Salidas</span>
-                <strong>{snapshot.salidas.length}</strong>
-              </div>
-            </div>
-
-            <div className="page-stack">
-              <p className="page-description">
-                Recomendación: si necesitas retroceder el flujo completo, elimina
-                primero la operación más avanzada. El sistema también puede retirar
-                dependencias automáticamente cuando lo confirmes.
-              </p>
               <Button
                 type="button"
                 variant="secondary"
@@ -188,17 +163,43 @@ export default function AdminOperacionesPage({
                 Nueva búsqueda
               </Button>
             </div>
+
+            <div className="admin-operaciones-summary-grid">
+              <div className="admin-operaciones-stat">
+                <span>Pagos</span>
+                <strong>{snapshot.pagos.length}</strong>
+              </div>
+              <div className="admin-operaciones-stat">
+                <span>Retención</span>
+                <strong>{snapshot.retencion ? 1 : 0}</strong>
+              </div>
+              <div className="admin-operaciones-stat">
+                <span>Liberaciones</span>
+                <strong>{snapshot.liberaciones.length}</strong>
+              </div>
+              <div className="admin-operaciones-stat">
+                <span>Salidas</span>
+                <strong>{snapshot.salidas.length}</strong>
+              </div>
+            </div>
+
+            <div className="admin-operaciones-guidance">
+              <strong>Secuencia recomendada</strong>
+              <span>
+                Si necesitas retroceder el flujo, comienza por la operación más
+                avanzada. Antes de confirmar se mostrará cualquier dependencia que
+                también deba retirarse.
+              </span>
+            </div>
           </Card>
 
-          <aside className="admin-action-sidebar">
-            <AdminOperacionesPanel
-              token={token}
-              snapshot={snapshot}
-              hasUnsavedChanges={false}
-              onUpdated={handleUpdated}
-              onError={setError}
-            />
-          </aside>
+          <AdminOperacionesPanel
+            token={token}
+            snapshot={snapshot}
+            hasUnsavedChanges={false}
+            onUpdated={handleUpdated}
+            onError={setError}
+          />
         </div>
       ) : null}
     </section>
