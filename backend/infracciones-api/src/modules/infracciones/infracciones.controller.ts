@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseEnumPipe,
   ParseIntPipe,
   Patch,
   Post,
@@ -32,14 +33,14 @@ import {
   AdminActualizarExpedienteDto,
   EliminarInfraccionAdminDto,
 } from './dto/admin-expediente.dto';
-import {
-  EliminarOperacionAdminDto,
-  EliminarOperacionAdminParamsDto,
-} from './dto/eliminar-operacion-admin.dto';
+import { EliminarOperacionAdminDto } from './dto/eliminar-operacion-admin.dto';
 import { CreateInfraccionCompletaDto } from './dto/create-infraccion-completa.dto';
 import { FindInfraccionesQueryDto } from './dto/find-infracciones-query.dto';
 import { RegistrarMovimientoDto } from './dto/registrar-movimiento.dto';
-import { InfraccionesAdminOperacionesService } from './infracciones-admin-operaciones.service';
+import {
+  type AdminOperacionTipo,
+  InfraccionesAdminOperacionesService,
+} from './infracciones-admin-operaciones.service';
 import {
   type AdminAuditContext,
   type AdminExpedienteSnapshot,
@@ -51,6 +52,13 @@ import { redactOperationalSensitiveDataForConsulta } from './infracciones.visibi
 
 interface VersionedAdminExpedienteSnapshot extends AdminExpedienteSnapshot {
   versionExpediente: string;
+}
+
+enum AdminOperacionTipoParam {
+  PAGO = 'PAGO',
+  LIBERACION = 'LIBERACION',
+  SALIDA = 'SALIDA',
+  RETENCION = 'RETENCION',
 }
 
 @ApiTags('infracciones')
@@ -204,7 +212,9 @@ export class InfraccionesController {
   })
   async eliminarOperacionAdmin(
     @Param('idInfraccion', ParseIntPipe) idInfraccion: number,
-    @Param() params: EliminarOperacionAdminParamsDto,
+    @Param('tipo', new ParseEnumPipe(AdminOperacionTipoParam))
+    tipo: AdminOperacionTipoParam,
+    @Param('idOperacion', ParseIntPipe) idOperacion: number,
     @Body() dto: EliminarOperacionAdminDto,
     @CurrentUser() currentUser: LoginResponseUsuarioDto,
     @Req() request: Request,
@@ -215,8 +225,8 @@ export class InfraccionesController {
 
     await this.infraccionesAdminOperacionesService.eliminarOperacion(
       idInfraccion,
-      params.tipo,
-      params.idOperacion,
+      tipo as AdminOperacionTipo,
+      idOperacion,
       dto,
       this.buildAuditContext(request, currentUser),
     );
