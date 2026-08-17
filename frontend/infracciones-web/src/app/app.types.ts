@@ -11,5 +11,6 @@ export type PageKey =
   | 'reportes-infracciones'
   | 'usuarios'
   | 'admin-expedientes'
+  | 'admin-operaciones'
   | 'importaciones'
   | 'catalogos';
