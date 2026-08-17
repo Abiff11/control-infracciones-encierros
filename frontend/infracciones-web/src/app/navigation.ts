@@ -17,6 +17,11 @@ export const NAV_ITEMS: NavigationItem[] = [
     key: 'admin-expedientes',
     label: 'Administrar expedientes',
   },
+  {
+    group: 'Administracion',
+    key: 'admin-operaciones',
+    label: 'Corregir operaciones',
+  },
   { group: 'Operacion', key: 'nueva-infraccion', label: 'Nueva infraccion' },
   { group: 'Encierros', key: 'encierros-vehiculos', label: 'Inventario de encierros' },
   { group: 'Tecnico', key: 'importaciones', label: 'Importaciones' },
