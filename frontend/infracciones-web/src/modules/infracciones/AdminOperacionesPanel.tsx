@@ -216,39 +216,69 @@ export function AdminOperacionesPanel({
   }
 
   return (
-    <Card className="admin-action-card admin-danger-card">
-      <div className="page-stack">
+    <Card className="admin-operaciones-panel-card">
+      <div className="admin-operaciones-panel-head">
         <div>
           <p className="section-label">Corrección del flujo</p>
           <h2>Operaciones vinculadas</h2>
           <p>
-            Retira pagos, liberaciones, salidas o retenciones capturadas por error.
-            Si una operación depende de otra, se muestra el impacto antes de
-            confirmar.
+            Revisa cada registro antes de retirarlo. Si existen dependencias, el
+            impacto se muestra de forma explícita antes de confirmar.
           </p>
         </div>
+        <span className="admin-operaciones-audit-badge">Auditoría crítica</span>
+      </div>
 
-        {hasUnsavedChanges ? (
-          <div className="admin-save-state">
-            <span>Acciones bloqueadas</span>
-            <strong>Guarda o descarta primero los cambios del formulario</strong>
-          </div>
-        ) : null}
+      {hasUnsavedChanges ? (
+        <div className="admin-operaciones-blocked-state">
+          <strong>Acciones temporalmente bloqueadas</strong>
+          <span>Guarda o descarta primero los cambios del formulario.</span>
+        </div>
+      ) : null}
 
-        {operations.length === 0 ? (
-          <p className="page-description">No hay operaciones vinculadas que eliminar.</p>
-        ) : (
-          <div className="page-stack">
-            {operations.map((operation) => {
-              const key = `${operation.tipo}-${operation.idOperacion}`;
-              const processing = processingKey === key;
-              return (
-                <div className="admin-save-state" key={key}>
-                  <span>{operation.titulo}</span>
-                  <strong>{operation.detalle}</strong>
-                  {operation.dependencias.map((dependency) => (
-                    <small key={dependency}>También elimina: {dependency}</small>
-                  ))}
+      {operations.length === 0 ? (
+        <div className="admin-operaciones-empty-state">
+          <strong>Sin operaciones vinculadas</strong>
+          <span>No hay pagos, liberaciones, salidas o retenciones que retirar.</span>
+        </div>
+      ) : (
+        <div className="admin-operaciones-list">
+          {operations.map((operation) => {
+            const key = `${operation.tipo}-${operation.idOperacion}`;
+            const processing = processingKey === key;
+            return (
+              <article className="admin-operacion-item" key={key}>
+                <div className="admin-operacion-main">
+                  <div className="admin-operacion-title-row">
+                    <span
+                      className={`admin-operacion-type is-${operation.tipo.toLowerCase()}`}
+                    >
+                      {operation.tipo === "RETENCION"
+                        ? "RETENCIÓN"
+                        : operation.tipo === "LIBERACION"
+                          ? "LIBERACIÓN"
+                          : operation.tipo}
+                    </span>
+                    <strong>{operation.titulo}</strong>
+                  </div>
+                  <p className="admin-operacion-detail">{operation.detalle}</p>
+
+                  <div className="admin-operacion-impact">
+                    {operation.dependencias.length === 0 ? (
+                      <span className="admin-operacion-impact-safe">
+                        Sin dependencias adicionales
+                      </span>
+                    ) : (
+                      operation.dependencias.map((dependency) => (
+                        <span className="admin-operacion-impact-warning" key={dependency}>
+                          También elimina: {dependency}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="admin-operacion-action">
                   <Button
                     type="button"
                     variant="secondary"
@@ -256,14 +286,16 @@ export function AdminOperacionesPanel({
                     disabled={disabled || hasUnsavedChanges || processingKey !== null}
                     onClick={() => void removeOperation(operation)}
                   >
-                    {processing ? "Eliminando..." : `Eliminar ${operationLabel(operation.tipo)}`}
+                    {processing
+                      ? "Eliminando..."
+                      : `Eliminar ${operationLabel(operation.tipo)}`}
                   </Button>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </Card>
   );
 }
