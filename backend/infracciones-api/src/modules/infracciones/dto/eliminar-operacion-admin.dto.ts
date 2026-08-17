@@ -1,4 +1,4 @@
-import { Transform, Type } from '@nestjs/class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsInt,
@@ -24,7 +24,6 @@ export class EliminarOperacionAdminDto {
   motivoEliminacion!: string;
 
   @IsOptional()
-  @Type(() => Boolean)
   @IsBoolean()
   confirmarDependencias?: boolean;
 }
