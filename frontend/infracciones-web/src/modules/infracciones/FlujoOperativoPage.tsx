@@ -125,7 +125,20 @@ function getEstatus(result: InfraccionFlujoResponse): string {
 }
 
 function getEstadoOperativo(result: InfraccionFlujoResponse): string | null {
-  return readString(result, ["estadoOperativoCalculado"]);
+  return (
+    readString(result, ["infraccion", "estadoOperativoCalculado"]) ??
+    readString(result, ["estadoOperativoCalculado"])
+  );
+}
+
+function getPermiteRetencion(result: InfraccionFlujoResponse): boolean {
+  const rawValue = readPath(result, [
+    "infraccion",
+    "tipoProcedimiento",
+    "permiteRetencion",
+  ]);
+
+  return rawValue === true || rawValue === 1 || rawValue === "true" || rawValue === "1";
 }
 
 function getFirst(items: unknown[]): unknown | null {
@@ -133,6 +146,7 @@ function getFirst(items: unknown[]): unknown | null {
 }
 
 function buildFlowSteps(result: InfraccionFlujoResponse): FlowStep[] {
+  const permiteRetencion = getPermiteRetencion(result);
   const retenciones = asArray(result.retenciones);
   const pagos = asArray(result.pagos);
   const liberaciones = asArray(result.liberaciones);
@@ -141,16 +155,31 @@ function buildFlowSteps(result: InfraccionFlujoResponse): FlowStep[] {
   const pago = getFirst(pagos);
   const liberacion = getFirst(liberaciones);
   const salida = getFirst(salidas);
+  const capturaStep: FlowStep = {
+    label: "Captura",
+    title: getFolio(result),
+    description: `${formatDate(readString(result, ["infraccion", "fechaInfraccion"]))} · ${formatTimeOfDay(
+      readString(result, ["infraccion", "horaInfraccion"]),
+    )}`,
+    state: "done",
+  };
+  const pagoStep: FlowStep = {
+    label: "Pago",
+    title: pago
+      ? (readString(pago, ["folioPago"]) ?? "Registrado")
+      : "Pendiente",
+    description: pago
+      ? formatDateTime(readString(pago, ["fechaPago"]))
+      : "Registrar pago",
+    state: pago ? "done" : permiteRetencion && !retencion ? "pending" : "current",
+  };
+
+  if (!permiteRetencion) {
+    return [capturaStep, pagoStep];
+  }
 
   return [
-    {
-      label: "Captura",
-      title: getFolio(result),
-      description: `${formatDate(readString(result, ["infraccion", "fechaInfraccion"]))} · ${formatTimeOfDay(
-        readString(result, ["infraccion", "horaInfraccion"]),
-      )}`,
-      state: "done",
-    },
+    capturaStep,
     {
       label: "Retencion",
       title: retencion
@@ -162,16 +191,7 @@ function buildFlowSteps(result: InfraccionFlujoResponse): FlowStep[] {
         : "Registrar ingreso a encierro",
       state: retencion ? "done" : "current",
     },
-    {
-      label: "Pago",
-      title: pago
-        ? (readString(pago, ["folioPago"]) ?? "Registrado")
-        : "Pendiente",
-      description: pago
-        ? formatDateTime(readString(pago, ["fechaPago"]))
-        : "Registrar pago",
-      state: pago ? "done" : retencion ? "current" : "pending",
-    },
+    pagoStep,
     {
       label: "Liberacion",
       title: liberacion
@@ -194,10 +214,25 @@ function buildFlowSteps(result: InfraccionFlujoResponse): FlowStep[] {
 }
 
 function getNextAction(result: InfraccionFlujoResponse): NextAction {
+  const permiteRetencion = getPermiteRetencion(result);
   const retenciones = asArray(result.retenciones);
   const pagos = asArray(result.pagos);
   const liberaciones = asArray(result.liberaciones);
   const salidas = asArray(result.salidas);
+
+  if (!permiteRetencion) {
+    if (pagos.length === 0) {
+      return {
+        title: "Registrar pago",
+        description: "El expediente no requiere ingreso a encierro y no tiene pago registrado.",
+      };
+    }
+
+    return {
+      title: "Flujo completo",
+      description: "Pago registrado. El expediente no requiere liberacion ni salida de encierro.",
+    };
+  }
 
   if (retenciones.length === 0) {
     return {
