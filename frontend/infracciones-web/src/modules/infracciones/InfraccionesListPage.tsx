@@ -252,6 +252,10 @@ function getNextOperation(item: InfraccionListItem): NextOperation {
 }
 
 function getIngresoLabel(item: InfraccionListItem): string {
+  if (!item.tipoProcedimiento.permiteRetencion) {
+    return "No aplica";
+  }
+
   if (!item.retencion) {
     return "Pendiente de ingreso";
   }
@@ -260,9 +264,21 @@ function getIngresoLabel(item: InfraccionListItem): string {
 }
 
 function getEncierroLabel(item: InfraccionListItem): string {
+  if (!item.tipoProcedimiento.permiteRetencion) {
+    return "Sin retención";
+  }
+
   return item.retencion
     ? formatEmptyValue(item.retencion.encierro)
     : "Sin encierro registrado";
+}
+
+function getResguardoLabel(item: InfraccionListItem): string {
+  if (!item.tipoProcedimiento.permiteRetencion) {
+    return "No aplica";
+  }
+
+  return formatEmptyValue(item.retencion?.folioResguardo);
 }
 
 function PendingText({ children }: { children: string }) {
@@ -819,10 +835,7 @@ function InfraccionesListPage({
                         <div className="table-cell-stack">
                           <strong>{getEncierroLabel(item)}</strong>
                           <span>Ingreso: {getIngresoLabel(item)}</span>
-                          <span>
-                            Resguardo:{" "}
-                            {formatEmptyValue(item.retencion?.folioResguardo)}
-                          </span>
+                          <span>Resguardo: {getResguardoLabel(item)}</span>
                         </div>
                       </td>
                       <td>
