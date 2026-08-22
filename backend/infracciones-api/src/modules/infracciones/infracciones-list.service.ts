@@ -56,6 +56,7 @@ interface InfraccionListRow {
   fechaLiberacion: string | Date | null;
   tieneSalida: boolean | number | string | null;
   fechaSalida: string | Date | null;
+  clavesPago: string | null;
 }
 
 interface MotivoRow {
@@ -227,6 +228,24 @@ export class InfraccionesListService {
         )`,
         'montoPagado',
       )
+
+      .addSelect(
+        `(
+    SELECT string_agg(cp.clave_concepto, ', ' ORDER BY pc.orden)
+    FROM pago_concepto pc
+    INNER JOIN concepto_pago cp
+      ON cp.id_concepto_pago = pc.id_concepto_pago
+    WHERE pc.id_pago_infraccion = (
+      SELECT pago.id_pago_infraccion
+      FROM pago_infraccion pago
+      WHERE pago.id_infraccion = infraccion.id_infraccion
+      ORDER BY pago.fecha_pago DESC, pago.id_pago_infraccion DESC
+      LIMIT 1
+    )
+  )`,
+        'clavesPago',
+      )
+
       .addSelect(this.hasLiberacionExpression(), 'tieneLiberacion')
       .addSelect(
         `(
@@ -672,6 +691,7 @@ export class InfraccionesListService {
         idPagoInfraccion: this.toNullableNumber(row.idUltimoPago),
         fechaUltimoPago: this.toIsoString(row.fechaUltimoPago),
         montoPagado: this.toNullableString(row.montoPagado),
+        clavesConcepto: this.toNullableString(row.clavesPago),
       },
       liberacion: {
         tieneLiberacion: hasLiberacion,

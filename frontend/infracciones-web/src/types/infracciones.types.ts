@@ -45,6 +45,7 @@ export interface InfraccionListPagoSummary {
   idPagoInfraccion: number | null;
   fechaUltimoPago: string | null;
   montoPagado: string | null;
+  clavesConcepto: string | null;
 }
 
 export interface InfraccionListLiberacionSummary {

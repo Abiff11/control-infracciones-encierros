@@ -145,6 +145,7 @@ export const INFRACCIONES_REPORT_FIELDS = [
   { id: 'pagoAccion', label: 'Pago / accion', group: 'Pago', getValue: getPagoResumen },
   { id: 'tienePago', label: 'Tiene pago', group: 'Pago', getValue: (item) => booleanLabel(item.pago?.tienePago, 'Pagada', 'Sin pago') },
   { id: 'idPagoInfraccion', label: 'ID pago', group: 'Pago', getValue: (item) => value(item.pago?.idPagoInfraccion) },
+  { id: 'clavesPago', label: 'Claves de pago', group: 'Pago', getValue: (item) => formatEmptyValue(item.pago?.clavesConcepto) },
   { id: 'fechaUltimoPago', label: 'Fecha ultimo pago', group: 'Pago', getValue: (item) => formatDateTime(item.pago?.fechaUltimoPago) },
   { id: 'montoPagado', label: 'Monto pagado', group: 'Pago', getValue: (item) => formatCurrencyMxn(item.pago?.montoPagado) },
   { id: 'pagoResumen', label: 'Resumen pago', group: 'Pago', getValue: getPagoResumen },
