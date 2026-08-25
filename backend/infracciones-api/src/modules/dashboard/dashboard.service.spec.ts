@@ -62,6 +62,55 @@ describe('DashboardService analitica', () => {
     expect(dataSource.query).toHaveBeenCalledTimes(3);
   });
 
+  it('excluye solventaciones sin pago del resumen financiero', async () => {
+    const { dataSource, service } = createService();
+
+    dataSource.query
+      .mockResolvedValueOnce([
+        {
+          totalExpedientes: 1,
+          totalInfracciones: 1,
+          infraccionesConRetencion: 0,
+          infraccionesSinRetencion: 1,
+          tipoInfraccionSinRetencion: 0,
+          vehiculosSinInfraccion: 0,
+          vehiculosActualmenteEnEncierro: 0,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          totalPagos: 0,
+          totalIngresos: '0.00',
+          promedioPago: '0.00',
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          ingresosConClaveIdentificada: '0.00',
+          ingresosSinDesgloseClave: '0.00',
+        },
+      ]);
+
+    const result = await service.getAnaliticaResumen({});
+    const [ingresosSql] = dataSource.query.mock.calls[1] as [string];
+    const [coberturaSql] = dataSource.query.mock.calls[2] as [string];
+
+    expect(result.ingresos).toEqual({
+      totalPagos: 0,
+      totalIngresos: 0,
+      promedioPago: 0,
+      ingresosConClaveIdentificada: 0,
+      ingresosSinDesgloseClave: 0,
+    });
+    expect(ingresosSql).toContain('FROM pago_infraccion p');
+    expect(ingresosSql).toContain('COUNT(DISTINCT p.id_pago_infraccion)');
+    expect(ingresosSql).toContain('SUM(p.monto::numeric)');
+    expect(ingresosSql).toContain('AVG(p.monto::numeric)');
+    expect(ingresosSql).not.toContain('solventacion_sin_pago');
+    expect(coberturaSql).toContain('FROM pago_infraccion p');
+    expect(coberturaSql).not.toContain('solventacion_sin_pago');
+  });
+
   it('genera tendencia mensual de infracciones y calcula variacion contra el periodo anterior', async () => {
     const { dataSource, service } = createService();
 
@@ -130,8 +179,10 @@ describe('DashboardService analitica', () => {
 
     const [sql, params] = dataSource.query.mock.calls[0] as [string, unknown[]];
 
+    expect(sql).toContain('FROM pago_infraccion p');
     expect(sql).toContain('INNER JOIN pago_concepto pc_trend');
     expect(sql).toContain('pc_trend.monto::numeric');
+    expect(sql).not.toContain('solventacion_sin_pago');
     expect(params).toContain('ABC-10');
     expect(result.series[1].variacionIngresosVsPeriodoAnteriorPct).toBe(25);
   });
@@ -155,8 +206,13 @@ describe('DashboardService analitica', () => {
     ]);
 
     const result = await service.getIngresosPorClave({});
+    const [sql] = dataSource.query.mock.calls[0] as [string];
 
     expect(result.totalIdentificado).toBe(1000);
+    expect(sql).toContain('FROM pago_infraccion p');
+    expect(sql).toContain('INNER JOIN pago_concepto pc');
+    expect(sql).toContain('INNER JOIN concepto_pago cp');
+    expect(sql).not.toContain('solventacion_sin_pago');
     expect(result.claves).toEqual([
       {
         idConceptoPago: 1,
