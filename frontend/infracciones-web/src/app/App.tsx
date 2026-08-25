@@ -10,7 +10,7 @@ import { useCatalogos } from "../hooks/useCatalogos";
 import { getSwaggerUrl } from "../services/api/apiClient";
 import { createRetencion, createSalida } from "../services/api/encierros.api";
 import { createLiberacion } from "../services/api/liberaciones.api";
-import { createPago } from "../services/api/pagos.api";
+import { createNoAplicaPago, createPago } from "../services/api/pagos.api";
 import {
   createInfraccion,
   getInfraccionFlujo,
@@ -39,6 +39,7 @@ import type {
 } from "../types/infracciones.types";
 import type {
   GenerarLiberacionPayload,
+  RegistrarNoAplicaPagoPayload,
   RegistrarPagoPayload,
   RegistrarRetencionPayload,
   RegistrarSalidaPayload,
@@ -146,6 +147,18 @@ function App() {
 
     const response = await runProtectedRequest((token) =>
       createPago(token, payload),
+    );
+    bumpRefresh();
+    return response;
+  }
+
+  async function handleNoAplicaPago(payload: RegistrarNoAplicaPagoPayload) {
+    if (!session?.token) {
+      throw new Error("Sesion no valida");
+    }
+
+    const response = await runProtectedRequest((token) =>
+      createNoAplicaPago(token, payload),
     );
     bumpRefresh();
     return response;
@@ -335,6 +348,7 @@ function App() {
           initialIdInfraccion={pagoInitialId}
           onCompleted={completeOperation}
           onSubmit={handleRegistrarPago}
+          onSubmitNoAplica={handleNoAplicaPago}
         />
       ) : null}
 
