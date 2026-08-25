@@ -161,13 +161,13 @@ export class LiberacionesService {
     const liberacion = this.liberacionesRepository.create({
       infraccion: { idInfraccion: params.idInfraccion } as Infraccion,
       pagoInfraccion: pagoInfraccion
-        ? ({ idPagoInfraccion: pagoInfraccion.idPagoInfraccion } as PagoInfraccion)
+        ? { idPagoInfraccion: pagoInfraccion.idPagoInfraccion }
         : null,
       solventacionSinPago: solventacionSinPago
-        ? ({
+        ? {
             idSolventacionSinPago:
               solventacionSinPago.idSolventacionSinPago,
-          } as SolventacionSinPago)
+          }
         : null,
       usuarioLibera: { idUsuario: params.idUsuarioLibera } as Usuario,
       folioLiberacion: params.folioLiberacion,
