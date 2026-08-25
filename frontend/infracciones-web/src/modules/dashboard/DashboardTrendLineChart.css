@@ -19,9 +19,9 @@
 }
 
 .dashboard-trend-legend i {
-  width: 18px;
-  height: 4px;
-  border-radius: 999px;
+  width: 12px;
+  height: 10px;
+  border-radius: 2px;
   background: currentColor;
 }
 
@@ -55,25 +55,31 @@
   font-weight: 700;
 }
 
-.dashboard-trend-polyline {
-  stroke: currentColor;
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
+.dashboard-trend-bar {
+  fill: currentColor;
+  opacity: 0.9;
+  transition: opacity 120ms ease;
 }
 
-.dashboard-trend-point {
-  fill: #ffffff;
-  stroke: currentColor;
-  stroke-width: 3;
-  vector-effect: non-scaling-stroke;
+.dashboard-trend-bar:hover {
+  opacity: 1;
 }
 
-.dashboard-trend-series-total { color: #2563eb; }
-.dashboard-trend-series-retencion { color: #f97316; }
-.dashboard-trend-series-sin-retencion { color: #16a34a; }
-.dashboard-trend-series-sin-infraccion { color: #7c3aed; }
+.dashboard-trend-series-total {
+  color: #2563eb;
+}
+
+.dashboard-trend-series-retencion {
+  color: #f97316;
+}
+
+.dashboard-trend-series-sin-retencion {
+  color: #16a34a;
+}
+
+.dashboard-trend-series-sin-infraccion {
+  color: #7c3aed;
+}
 
 .dashboard-trend-empty {
   min-height: 280px;
