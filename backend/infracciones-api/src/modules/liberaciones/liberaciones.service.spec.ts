@@ -111,12 +111,16 @@ describe('LiberacionesService generarLiberacion', () => {
       liberadoPor: 'Operador',
     });
 
-    expect(fixture.liberacionesRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        pagoInfraccion: expect.objectContaining({ idPagoInfraccion: 99 }),
-        solventacionSinPago: null,
-      }),
-    );
+    const [createPayload] = fixture.liberacionesRepository.create.mock
+      .calls[0] as [
+      {
+        pagoInfraccion: { idPagoInfraccion: number } | null;
+        solventacionSinPago: { idSolventacionSinPago: number } | null;
+      },
+    ];
+
+    expect(createPayload.pagoInfraccion?.idPagoInfraccion).toBe(99);
+    expect(createPayload.solventacionSinPago).toBeNull();
   });
 
   it('genera liberacion sin id de pago cuando existe No aplica pago', async () => {
@@ -132,14 +136,16 @@ describe('LiberacionesService generarLiberacion', () => {
       liberadoPor: 'Operador',
     });
 
-    expect(fixture.liberacionesRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        pagoInfraccion: null,
-        solventacionSinPago: expect.objectContaining({
-          idSolventacionSinPago: 77,
-        }),
-      }),
-    );
+    const [createPayload] = fixture.liberacionesRepository.create.mock
+      .calls[0] as [
+      {
+        pagoInfraccion: { idPagoInfraccion: number } | null;
+        solventacionSinPago: { idSolventacionSinPago: number } | null;
+      },
+    ];
+
+    expect(createPayload.pagoInfraccion).toBeNull();
+    expect(createPayload.solventacionSinPago?.idSolventacionSinPago).toBe(77);
   });
 
   it('rechaza liberacion sin pago ni solventacion No aplica pago', async () => {
