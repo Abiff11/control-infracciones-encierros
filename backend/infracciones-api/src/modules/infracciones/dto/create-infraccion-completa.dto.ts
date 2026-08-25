@@ -139,6 +139,18 @@ export class CreateInfraccionCapturaDto {
   idOperativo?: number | null;
 
   @IsOptional()
+  @Transform(({ value }): number | null | undefined => {
+    if (value === null || value === undefined || value === '') {
+      return undefined;
+    }
+
+    return Number(value);
+  })
+  @IsInt()
+  @Min(1)
+  idEncierro?: number | null;
+
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
   folioInfraccion?: string;
