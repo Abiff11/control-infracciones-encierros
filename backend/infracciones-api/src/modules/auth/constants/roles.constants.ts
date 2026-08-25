@@ -23,6 +23,7 @@ export const READ_ROLES: RoleName[] = [
 export const CAPTURE_ROLES: RoleName[] = [
   ROLES.ADMIN,
   ROLES.SECCION_PRIMERA,
+  ROLES.INFRACCIONES,
   ROLES.OPERADOR,
 ];
 
