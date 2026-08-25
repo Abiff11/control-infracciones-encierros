@@ -91,6 +91,7 @@ const INITIAL_FORM = {
   numero: "",
   idDelegacion: "",
   idOperativo: "",
+  idEncierro: "",
   folioInfraccion: "",
   fechaInfraccion: getTodayDate(),
   horaInfraccion: getCurrentTime(),
@@ -298,6 +299,7 @@ function InfraccionCreatePage({
     setForm((current) => ({
       ...current,
       idTipoProcedimiento: value,
+      idEncierro: nextTipo?.permiteRetencion ? current.idEncierro : "",
       folioInfraccion: nextTipo?.requiereFolioInfraccion
         ? current.folioInfraccion
         : "",
@@ -523,6 +525,9 @@ function InfraccionCreatePage({
         idTipoProcedimiento: selectedTipoProcedimiento.idTipoProcedimiento,
         idEstatusInfraccion: defaultEstatusInfraccion.idEstatusInfraccion,
         idOperativo: toOptionalNumber(form.idOperativo),
+        idEncierro: permiteRetencion
+          ? toOptionalNumber(form.idEncierro)
+          : undefined,
         folioInfraccion: requiereFolioInfraccion ? folioExpediente : undefined,
         fechaInfraccion: form.fechaInfraccion,
         horaInfraccion: form.horaInfraccion,
@@ -559,6 +564,10 @@ function InfraccionCreatePage({
           label: "Estatus",
           value: result.infraccion.estatusInfraccion.nombreEstatus,
         },
+        {
+          label: "Encierro",
+          value: result.infraccion.encierro?.nombreEncierro ?? "Sin encierro",
+        },
         { label: "Motivos", value: String(selectedMotivos.length) },
       ]
     : [];
@@ -566,6 +575,7 @@ function InfraccionCreatePage({
     ? {
         folioInfraccion: result.infraccion.folioInfraccion,
         estatus: result.infraccion.estatusInfraccion.nombreEstatus,
+        encierro: result.infraccion.encierro?.nombreEncierro ?? "Sin encierro",
         motivosSeleccionados: selectedMotivoLabels,
       }
     : null;
@@ -940,6 +950,30 @@ function InfraccionCreatePage({
                     {operativo.nombreOperativo}
                   </option>
                 ))}
+              </SelectField>
+            </Field>
+            <Field htmlFor="infraccion-encierro" label="Encierro">
+              <SelectField
+                id="infraccion-encierro"
+                value={form.idEncierro}
+                onChange={(event) =>
+                  updateField("idEncierro", event.target.value)
+                }
+                disabled={!permiteRetencion}
+              >
+                <option value="">
+                  {permiteRetencion ? "Sin encierro" : "No aplica"}
+                </option>
+                {permiteRetencion
+                  ? catalogs?.encierros.map((encierro) => (
+                      <option
+                        key={encierro.idEncierro}
+                        value={encierro.idEncierro}
+                      >
+                        {encierro.nombreEncierro}
+                      </option>
+                    ))
+                  : null}
               </SelectField>
             </Field>
             {requiereFolioInfraccion ? (
