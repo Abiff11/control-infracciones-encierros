@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 
+import { ACCION_MOVIMIENTO } from '../infracciones/constants/accion-movimiento.constants';
 import { ESTATUS_INFRACCION } from '../infracciones/constants/estatus-infraccion.constants';
 import { PagosService } from './pagos.service';
 
@@ -15,6 +16,7 @@ function createRepositoryMock() {
 function createServiceFixture() {
   const pagosRepository = createRepositoryMock();
   const conceptosRepository = createRepositoryMock();
+  const solventacionesRepository = createRepositoryMock();
   const pagoConceptoRepository = createRepositoryMock();
   const transactionPagosRepository = createRepositoryMock();
 
@@ -23,10 +25,41 @@ function createServiceFixture() {
       Promise.resolve({ ...value, idPagoInfraccion: 91 }),
   );
 
-  pagosRepository.findOne.mockResolvedValue({
-    idPagoInfraccion: 91,
-    conceptos: [],
-  });
+  pagosRepository.findOne.mockImplementation(
+    (options?: { where?: { idPagoInfraccion?: number } }) => {
+      if (options?.where?.idPagoInfraccion) {
+        return Promise.resolve({
+          idPagoInfraccion: options.where.idPagoInfraccion,
+          conceptos: [],
+        });
+      }
+
+      return Promise.resolve(null);
+    },
+  );
+
+  const solventacionFecha = new Date('2026-08-25T20:00:00.000Z');
+  solventacionesRepository.save.mockImplementation(
+    (value: Record<string, unknown>) =>
+      Promise.resolve({
+        ...value,
+        idSolventacionSinPago: 77,
+        fechaSolventacion: solventacionFecha,
+      }),
+  );
+  solventacionesRepository.findOne.mockImplementation(
+    (options?: { where?: { idSolventacionSinPago?: number } }) => {
+      if (options?.where?.idSolventacionSinPago) {
+        return Promise.resolve({
+          idSolventacionSinPago: options.where.idSolventacionSinPago,
+          motivo: 'No se genero linea de captura',
+          fechaSolventacion: solventacionFecha,
+        });
+      }
+
+      return Promise.resolve(null);
+    },
+  );
 
   const manager = {
     getRepository: jest.fn((entity: { name?: string }) => {
@@ -81,6 +114,7 @@ function createServiceFixture() {
     dataSource as never,
     pagosRepository as never,
     conceptosRepository as never,
+    solventacionesRepository as never,
     infraccionesService as never,
     auditoriaService as never,
   );
@@ -94,6 +128,7 @@ function createServiceFixture() {
     pagoConceptoRepository,
     pagosRepository,
     service,
+    solventacionesRepository,
     transactionPagosRepository,
   };
 }
@@ -215,6 +250,73 @@ describe('PagosService registrarPago', () => {
         conceptos: [{ claveConcepto: '101', monto: '0' }],
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rechaza registrar pago si ya existe una solventacion No aplica pago', async () => {
+    const fixture = createServiceFixture();
+    fixture.solventacionesRepository.findOne.mockResolvedValue({
+      idSolventacionSinPago: 77,
+    });
+
+    await expect(
+      fixture.service.registrarPago({
+        idInfraccion: 10,
+        idUsuarioRegistraPago: 5,
+        folioLineaCaptura: 'LC-127',
+        conceptos: [{ claveConcepto: '101', monto: '10.00' }],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(fixture.dataSource.transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('PagosService registrarNoAplicaPago', () => {
+  it('solventa la infraccion sin crear un pago y registra motivo', async () => {
+    const fixture = createServiceFixture();
+
+    const result = await fixture.service.registrarNoAplicaPago({
+      idInfraccion: 10,
+      idUsuarioRegistra: 5,
+      motivo: ' No se genero linea de captura ',
+    });
+
+    expect(fixture.solventacionesRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        motivo: 'No se genero linea de captura',
+      }),
+    );
+    expect(fixture.dataSource.transaction).not.toHaveBeenCalled();
+    expect(
+      fixture.infraccionesService.actualizarEstatusYRegistrarMovimiento,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nombreEstatus: ESTATUS_INFRACCION.SOLVENTADA_SIN_PAGO,
+        accion: ACCION_MOVIMIENTO.NO_APLICA_PAGO,
+      }),
+    );
+    expect(fixture.auditoriaService.registrar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accion: 'NO_APLICA_PAGO',
+        entidad: 'solventacion_sin_pago',
+      }),
+    );
+    expect(result.idSolventacionSinPago).toBe(77);
+  });
+
+  it('rechaza No aplica pago cuando ya existe un pago real', async () => {
+    const fixture = createServiceFixture();
+    fixture.pagosRepository.findOne.mockResolvedValue({ idPagoInfraccion: 91 });
+
+    await expect(
+      fixture.service.registrarNoAplicaPago({
+        idInfraccion: 10,
+        idUsuarioRegistra: 5,
+        motivo: 'No se genero linea de captura',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(fixture.solventacionesRepository.save).not.toHaveBeenCalled();
   });
 });
 
