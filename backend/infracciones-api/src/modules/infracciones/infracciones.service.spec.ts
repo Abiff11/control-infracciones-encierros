@@ -154,8 +154,12 @@ function createServiceContext(
   ]);
 
   lugarRepo.findOneBy.mockResolvedValue(null);
-  encierroRepo.findOneBy.mockImplementation(({ idEncierro }) =>
-    Promise.resolve({ idEncierro, nombreEncierro: `Encierro ${String(idEncierro)}` }),
+  encierroRepo.findOneBy.mockImplementation(
+    ({ idEncierro }: { idEncierro: number }) =>
+      Promise.resolve({
+        idEncierro,
+        nombreEncierro: `Encierro ${String(idEncierro)}`,
+      }),
   );
   infraccionRepo.findOneBy.mockResolvedValue(null);
   infraccionRepo.save.mockImplementation((value: Record<string, unknown>) =>
@@ -279,7 +283,10 @@ describe('InfraccionesService crearInfraccionCompleta', () => {
     });
     expect(context.repositories.infraccionRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        encierro: expect.objectContaining({ idEncierro: 7 }),
+        encierro: {
+          idEncierro: 7,
+          nombreEncierro: 'Encierro 7',
+        },
       }),
     );
   });
