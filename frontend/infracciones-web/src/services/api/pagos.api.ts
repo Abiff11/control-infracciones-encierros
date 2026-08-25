@@ -2,7 +2,9 @@ import { request } from './apiClient';
 import type {
   ConceptoPagoOption,
   PagoRegistradoApi,
+  RegistrarNoAplicaPagoPayload,
   RegistrarPagoPayload,
+  SolventacionSinPagoApi,
 } from '../../types/operaciones.types';
 
 export function createPago(
@@ -15,6 +17,31 @@ export function createPago(
       method: 'POST',
       body: JSON.stringify(payload),
     },
+    token,
+  );
+}
+
+export function createNoAplicaPago(
+  token: string,
+  payload: RegistrarNoAplicaPagoPayload,
+): Promise<SolventacionSinPagoApi> {
+  return request<SolventacionSinPagoApi>(
+    '/pagos/no-aplica',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
+}
+
+export function getNoAplicaPagoByInfraccion(
+  token: string,
+  idInfraccion: number,
+): Promise<SolventacionSinPagoApi | null> {
+  return request<SolventacionSinPagoApi | null>(
+    `/pagos/no-aplica/infraccion/${idInfraccion}`,
+    { method: 'GET' },
     token,
   );
 }
