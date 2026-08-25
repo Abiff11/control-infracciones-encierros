@@ -14,10 +14,17 @@ export class GenerarLiberacionDto {
   @Min(1)
   idInfraccion!: number;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  idPagoInfraccion!: number;
+  idPagoInfraccion?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  idSolventacionSinPago?: number;
 
   @IsString()
   @IsNotEmpty()
