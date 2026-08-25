@@ -39,6 +39,7 @@ import { InfraccionMotivo } from './entities/infraccion-motivo.entity';
 import { InfraccionMovimiento } from './entities/infraccion-movimiento.entity';
 import { Infraccion } from './entities/infraccion.entity';
 import { Motivo } from '../motivos/entities/motivo.entity';
+import { Encierro } from '../encierros/entities/encierro.entity';
 import { RetencionVehiculo } from '../encierros/entities/retencion-vehiculo.entity';
 import { SalidaVehiculo } from '../encierros/entities/salida-vehiculo.entity';
 import {
@@ -186,6 +187,12 @@ export class InfraccionesService {
           idDelegacion: item.delegacion.idDelegacion,
           nombreDelegacion: item.delegacion.nombreDelegacion,
         },
+        encierro: item.encierro
+          ? {
+              idEncierro: item.encierro.idEncierro,
+              nombreEncierro: item.encierro.nombreEncierro,
+            }
+          : null,
         estatusInfraccion: {
           idEstatusInfraccion: item.estatusInfraccion.idEstatusInfraccion,
           nombreEstatus: item.estatusInfraccion.nombreEstatus,
@@ -607,6 +614,21 @@ export class InfraccionesService {
         );
       }
 
+      const encierro =
+        dto.infraccion.idEncierro === null ||
+        dto.infraccion.idEncierro === undefined
+          ? null
+          : await this.findEncierroByIdOrFail(
+              manager,
+              dto.infraccion.idEncierro,
+            );
+
+      if (encierro && !tipoProcedimiento.permiteRetencion) {
+        throw new BadRequestException(
+          `El tipo de expediente ${tipoProcedimiento.nombreTipoProcedimiento} no permite asignar encierro`,
+        );
+      }
+
       const normalizedFolioInfraccion =
         dto.infraccion.folioInfraccion?.trim() ?? '';
       const normalizedNumParteInformativo =
@@ -735,6 +757,7 @@ export class InfraccionesService {
           estatusInfraccion,
           usuarioCaptura,
           operativo,
+          encierro,
           folioInfraccion: finalFolioInfraccion,
           fechaInfraccion: dto.infraccion.fechaInfraccion,
           horaInfraccion: dto.infraccion.horaInfraccion,
@@ -823,6 +846,7 @@ export class InfraccionesService {
       .leftJoinAndSelect('infraccion.lugarInfraccion', 'lugarInfraccion')
       .leftJoinAndSelect('infraccion.tipoProcedimiento', 'tipoProcedimiento')
       .leftJoinAndSelect('infraccion.operativo', 'operativo')
+      .leftJoinAndSelect('infraccion.encierro', 'encierro')
       .leftJoinAndSelect('infraccion.estatusInfraccion', 'estatusInfraccion')
       .leftJoinAndSelect('infraccion.usuarioCaptura', 'usuarioCaptura')
       .distinct(true);
@@ -1158,6 +1182,21 @@ export class InfraccionesService {
     }
 
     return usuario;
+  }
+
+  private async findEncierroByIdOrFail(
+    manager: EntityManager,
+    idEncierro: number,
+  ): Promise<Encierro> {
+    const encierro = await manager.getRepository(Encierro).findOneBy({
+      idEncierro,
+    });
+
+    if (!encierro) {
+      throw new NotFoundException(`Encierro ${idEncierro} no encontrado`);
+    }
+
+    return encierro;
   }
 
   private async findTipoProcedimientoByIdOrFail(

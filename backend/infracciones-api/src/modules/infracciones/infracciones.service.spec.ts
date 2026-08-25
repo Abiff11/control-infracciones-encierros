@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 
 import { Operativo } from '../catalogos/entities/operativo.entity';
 import { TipoProcedimiento } from '../catalogos/entities/tipo-procedimiento.entity';
+import { Encierro } from '../encierros/entities/encierro.entity';
 import { Infractor } from '../infractores/entities/infractor.entity';
 import { LugarInfraccion } from '../catalogos/entities/lugar-infraccion.entity';
 import { Vehiculo } from '../vehiculos/entities/vehiculo.entity';
@@ -23,6 +24,7 @@ interface ServiceContext {
   service: InfraccionesService;
   repositories: {
     infraccionRepo: RepositoryMock;
+    encierroRepo: RepositoryMock;
   };
 }
 
@@ -91,6 +93,7 @@ function createBaseDto(
       idTipoProcedimiento: 1,
       idEstatusInfraccion: 1,
       idOperativo: null,
+      idEncierro: null,
       folioInfraccion: 'FOL-1',
       fechaInfraccion: '2026-08-07',
       horaInfraccion: '10:30',
@@ -137,6 +140,7 @@ function createServiceContext(
   const infraccionMotivoRepo = createRepositoryMock();
   const movimientoRepo = createRepositoryMock();
   const operativoRepo = createRepositoryMock();
+  const encierroRepo = createRepositoryMock();
 
   const repositories = new Map<unknown, RepositoryMock>([
     [Infraccion, infraccionRepo],
@@ -146,9 +150,17 @@ function createServiceContext(
     [InfraccionMotivo, infraccionMotivoRepo],
     [InfraccionMovimiento, movimientoRepo],
     [Operativo, operativoRepo],
+    [Encierro, encierroRepo],
   ]);
 
   lugarRepo.findOneBy.mockResolvedValue(null);
+  encierroRepo.findOneBy.mockImplementation(
+    ({ idEncierro }: { idEncierro: number }) =>
+      Promise.resolve({
+        idEncierro,
+        nombreEncierro: `Encierro ${String(idEncierro)}`,
+      }),
+  );
   infraccionRepo.findOneBy.mockResolvedValue(null);
   infraccionRepo.save.mockImplementation((value: Record<string, unknown>) =>
     Promise.resolve({
@@ -228,6 +240,7 @@ function createServiceContext(
     service,
     repositories: {
       infraccionRepo,
+      encierroRepo,
     },
   };
 }
@@ -248,8 +261,53 @@ describe('InfraccionesService crearInfraccionCompleta', () => {
     expect(context.repositories.infraccionRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
         folioInfraccion: 'FOL-1',
+        encierro: null,
       }),
     );
+  });
+
+  it('guarda el encierro seleccionado cuando el tipo permite retencion', async () => {
+    const context = createServiceContext({ permiteRetencion: true });
+
+    await context.service.crearInfraccionCompleta(
+      createBaseDto({
+        infraccion: {
+          idEncierro: 7,
+        },
+      }),
+      5,
+    );
+
+    expect(context.repositories.encierroRepo.findOneBy).toHaveBeenCalledWith({
+      idEncierro: 7,
+    });
+    expect(context.repositories.infraccionRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        encierro: {
+          idEncierro: 7,
+          nombreEncierro: 'Encierro 7',
+        },
+      }),
+    );
+  });
+
+  it('rechaza encierro cuando el tipo no permite retencion', async () => {
+    const context = createServiceContext({
+      claveTipoProcedimiento: 'INFRACCION_SIN_RETENCION',
+      nombreTipoProcedimiento: 'INFRACCION SIN RETENCION',
+      permiteRetencion: false,
+    });
+
+    await expect(
+      context.service.crearInfraccionCompleta(
+        createBaseDto({
+          infraccion: {
+            idEncierro: 7,
+          },
+        }),
+        5,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rechaza INFRACCION sin folio cuando el tipo lo requiere', async () => {

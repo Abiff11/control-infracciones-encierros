@@ -11,6 +11,7 @@ import { EstatusInfraccion } from '../../catalogos/entities/estatus-infraccion.e
 import { LugarInfraccion } from '../../catalogos/entities/lugar-infraccion.entity';
 import { Operativo } from '../../catalogos/entities/operativo.entity';
 import { TipoProcedimiento } from '../../catalogos/entities/tipo-procedimiento.entity';
+import { Encierro } from '../../encierros/entities/encierro.entity';
 import { Vehiculo } from '../../vehiculos/entities/vehiculo.entity';
 import { Usuario } from '../../usuarios/entities/usuario.entity';
 import { Infractor } from '../../infractores/entities/infractor.entity';
@@ -43,6 +44,10 @@ export class Infraccion {
   @ManyToOne(() => Operativo, { nullable: true, eager: false })
   @JoinColumn({ name: 'id_operativo' })
   operativo!: Operativo | null;
+
+  @ManyToOne(() => Encierro, { nullable: true, eager: false })
+  @JoinColumn({ name: 'id_encierro' })
+  encierro!: Encierro | null;
 
   @ManyToOne(() => EstatusInfraccion, { nullable: false, eager: false })
   @JoinColumn({ name: 'id_estatus_infraccion' })

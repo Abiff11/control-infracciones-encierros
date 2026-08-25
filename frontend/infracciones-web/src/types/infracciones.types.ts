@@ -71,6 +71,7 @@ export interface InfraccionListItem {
   vehiculo: VehiculoSummary;
   region: Region;
   delegacion: Delegacion;
+  encierro?: Encierro | null;
   estatusInfraccion: EstatusInfraccion;
   tipoProcedimiento: TipoProcedimiento;
   motivos: InfraccionMotivoDetalle[];
@@ -254,6 +255,7 @@ export interface CreateInfraccionCaptura {
   idTipoProcedimiento: number;
   idEstatusInfraccion: number;
   idOperativo?: number | null;
+  idEncierro?: number | null;
   folioInfraccion?: string;
   fechaInfraccion: string;
   horaInfraccion: string;
