@@ -16,6 +16,7 @@ import { Usuario } from '../usuarios/entities/usuario.entity';
 import { ConceptoPago } from './entities/concepto-pago.entity';
 import { PagoConcepto } from './entities/pago-concepto.entity';
 import { PagoInfraccion } from './entities/pago-infraccion.entity';
+import { SolventacionSinPago } from './entities/solventacion-sin-pago.entity';
 
 const CLAVE_INFRACCION_SIN_RETENCION = 'INFRACCION_SIN_RETENCION';
 
@@ -31,6 +32,12 @@ interface RegistrarPagoParams {
   conceptos: RegistrarPagoConceptoParams[];
   fechaPago?: string | Date;
   observaciones?: string | null;
+}
+
+interface RegistrarNoAplicaPagoParams {
+  idInfraccion: number;
+  idUsuarioRegistra: number;
+  motivo: string;
 }
 
 interface ConceptoPagoUpsertRow {
@@ -53,6 +60,8 @@ export class PagosService {
     private readonly pagosRepository: Repository<PagoInfraccion>,
     @InjectRepository(ConceptoPago)
     private readonly conceptosRepository: Repository<ConceptoPago>,
+    @InjectRepository(SolventacionSinPago)
+    private readonly solventacionesRepository: Repository<SolventacionSinPago>,
     private readonly infraccionesService: InfraccionesService,
     private readonly auditoriaService: AuditoriaService,
   ) {}
@@ -101,6 +110,40 @@ export class PagosService {
     return pagos;
   }
 
+  async findNoAplicaByIdOrFail(
+    idSolventacionSinPago: number,
+  ): Promise<SolventacionSinPago> {
+    const solventacion = await this.solventacionesRepository.findOne({
+      where: { idSolventacionSinPago },
+      relations: {
+        infraccion: true,
+        usuarioRegistra: true,
+      },
+    });
+
+    if (!solventacion) {
+      throw new NotFoundException(
+        `Solventacion sin pago ${idSolventacionSinPago} no encontrada`,
+      );
+    }
+
+    return solventacion;
+  }
+
+  findNoAplicaByInfraccion(
+    idInfraccion: number,
+  ): Promise<SolventacionSinPago | null> {
+    return this.solventacionesRepository.findOne({
+      where: {
+        infraccion: { idInfraccion },
+      },
+      relations: {
+        infraccion: true,
+        usuarioRegistra: true,
+      },
+    });
+  }
+
   findConceptos(q?: string, limit = 20): Promise<ConceptoPago[]> {
     const query = q?.trim().toUpperCase();
 
@@ -121,6 +164,16 @@ export class PagosService {
   }
 
   async registrarPago(params: RegistrarPagoParams): Promise<PagoInfraccion> {
+    const solventacionExistente = await this.findNoAplicaByInfraccion(
+      params.idInfraccion,
+    );
+
+    if (solventacionExistente) {
+      throw new BadRequestException(
+        'La infraccion ya fue solventada mediante No aplica pago',
+      );
+    }
+
     const infraccion = await this.infraccionesService.findByIdOrFail(
       params.idInfraccion,
     );
@@ -209,6 +262,76 @@ export class PagosService {
     });
 
     return this.findByIdOrFail(idPagoInfraccion);
+  }
+
+  async registrarNoAplicaPago(
+    params: RegistrarNoAplicaPagoParams,
+  ): Promise<SolventacionSinPago> {
+    await this.infraccionesService.findByIdOrFail(params.idInfraccion);
+
+    const motivo = params.motivo.trim();
+    if (motivo.length < 3) {
+      throw new BadRequestException(
+        'Captura un motivo valido para solventar la infraccion sin pago',
+      );
+    }
+
+    const [pagoExistente, solventacionExistente] = await Promise.all([
+      this.pagosRepository.findOne({
+        where: {
+          infraccion: { idInfraccion: params.idInfraccion },
+        },
+      }),
+      this.findNoAplicaByInfraccion(params.idInfraccion),
+    ]);
+
+    if (pagoExistente) {
+      throw new BadRequestException(
+        'La infraccion ya tiene un pago registrado y no puede marcarse como No aplica pago',
+      );
+    }
+
+    if (solventacionExistente) {
+      throw new BadRequestException(
+        'La infraccion ya fue solventada mediante No aplica pago',
+      );
+    }
+
+    const solventacion = this.solventacionesRepository.create({
+      infraccion: { idInfraccion: params.idInfraccion } as Infraccion,
+      usuarioRegistra: { idUsuario: params.idUsuarioRegistra } as Usuario,
+      motivo,
+      fechaSolventacion: new Date(),
+    });
+
+    const savedSolventacion =
+      await this.solventacionesRepository.save(solventacion);
+
+    await this.infraccionesService.actualizarEstatusYRegistrarMovimiento({
+      idInfraccion: params.idInfraccion,
+      nombreEstatus: ESTATUS_INFRACCION.SOLVENTADA_SIN_PAGO,
+      idUsuario: params.idUsuarioRegistra,
+      accion: ACCION_MOVIMIENTO.NO_APLICA_PAGO,
+      observaciones: `No aplica pago: ${motivo}`,
+      fechaMovimiento: savedSolventacion.fechaSolventacion,
+    });
+
+    await this.auditoriaService.registrar({
+      idUsuario: params.idUsuarioRegistra,
+      accion: 'NO_APLICA_PAGO',
+      entidad: 'solventacion_sin_pago',
+      entidadId: savedSolventacion.idSolventacionSinPago,
+      despuesJson: {
+        idSolventacionSinPago: savedSolventacion.idSolventacionSinPago,
+        idInfraccion: params.idInfraccion,
+        motivo,
+        fechaSolventacion: savedSolventacion.fechaSolventacion,
+      },
+    });
+
+    return this.findNoAplicaByIdOrFail(
+      savedSolventacion.idSolventacionSinPago,
+    );
   }
 
   private normalizeConceptos(
