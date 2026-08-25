@@ -14,12 +14,14 @@ import { InfraccionesService } from '../infracciones/infracciones.service';
 import { Infraccion } from '../infracciones/entities/infraccion.entity';
 import { RetencionVehiculo } from '../encierros/entities/retencion-vehiculo.entity';
 import { PagoInfraccion } from '../pagos/entities/pago-infraccion.entity';
+import { SolventacionSinPago } from '../pagos/entities/solventacion-sin-pago.entity';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { LiberacionVehiculo } from './entities/liberacion-vehiculo.entity';
 
 interface GenerarLiberacionParams {
   idInfraccion: number;
-  idPagoInfraccion: number;
+  idPagoInfraccion?: number;
+  idSolventacionSinPago?: number;
   idUsuarioLibera: number;
   folioLiberacion: string;
   liberadoPor: string;
@@ -35,6 +37,10 @@ export class LiberacionesService {
     private readonly liberacionesRepository: Repository<LiberacionVehiculo>,
     @InjectRepository(RetencionVehiculo)
     private readonly retencionesRepository: Repository<RetencionVehiculo>,
+    @InjectRepository(PagoInfraccion)
+    private readonly pagosRepository: Repository<PagoInfraccion>,
+    @InjectRepository(SolventacionSinPago)
+    private readonly solventacionesRepository: Repository<SolventacionSinPago>,
     private readonly infraccionesService: InfraccionesService,
     private readonly auditoriaService: AuditoriaService,
   ) {}
@@ -47,6 +53,7 @@ export class LiberacionesService {
       relations: {
         infraccion: true,
         pagoInfraccion: true,
+        solventacionSinPago: true,
         usuarioLibera: true,
       },
     });
@@ -64,6 +71,10 @@ export class LiberacionesService {
     return this.liberacionesRepository.find({
       where: {
         infraccion: { idInfraccion },
+      },
+      relations: {
+        pagoInfraccion: true,
+        solventacionSinPago: true,
       },
       order: {
         fechaLiberacion: 'DESC',
@@ -98,11 +109,66 @@ export class LiberacionesService {
       );
     }
 
+    if (params.idPagoInfraccion && params.idSolventacionSinPago) {
+      throw new BadRequestException(
+        'La liberacion debe respaldarse con un pago o con No aplica pago, no con ambos',
+      );
+    }
+
+    let pagoInfraccion: PagoInfraccion | null = null;
+    let solventacionSinPago: SolventacionSinPago | null = null;
+
+    if (params.idPagoInfraccion) {
+      pagoInfraccion = await this.pagosRepository.findOne({
+        where: {
+          idPagoInfraccion: params.idPagoInfraccion,
+          infraccion: { idInfraccion: params.idInfraccion },
+        },
+      });
+
+      if (!pagoInfraccion) {
+        throw new BadRequestException(
+          'El pago indicado no pertenece a la infraccion o no existe',
+        );
+      }
+    } else if (params.idSolventacionSinPago) {
+      solventacionSinPago = await this.solventacionesRepository.findOne({
+        where: {
+          idSolventacionSinPago: params.idSolventacionSinPago,
+          infraccion: { idInfraccion: params.idInfraccion },
+        },
+      });
+
+      if (!solventacionSinPago) {
+        throw new BadRequestException(
+          'La solventacion sin pago indicada no pertenece a la infraccion o no existe',
+        );
+      }
+    } else {
+      solventacionSinPago = await this.solventacionesRepository.findOne({
+        where: {
+          infraccion: { idInfraccion: params.idInfraccion },
+        },
+      });
+
+      if (!solventacionSinPago) {
+        throw new BadRequestException(
+          'Indica el ID del pago. Si la infraccion fue marcada como No aplica pago, deja el ID de pago vacio.',
+        );
+      }
+    }
+
     const liberacion = this.liberacionesRepository.create({
       infraccion: { idInfraccion: params.idInfraccion } as Infraccion,
-      pagoInfraccion: {
-        idPagoInfraccion: params.idPagoInfraccion,
-      } as PagoInfraccion,
+      pagoInfraccion: pagoInfraccion
+        ? { idPagoInfraccion: pagoInfraccion.idPagoInfraccion }
+        : null,
+      solventacionSinPago: solventacionSinPago
+        ? {
+            idSolventacionSinPago:
+              solventacionSinPago.idSolventacionSinPago,
+          }
+        : null,
       usuarioLibera: { idUsuario: params.idUsuarioLibera } as Usuario,
       folioLiberacion: params.folioLiberacion,
       fechaLiberacion: normalizeDate(params.fechaLiberacion),
@@ -130,13 +196,15 @@ export class LiberacionesService {
       despuesJson: {
         idLiberacionVehiculo: savedLiberacion.idLiberacionVehiculo,
         idInfraccion: params.idInfraccion,
-        idPagoInfraccion: params.idPagoInfraccion,
+        idPagoInfraccion: pagoInfraccion?.idPagoInfraccion ?? null,
+        idSolventacionSinPago:
+          solventacionSinPago?.idSolventacionSinPago ?? null,
         folioLiberacion: params.folioLiberacion,
         responsableLibera: params.liberadoPor,
         fechaLiberacion: params.fechaLiberacion,
       },
     });
 
-    return savedLiberacion;
+    return this.findByIdOrFail(savedLiberacion.idLiberacionVehiculo);
   }
 }

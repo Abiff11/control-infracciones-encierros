@@ -83,10 +83,6 @@ function LiberacionCreatePage({
       return "Ingresa el ID de infraccion.";
     }
 
-    if (!isFilled(form.idPagoInfraccion)) {
-      return "Ingresa el ID del pago.";
-    }
-
     if (!isFilled(form.folioLiberacion)) {
       return "Ingresa el folio de liberacion.";
     }
@@ -107,9 +103,12 @@ function LiberacionCreatePage({
       return;
     }
 
+    const respaldo = isFilled(form.idPagoInfraccion)
+      ? `el pago ${form.idPagoInfraccion}`
+      : "la solventación No aplica pago registrada para el expediente";
     const confirmed = await confirmAction({
       title: "Generar liberación",
-      text: `Vas a generar la liberación de la infracción ${form.idInfraccion} usando el pago ${form.idPagoInfraccion}.`,
+      text: `Vas a generar la liberación de la infracción ${form.idInfraccion} usando ${respaldo}.`,
       confirmButtonText: "Generar liberación",
       cancelButtonText: "Seguir editando",
     });
@@ -123,7 +122,9 @@ function LiberacionCreatePage({
     try {
       const response = await onSubmit({
         idInfraccion: Number(form.idInfraccion),
-        idPagoInfraccion: Number(form.idPagoInfraccion),
+        idPagoInfraccion: isFilled(form.idPagoInfraccion)
+          ? Number(form.idPagoInfraccion)
+          : undefined,
         folioLiberacion: form.folioLiberacion.trim(),
         liberadoPor: form.liberadoPor.trim(),
         nombreRecibeLiberacion: null,
@@ -163,7 +164,6 @@ function LiberacionCreatePage({
     : [];
   const canSubmit =
     isFilled(form.idInfraccion) &&
-    isFilled(form.idPagoInfraccion) &&
     isFilled(form.folioLiberacion) &&
     isFilled(form.liberadoPor);
 
@@ -174,8 +174,7 @@ function LiberacionCreatePage({
           <p className="eyebrow">Operacion</p>
           <h1>Liberacion</h1>
           <p className="page-description">
-            Genera una liberacion vehicular usando el usuario autenticado del
-            JWT.
+            Genera una liberacion vehicular respaldada por un pago o por una solventacion No aplica pago.
           </p>
         </div>
       </header>
@@ -197,7 +196,9 @@ function LiberacionCreatePage({
           </div>
 
           <div className="field">
-            <label htmlFor="liberacion-id-pago">ID pago</label>
+            <label htmlFor="liberacion-id-pago">
+              ID pago (opcional si No aplica pago)
+            </label>
             <input
               id="liberacion-id-pago"
               type="number"
@@ -206,7 +207,7 @@ function LiberacionCreatePage({
               onChange={(event) =>
                 updateField("idPagoInfraccion", event.target.value)
               }
-              required
+              placeholder="Deja vacío si el expediente fue solventado sin pago"
             />
           </div>
 

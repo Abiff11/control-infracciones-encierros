@@ -6,12 +6,18 @@ import { InfraccionesModule } from '../infracciones/infracciones.module';
 import { ConceptoPago } from './entities/concepto-pago.entity';
 import { PagoConcepto } from './entities/pago-concepto.entity';
 import { PagoInfraccion } from './entities/pago-infraccion.entity';
+import { SolventacionSinPago } from './entities/solventacion-sin-pago.entity';
 import { PagosController } from './pagos.controller';
 import { PagosService } from './pagos.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PagoInfraccion, ConceptoPago, PagoConcepto]),
+    TypeOrmModule.forFeature([
+      PagoInfraccion,
+      ConceptoPago,
+      PagoConcepto,
+      SolventacionSinPago,
+    ]),
     InfraccionesModule,
     AuditoriaModule,
   ],

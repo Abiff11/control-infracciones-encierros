@@ -11,6 +11,24 @@ export interface RegistrarPagoPayload {
   observaciones?: string | null;
 }
 
+export interface RegistrarNoAplicaPagoPayload {
+  idInfraccion: number;
+  motivo: string;
+}
+
+export interface SolventacionSinPagoApi {
+  idSolventacionSinPago: number;
+  motivo: string;
+  fechaSolventacion: string;
+  infraccion?: {
+    idInfraccion: number;
+  };
+  usuarioRegistra?: {
+    idUsuario: number;
+    nombreUsuario?: string;
+  };
+}
+
 export interface ConceptoPagoOption {
   idConceptoPago: number;
   claveConcepto: string;
@@ -38,7 +56,8 @@ export interface PagoRegistradoApi {
 
 export interface GenerarLiberacionPayload {
   idInfraccion: number;
-  idPagoInfraccion: number;
+  idPagoInfraccion?: number;
+  idSolventacionSinPago?: number;
   folioLiberacion: string;
   liberadoPor: string;
   nombreRecibeLiberacion?: string | null;

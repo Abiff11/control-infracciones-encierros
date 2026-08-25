@@ -1,7 +1,10 @@
 import { useMemo, useState, type FormEvent } from "react";
 
 import { OperationResultCard } from "../../components/operation/OperationResultCard";
-import type { RegistrarPagoPayload } from "../../types/operaciones.types";
+import type {
+  RegistrarNoAplicaPagoPayload,
+  RegistrarPagoPayload,
+} from "../../types/operaciones.types";
 import { getResponseText } from "../../utils/response";
 import { confirmAction } from "../../utils/sweetAlert";
 import {
@@ -31,6 +34,7 @@ function toMoney(value: string): string {
 interface PagoCreatePageProps {
   onCompleted: () => void;
   onSubmit: (payload: RegistrarPagoPayload) => Promise<unknown>;
+  onSubmitNoAplica: (payload: RegistrarNoAplicaPagoPayload) => Promise<unknown>;
   initialIdInfraccion?: number | null;
 }
 
@@ -49,6 +53,7 @@ function PagoCreatePage({
   initialIdInfraccion,
   onCompleted,
   onSubmit,
+  onSubmitNoAplica,
 }: PagoCreatePageProps) {
   const [form, setForm] = useState(() =>
     createInitialForm(initialIdInfraccion),
@@ -56,6 +61,8 @@ function PagoCreatePage({
   const [conceptos, setConceptos] = useState<PagoConceptoFormRow[]>([
     createEmptyPagoConceptoRow(),
   ]);
+  const [noAplicaPago, setNoAplicaPago] = useState(false);
+  const [motivoNoAplica, setMotivoNoAplica] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<unknown>(null);
@@ -108,6 +115,15 @@ function PagoCreatePage({
   function resetForm(): void {
     setForm(createInitialForm(initialIdInfraccion));
     setConceptos([createEmptyPagoConceptoRow()]);
+    setNoAplicaPago(false);
+    setMotivoNoAplica("");
+    setError(null);
+    setResult(null);
+  }
+
+  function toggleNoAplicaPago(): void {
+    setNoAplicaPago((current) => !current);
+    setMotivoNoAplica("");
     setError(null);
     setResult(null);
   }
@@ -115,8 +131,8 @@ function PagoCreatePage({
   async function handleReset(): Promise<void> {
     const confirmed = await confirmAction({
       title: "Limpiar pago",
-      text: `Se perderán los datos capturados del pago de la infracción ${form.idInfraccion || "sin ID"}.`,
-      confirmButtonText: "Limpiar pago",
+      text: `Se perderán los datos capturados para la infracción ${form.idInfraccion || "sin ID"}.`,
+      confirmButtonText: "Limpiar",
       cancelButtonText: "Seguir editando",
     });
 
@@ -128,6 +144,14 @@ function PagoCreatePage({
   function getValidationError(): string | null {
     if (!form.idInfraccion.trim()) {
       return "Ingresa el ID de infracción.";
+    }
+
+    if (noAplicaPago) {
+      if (motivoNoAplica.trim().length < 3) {
+        return "Escribe el motivo por el que no aplica pago.";
+      }
+
+      return null;
     }
 
     if (!form.folioLineaCaptura.trim()) {
@@ -173,6 +197,42 @@ function PagoCreatePage({
       return;
     }
 
+    if (noAplicaPago) {
+      const motivo = motivoNoAplica.trim();
+      const confirmed = await confirmAction({
+        title: "Solventar sin pago",
+        text: `La infracción ${form.idInfraccion} quedará solventada sin línea de captura ni ingreso registrado. Motivo: ${motivo}`,
+        confirmButtonText: "Confirmar no aplica pago",
+        cancelButtonText: "Seguir editando",
+      });
+
+      if (!confirmed) {
+        return;
+      }
+
+      setSaving(true);
+
+      try {
+        const response = await onSubmitNoAplica({
+          idInfraccion: Number(form.idInfraccion),
+          motivo,
+        });
+        setResult(response);
+        setError(null);
+        onCompleted();
+      } catch (submissionError) {
+        setError(
+          submissionError instanceof Error
+            ? submissionError.message
+            : "Error desconocido al solventar la infracción sin pago.",
+        );
+      } finally {
+        setSaving(false);
+      }
+
+      return;
+    }
+
     const confirmed = await confirmAction({
       title: "Registrar pago",
       text: `Vas a registrar la línea de captura ${form.folioLineaCaptura.trim()} por ${montoTotal}.`,
@@ -214,7 +274,9 @@ function PagoCreatePage({
   }
 
   const paymentId = getResponseText(result, "idPagoInfraccion");
-  const paymentSummary = paymentId
+  const noAplicaId = getResponseText(result, "idSolventacionSinPago");
+  const operationId = paymentId ?? noAplicaId;
+  const operationSummary = paymentId
     ? [
         { label: "ID pago", value: paymentId },
         {
@@ -229,7 +291,19 @@ function PagoCreatePage({
           value: getResponseText(result, "monto") ?? montoTotal,
         },
       ]
-    : [];
+    : noAplicaId
+      ? [
+          { label: "ID solventación", value: noAplicaId },
+          {
+            label: "Resultado",
+            value: "No aplica pago",
+          },
+          {
+            label: "Motivo",
+            value: getResponseText(result, "motivo") ?? motivoNoAplica,
+          },
+        ]
+      : [];
   const canSubmit = getValidationError() === null;
 
   return (
@@ -239,7 +313,7 @@ function PagoCreatePage({
           <p className="eyebrow">Operación</p>
           <h1>Pago</h1>
           <p className="page-description">
-            Registra el folio de la línea de captura y una o más claves con su monto.
+            Registra una línea de captura o solventa el expediente mediante No aplica pago cuando no se generó línea ni ingreso.
           </p>
         </div>
       </header>
@@ -260,59 +334,15 @@ function PagoCreatePage({
             />
           </div>
 
-          <div className="field">
-            <label htmlFor="pago-folio">Folio línea de captura</label>
-            <input
-              id="pago-folio"
-              value={form.folioLineaCaptura}
-              onChange={(event) =>
-                updateField("folioLineaCaptura", event.target.value)
-              }
-              maxLength={50}
-              required
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="pago-fecha">Fecha pago</label>
-            <input
-              id="pago-fecha"
-              type="datetime-local"
-              value={form.fechaPago}
-              onChange={(event) => updateField("fechaPago", event.target.value)}
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="pago-total">Total calculado</label>
-            <input id="pago-total" value={montoTotal} readOnly />
-          </div>
-        </div>
-
-        <div className="form-stack">
-          <div className="page-header">
-            <div>
-              <p className="eyebrow">Conceptos</p>
-              <h2>Claves de pago</h2>
-            </div>
-            <button type="button" onClick={addConcepto}>
-              + Agregar clave
-            </button>
-          </div>
-
-          {conceptos.map((concepto, index) => (
-            <div className="form-grid form-grid-2" key={`concepto-${index}`}>
+          {!noAplicaPago ? (
+            <>
               <div className="field">
-                <label htmlFor={`pago-clave-${index}`}>Clave {index + 1}</label>
+                <label htmlFor="pago-folio">Folio línea de captura</label>
                 <input
-                  id={`pago-clave-${index}`}
-                  value={concepto.claveConcepto}
+                  id="pago-folio"
+                  value={form.folioLineaCaptura}
                   onChange={(event) =>
-                    updateConcepto(
-                      index,
-                      "claveConcepto",
-                      event.target.value.toUpperCase(),
-                    )
+                    updateField("folioLineaCaptura", event.target.value)
                   }
                   maxLength={50}
                   required
@@ -320,34 +350,107 @@ function PagoCreatePage({
               </div>
 
               <div className="field">
-                <label htmlFor={`pago-monto-${index}`}>Monto</label>
+                <label htmlFor="pago-fecha">Fecha pago</label>
                 <input
-                  id={`pago-monto-${index}`}
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={concepto.monto}
-                  onChange={(event) =>
-                    updateConcepto(index, "monto", event.target.value)
-                  }
-                  required
+                  id="pago-fecha"
+                  type="datetime-local"
+                  value={form.fechaPago}
+                  onChange={(event) => updateField("fechaPago", event.target.value)}
                 />
-                <button type="button" onClick={() => removeConcepto(index)}>
-                  Eliminar
-                </button>
               </div>
-            </div>
-          ))}
+
+              <div className="field">
+                <label htmlFor="pago-total">Total calculado</label>
+                <input id="pago-total" value={montoTotal} readOnly />
+              </div>
+            </>
+          ) : null}
         </div>
 
-        <div className="field">
-          <label htmlFor="pago-observaciones">Observaciones</label>
-          <textarea
-            id="pago-observaciones"
-            value={form.observaciones}
-            onChange={(event) => updateField("observaciones", event.target.value)}
-          />
-        </div>
+        {noAplicaPago ? (
+          <div className="form-stack">
+            <div className="notice">
+              Esta opción solventa la infracción sin registrar pago ni ingreso. El motivo quedará asociado al usuario autenticado y al historial del expediente.
+            </div>
+            <div className="field">
+              <label htmlFor="pago-no-aplica-motivo">Motivo *</label>
+              <textarea
+                id="pago-no-aplica-motivo"
+                value={motivoNoAplica}
+                onChange={(event) => {
+                  setMotivoNoAplica(event.target.value);
+                  setError(null);
+                }}
+                maxLength={1000}
+                rows={5}
+                placeholder="Describe por qué la infracción no generó línea de captura ni pago."
+                required
+              />
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="form-stack">
+              <div className="page-header">
+                <div>
+                  <p className="eyebrow">Conceptos</p>
+                  <h2>Claves de pago</h2>
+                </div>
+                <button type="button" onClick={addConcepto}>
+                  + Agregar clave
+                </button>
+              </div>
+
+              {conceptos.map((concepto, index) => (
+                <div className="form-grid form-grid-2" key={`concepto-${index}`}>
+                  <div className="field">
+                    <label htmlFor={`pago-clave-${index}`}>Clave {index + 1}</label>
+                    <input
+                      id={`pago-clave-${index}`}
+                      value={concepto.claveConcepto}
+                      onChange={(event) =>
+                        updateConcepto(
+                          index,
+                          "claveConcepto",
+                          event.target.value.toUpperCase(),
+                        )
+                      }
+                      maxLength={50}
+                      required
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor={`pago-monto-${index}`}>Monto</label>
+                    <input
+                      id={`pago-monto-${index}`}
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={concepto.monto}
+                      onChange={(event) =>
+                        updateConcepto(index, "monto", event.target.value)
+                      }
+                      required
+                    />
+                    <button type="button" onClick={() => removeConcepto(index)}>
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="field">
+              <label htmlFor="pago-observaciones">Observaciones</label>
+              <textarea
+                id="pago-observaciones"
+                value={form.observaciones}
+                onChange={(event) => updateField("observaciones", event.target.value)}
+              />
+            </div>
+          </>
+        )}
 
         {error ? <div className="notice notice-error">{error}</div> : null}
 
@@ -355,19 +458,26 @@ function PagoCreatePage({
           <button type="button" onClick={() => void handleReset()} disabled={saving}>
             Limpiar
           </button>
+          <button type="button" onClick={toggleNoAplicaPago} disabled={saving}>
+            {noAplicaPago ? "Volver a registrar pago" : "No aplica pago"}
+          </button>
           <button type="submit" disabled={!canSubmit || saving}>
-            {saving ? "Guardando..." : "Registrar pago"}
+            {saving
+              ? "Guardando..."
+              : noAplicaPago
+                ? "Solventar sin pago"
+                : "Registrar pago"}
           </button>
         </div>
       </form>
 
-      {paymentSummary.length ? (
+      {operationSummary.length ? (
         <OperationResultCard
-          title="Pago registrado"
+          title={paymentId ? "Pago registrado" : "Infracción solventada sin pago"}
           result={result}
           emptyLabel="Sin resultado"
-          copyValue={paymentId}
-          summary={paymentSummary}
+          copyValue={operationId}
+          summary={operationSummary}
         />
       ) : null}
     </section>
