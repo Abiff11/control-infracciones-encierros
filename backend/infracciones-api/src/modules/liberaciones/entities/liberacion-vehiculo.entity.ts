@@ -8,6 +8,7 @@ import {
 
 import { Infraccion } from '../../infracciones/entities/infraccion.entity';
 import { PagoInfraccion } from '../../pagos/entities/pago-infraccion.entity';
+import { SolventacionSinPago } from '../../pagos/entities/solventacion-sin-pago.entity';
 import { Usuario } from '../../usuarios/entities/usuario.entity';
 
 @Entity({ name: 'liberacion_vehiculo' })
@@ -19,9 +20,13 @@ export class LiberacionVehiculo {
   @JoinColumn({ name: 'id_infraccion' })
   infraccion!: Infraccion;
 
-  @ManyToOne(() => PagoInfraccion, { nullable: false, eager: false })
+  @ManyToOne(() => PagoInfraccion, { nullable: true, eager: false })
   @JoinColumn({ name: 'id_pago_infraccion' })
-  pagoInfraccion!: PagoInfraccion;
+  pagoInfraccion!: PagoInfraccion | null;
+
+  @ManyToOne(() => SolventacionSinPago, { nullable: true, eager: false })
+  @JoinColumn({ name: 'id_solventacion_sin_pago' })
+  solventacionSinPago!: SolventacionSinPago | null;
 
   @ManyToOne(() => Usuario, { nullable: false, eager: false })
   @JoinColumn({ name: 'id_usuario_libera' })
