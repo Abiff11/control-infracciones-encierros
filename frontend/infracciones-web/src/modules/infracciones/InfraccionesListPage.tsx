@@ -170,17 +170,42 @@ function getVehicleLabel(item: InfraccionListItem): string {
   return parts.length > 0 ? parts.join(" - ") : "Sin informacion registrada";
 }
 
+function getEstadoOperativoEfectivo(
+  item: InfraccionListItem,
+): EstadoOperativoVehiculo {
+  if (item.estatusInfraccion.nombreEstatus === "SOLVENTADA_SIN_PAGO") {
+    if (!item.tipoProcedimiento.permiteRetencion) {
+      return "PAGADA_SIN_RETENCION";
+    }
+
+    if (item.retencion && !item.liberacion?.tieneLiberacion) {
+      return "PAGADO_PENDIENTE_LIBERACION";
+    }
+  }
+
+  return item.estadoOperativoCalculado;
+}
+
 function getOperationalDetail(item: InfraccionListItem): string {
-  switch (item.estadoOperativoCalculado) {
+  const estadoOperativo = getEstadoOperativoEfectivo(item);
+  const solventadaSinPago =
+    item.estatusInfraccion.nombreEstatus === "SOLVENTADA_SIN_PAGO";
+
+  switch (estadoOperativo) {
     case "SIN_RETENCION":
       return item.tipoProcedimiento.permiteRetencion
         ? "Ingreso a encierro pendiente"
         : "Sin retencion por tipo de expediente";
     case "PAGADA_SIN_RETENCION":
-      return "Flujo completado sin retencion";
+      return solventadaSinPago
+        ? "Solventada sin pago"
+        : "Flujo completado sin retencion";
     case "EN_ENCIERRO_SIN_PAGO":
       return "Vehiculo en resguardo";
     case "PAGADO_PENDIENTE_LIBERACION":
+      if (solventadaSinPago) {
+        return "Solventacion sin pago registrada";
+      }
       return item.pago?.montoPagado
         ? `Pago registrado por ${formatCurrencyMxn(item.pago.montoPagado)}`
         : "Pago registrado";
@@ -194,7 +219,7 @@ function getOperationalDetail(item: InfraccionListItem): string {
 }
 
 function getNextOperation(item: InfraccionListItem): NextOperation {
-  switch (item.estadoOperativoCalculado) {
+  switch (getEstadoOperativoEfectivo(item)) {
     case "SIN_RETENCION":
       if (!item.tipoProcedimiento.permiteRetencion) {
         return {
@@ -213,7 +238,10 @@ function getNextOperation(item: InfraccionListItem): NextOperation {
       return {
         type: null,
         label: "Completado",
-        helper: "Flujo completado sin retencion",
+        helper:
+          item.estatusInfraccion.nombreEstatus === "SOLVENTADA_SIN_PAGO"
+            ? "Infraccion solventada sin pago"
+            : "Flujo completado sin retencion",
         disabled: true,
       };
     case "EN_ENCIERRO_SIN_PAGO":
@@ -226,7 +254,10 @@ function getNextOperation(item: InfraccionListItem): NextOperation {
       return {
         type: "liberacion",
         label: "Autorizar liberacion",
-        helper: "Liberaciones debe emitir la autorizacion",
+        helper:
+          item.estatusInfraccion.nombreEstatus === "SOLVENTADA_SIN_PAGO"
+            ? "Expediente solventado sin pago"
+            : "Liberaciones debe emitir la autorizacion",
       };
     case "LIBERADO_PENDIENTE_SALIDA":
       return {
@@ -840,7 +871,7 @@ function InfraccionesListPage({
                       </td>
                       <td>
                         <div className="table-cell-stack">
-                          <StatusBadge value={item.estadoOperativoCalculado} />
+                          <StatusBadge value={getEstadoOperativoEfectivo(item)} />
                           <span>{getOperationalDetail(item)}</span>
                         </div>
                       </td>

@@ -17,7 +17,8 @@ RUN npm prune --omit=dev
 FROM node:${NODE_VERSION} AS api-production
 ENV NODE_ENV=production
 WORKDIR /app
-RUN mkdir -p /app/tmp \
+RUN apk upgrade --no-cache libcrypto3 libssl3 \
+  && mkdir -p /app/tmp \
   && chown -R node:node /app \
   && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
   && rm -f \
@@ -51,6 +52,8 @@ ENV VITE_SOCKET_PATH=${VITE_SOCKET_PATH}
 RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:1-alpine3.24 AS web-production
+USER root
+RUN apk upgrade --no-cache libcrypto3 libssl3
 COPY nginx/frontend.conf /etc/nginx/conf.d/default.conf
 COPY --from=web-builder /app/frontend/dist /usr/share/nginx/html
 USER nginx
