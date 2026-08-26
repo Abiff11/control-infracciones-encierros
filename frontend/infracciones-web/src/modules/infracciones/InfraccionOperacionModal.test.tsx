@@ -146,7 +146,11 @@ describe("InfraccionOperacionModal No aplica pago", () => {
     renderModal("pago");
 
     expect(screen.getByLabelText(/Folio linea de captura/i)).toBeInTheDocument();
-    expect(screen.getByText(/Claves de la linea de captura/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", {
+        name: /Conceptos de la línea de captura/i,
+      }),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "No aplica pago" }));
 
@@ -155,7 +159,9 @@ describe("InfraccionOperacionModal No aplica pago", () => {
       screen.queryByLabelText(/Folio linea de captura/i),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByText(/Claves de la linea de captura/i),
+      screen.queryByRole("region", {
+        name: /Conceptos de la línea de captura/i,
+      }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Solventar sin pago" }),
