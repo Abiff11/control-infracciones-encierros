@@ -17,7 +17,10 @@ import {
   createSalida,
 } from "../../services/api/encierros.api";
 import { createLiberacion } from "../../services/api/liberaciones.api";
-import { createPago } from "../../services/api/pagos.api";
+import {
+  createNoAplicaPago,
+  createPago,
+} from "../../services/api/pagos.api";
 import {
   formatDate,
   formatEmptyValue,
@@ -33,6 +36,7 @@ import type { CatalogosBundle } from "../../types/catalogos.types";
 import type { InfraccionListItem } from "../../types/infracciones.types";
 import type {
   GenerarLiberacionPayload,
+  RegistrarNoAplicaPagoPayload,
   RegistrarPagoPayload,
   RegistrarRetencionPayload,
   RegistrarSalidaPayload,
@@ -45,7 +49,10 @@ import {
 import "./InfraccionOperacionModal.css";
 
 export type InfraccionOperacionTipo =
-  "retencion" | "pago" | "liberacion" | "salida";
+  | "retencion"
+  | "pago"
+  | "liberacion"
+  | "salida";
 
 interface InfraccionOperacionModalProps {
   catalogs: CatalogosBundle | null;
@@ -142,13 +149,14 @@ function getOperationCopy(type: InfraccionOperacionTipo | null): OperationCopy {
       return {
         title: "Registrar pago",
         description:
-          "Registra el folio de la linea de captura y sus claves de concepto.",
+          "Registra la linea de captura o solventa la infraccion mediante No aplica pago.",
         submitLabel: "Guardar pago",
       };
     case "liberacion":
       return {
         title: "Generar liberacion",
-        description: "Genera la liberacion del vehiculo despues del pago.",
+        description:
+          "Genera la liberacion del vehiculo cuando el expediente fue pagado o solventado sin pago.",
         submitLabel: "Guardar liberacion",
       };
     case "salida":
@@ -202,21 +210,35 @@ function OperationSummary({ item }: { item: InfraccionListItem }) {
 }
 
 function FormActions({
+  alternateLabel,
   disabled,
+  onAlternate,
   onClose,
   saving,
   submitLabel,
 }: {
+  alternateLabel?: string;
   disabled: boolean;
+  onAlternate?: () => void;
   onClose: () => void;
   saving: boolean;
   submitLabel: string;
 }) {
   return (
     <div className="operation-modal-actions">
-      <Button type="button" variant="secondary" onClick={onClose}>
+      <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>
         Cancelar
       </Button>
+      {alternateLabel && onAlternate ? (
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onAlternate}
+          disabled={saving}
+        >
+          {alternateLabel}
+        </Button>
+      ) : null}
       <Button type="submit" variant="primary" disabled={disabled || saving}>
         {saving ? "Guardando..." : submitLabel}
       </Button>
@@ -226,6 +248,10 @@ function FormActions({
 
 function RequiredNote({ children }: { children: ReactNode }) {
   return <p className="operation-modal-note">{children}</p>;
+}
+
+function isSolventadaSinPago(item: InfraccionListItem | null): boolean {
+  return item?.estatusInfraccion.nombreEstatus === "SOLVENTADA_SIN_PAGO";
 }
 
 export function InfraccionOperacionModal({
@@ -244,6 +270,8 @@ export function InfraccionOperacionModal({
   const [pagoConceptos, setPagoConceptos] = useState<PagoConceptoFormRow[]>([
     createEmptyPagoConceptoRow(),
   ]);
+  const [noAplicaPago, setNoAplicaPago] = useState(false);
+  const [motivoNoAplica, setMotivoNoAplica] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -266,6 +294,8 @@ export function InfraccionOperacionModal({
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setForm(createInitialForm(type));
       setPagoConceptos([createEmptyPagoConceptoRow()]);
+      setNoAplicaPago(false);
+      setMotivoNoAplica("");
       setSaving(false);
       setError(null);
     }
@@ -278,6 +308,12 @@ export function InfraccionOperacionModal({
 
   function updatePagoConceptos(rows: PagoConceptoFormRow[]): void {
     setPagoConceptos(rows);
+    setError(null);
+  }
+
+  function toggleNoAplicaPago(): void {
+    setNoAplicaPago((current) => !current);
+    setMotivoNoAplica("");
     setError(null);
   }
 
@@ -305,6 +341,14 @@ export function InfraccionOperacionModal({
     }
 
     if (type === "pago") {
+      if (noAplicaPago) {
+        if (motivoNoAplica.trim().length < 3) {
+          return "Escribe el motivo por el que no aplica pago.";
+        }
+
+        return null;
+      }
+
       if (!form.folioPago.trim()) {
         return "Captura el folio de la linea de captura.";
       }
@@ -340,10 +384,6 @@ export function InfraccionOperacionModal({
     }
 
     if (type === "liberacion") {
-      if (!item.pago?.idPagoInfraccion) {
-        return "No se encontro el pago asociado. Actualiza el listado e intenta de nuevo.";
-      }
-
       if (!form.folioLiberacion.trim()) {
         return "Captura el folio de liberacion.";
       }
@@ -373,6 +413,97 @@ export function InfraccionOperacionModal({
     return null;
   }
 
+  async function submitPago(currentItem: InfraccionListItem): Promise<boolean> {
+    if (noAplicaPago) {
+      const motivo = motivoNoAplica.trim();
+      const confirmed = await confirmAction({
+        title: "Solventar sin pago",
+        text: `La infraccion ${currentItem.folioInfraccion} quedara solventada sin linea de captura ni ingreso registrado. Motivo: ${motivo}`,
+        confirmButtonText: "Confirmar no aplica pago",
+        cancelButtonText: "Seguir editando",
+      });
+
+      if (!confirmed) {
+        return false;
+      }
+
+      setSaving(true);
+      setError(null);
+
+      const payload: RegistrarNoAplicaPagoPayload = {
+        idInfraccion: currentItem.idInfraccion,
+        motivo,
+      };
+      await createNoAplicaPago(token, payload);
+      return true;
+    }
+
+    const confirmed = await confirmAction({
+      title: "Registrar pago",
+      text: `Vas a registrar la linea de captura ${form.folioPago.trim()} del expediente ${currentItem.folioInfraccion} por ${montoTotalPago}.`,
+      confirmButtonText: "Registrar pago",
+      cancelButtonText: "Seguir editando",
+    });
+
+    if (!confirmed) {
+      return false;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    const payload: RegistrarPagoPayload = {
+      idInfraccion: currentItem.idInfraccion,
+      folioLineaCaptura: form.folioPago.trim(),
+      conceptos: pagoConceptos.map((concepto) => ({
+        claveConcepto: concepto.claveConcepto.trim().toUpperCase(),
+        monto: toMoney(concepto.monto),
+      })),
+      fechaPago: toIsoDateTime(form.fechaPago),
+      observaciones: toNullableString(form.observacionesPago),
+    };
+    await createPago(token, payload);
+    return true;
+  }
+
+  async function submitLiberacion(
+    currentItem: InfraccionListItem,
+  ): Promise<boolean> {
+    const idPagoInfraccion = currentItem.pago?.idPagoInfraccion ?? null;
+    const usingNoAplica = !idPagoInfraccion && isSolventadaSinPago(currentItem);
+    const respaldo = idPagoInfraccion
+      ? `el pago ${idPagoInfraccion}`
+      : usingNoAplica
+        ? "la solventacion No aplica pago"
+        : "el respaldo operativo disponible";
+
+    const confirmed = await confirmAction({
+      title: "Generar liberación",
+      text: `Vas a generar la liberación del expediente ${currentItem.folioInfraccion} usando ${respaldo}.`,
+      confirmButtonText: "Generar liberación",
+      cancelButtonText: "Seguir editando",
+    });
+
+    if (!confirmed) {
+      return false;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    const payload: GenerarLiberacionPayload = {
+      idInfraccion: currentItem.idInfraccion,
+      ...(idPagoInfraccion ? { idPagoInfraccion } : {}),
+      folioLiberacion: form.folioLiberacion.trim(),
+      liberadoPor: form.liberadoPor.trim(),
+      nombreRecibeLiberacion: null,
+      fechaLiberacion: toIsoDateTime(form.fechaLiberacion),
+      observacion: toNullableString(form.observacionLiberacion),
+    };
+    await createLiberacion(token, payload);
+    return true;
+  }
+
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>,
   ): Promise<void> {
@@ -385,6 +516,8 @@ export function InfraccionOperacionModal({
     }
 
     try {
+      let completed = false;
+
       if (type === "retencion") {
         const confirmed = await confirmAction({
           title: "Registrar retención",
@@ -410,61 +543,15 @@ export function InfraccionOperacionModal({
           observacionesIngreso: toNullableString(form.observacionesIngreso),
         };
         await createRetencion(token, payload);
+        completed = true;
       }
 
       if (type === "pago") {
-        const confirmed = await confirmAction({
-          title: "Registrar pago",
-          text: `Vas a registrar la linea de captura ${form.folioPago.trim()} del expediente ${item.folioInfraccion} por ${montoTotalPago}.`,
-          confirmButtonText: "Registrar pago",
-          cancelButtonText: "Seguir editando",
-        });
-
-        if (!confirmed) {
-          return;
-        }
-
-        setSaving(true);
-        setError(null);
-
-        const payload: RegistrarPagoPayload = {
-          idInfraccion: item.idInfraccion,
-          folioLineaCaptura: form.folioPago.trim(),
-          conceptos: pagoConceptos.map((concepto) => ({
-            claveConcepto: concepto.claveConcepto.trim().toUpperCase(),
-            monto: toMoney(concepto.monto),
-          })),
-          fechaPago: toIsoDateTime(form.fechaPago),
-          observaciones: toNullableString(form.observacionesPago),
-        };
-        await createPago(token, payload);
+        completed = await submitPago(item);
       }
 
-      if (type === "liberacion" && item.pago?.idPagoInfraccion) {
-        const confirmed = await confirmAction({
-          title: "Generar liberación",
-          text: `Vas a generar la liberación del expediente ${item.folioInfraccion} usando el pago ${item.pago.idPagoInfraccion}.`,
-          confirmButtonText: "Generar liberación",
-          cancelButtonText: "Seguir editando",
-        });
-
-        if (!confirmed) {
-          return;
-        }
-
-        setSaving(true);
-        setError(null);
-
-        const payload: GenerarLiberacionPayload = {
-          idInfraccion: item.idInfraccion,
-          idPagoInfraccion: item.pago.idPagoInfraccion,
-          folioLiberacion: form.folioLiberacion.trim(),
-          liberadoPor: form.liberadoPor.trim(),
-          nombreRecibeLiberacion: null,
-          fechaLiberacion: toIsoDateTime(form.fechaLiberacion),
-          observacion: toNullableString(form.observacionLiberacion),
-        };
-        await createLiberacion(token, payload);
+      if (type === "liberacion") {
+        completed = await submitLiberacion(item);
       }
 
       if (
@@ -496,9 +583,12 @@ export function InfraccionOperacionModal({
           observacionesSalida: toNullableString(form.observacionesSalida),
         };
         await createSalida(token, payload);
+        completed = true;
       }
 
-      onCompleted();
+      if (completed) {
+        onCompleted();
+      }
     } catch (submissionError) {
       setError(getErrorMessage(submissionError));
     } finally {
@@ -507,6 +597,14 @@ export function InfraccionOperacionModal({
   }
 
   const canSubmit = getValidationError() === null;
+  const submitLabel =
+    type === "pago" && noAplicaPago ? "Solventar sin pago" : copy.submitLabel;
+  const alternateLabel =
+    type === "pago"
+      ? noAplicaPago
+        ? "Volver a registrar pago"
+        : "No aplica pago"
+      : undefined;
 
   return (
     <Modal
@@ -597,69 +695,95 @@ export function InfraccionOperacionModal({
         ) : null}
 
         {type === "pago" ? (
-          <div className="form-grid form-grid-2">
-            <Field
-              htmlFor="operacion-pago-folio"
-              label="Folio linea de captura"
-            >
-              <TextInput
-                id="operacion-pago-folio"
-                value={form.folioPago}
-                onChange={(event) =>
-                  updateField("folioPago", event.target.value)
-                }
-                required
-              />
-            </Field>
-
-            <Field htmlFor="operacion-pago-fecha" label="Fecha pago">
-              <TextInput
-                id="operacion-pago-fecha"
-                type="datetime-local"
-                value={form.fechaPago}
-                onChange={(event) =>
-                  updateField("fechaPago", event.target.value)
-                }
-              />
-            </Field>
-
-            <div className="field-span-2">
-              <PagoConceptosEditor
-                rows={pagoConceptos}
-                token={token}
-                onChange={updatePagoConceptos}
-              />
+          noAplicaPago ? (
+            <div className="form-stack">
+              <div className="notice">
+                Esta opcion solventa la infraccion sin registrar pago ni ingreso.
+                El motivo quedara asociado al usuario autenticado y al historial
+                del expediente.
+              </div>
+              <div className="field field-span-2">
+                <label htmlFor="operacion-pago-no-aplica-motivo">Motivo *</label>
+                <textarea
+                  id="operacion-pago-no-aplica-motivo"
+                  rows={5}
+                  maxLength={1000}
+                  value={motivoNoAplica}
+                  onChange={(event) => {
+                    setMotivoNoAplica(event.target.value);
+                    setError(null);
+                  }}
+                  placeholder="Describe por que la infraccion no genero linea de captura ni pago."
+                  required
+                />
+              </div>
             </div>
+          ) : (
+            <div className="form-grid form-grid-2">
+              <Field
+                htmlFor="operacion-pago-folio"
+                label="Folio linea de captura"
+              >
+                <TextInput
+                  id="operacion-pago-folio"
+                  value={form.folioPago}
+                  onChange={(event) =>
+                    updateField("folioPago", event.target.value)
+                  }
+                  required
+                />
+              </Field>
 
-            <Field htmlFor="operacion-pago-total" label="Total calculado">
-              <TextInput
-                id="operacion-pago-total"
-                value={montoTotalPago}
-                readOnly
-              />
-            </Field>
+              <Field htmlFor="operacion-pago-fecha" label="Fecha pago">
+                <TextInput
+                  id="operacion-pago-fecha"
+                  type="datetime-local"
+                  value={form.fechaPago}
+                  onChange={(event) =>
+                    updateField("fechaPago", event.target.value)
+                  }
+                />
+              </Field>
 
-            <div className="field field-span-2">
-              <label htmlFor="operacion-pago-observaciones">
-                Observaciones
-              </label>
-              <textarea
-                id="operacion-pago-observaciones"
-                rows={3}
-                value={form.observacionesPago}
-                onChange={(event) =>
-                  updateField("observacionesPago", event.target.value)
-                }
-              />
+              <div className="field-span-2">
+                <PagoConceptosEditor
+                  rows={pagoConceptos}
+                  token={token}
+                  onChange={updatePagoConceptos}
+                />
+              </div>
+
+              <Field htmlFor="operacion-pago-total" label="Total calculado">
+                <TextInput
+                  id="operacion-pago-total"
+                  value={montoTotalPago}
+                  readOnly
+                />
+              </Field>
+
+              <div className="field field-span-2">
+                <label htmlFor="operacion-pago-observaciones">
+                  Observaciones
+                </label>
+                <textarea
+                  id="operacion-pago-observaciones"
+                  rows={3}
+                  value={form.observacionesPago}
+                  onChange={(event) =>
+                    updateField("observacionesPago", event.target.value)
+                  }
+                />
+              </div>
             </div>
-          </div>
+          )
         ) : null}
 
         {type === "liberacion" ? (
           <div className="form-grid form-grid-2">
             <RequiredNote>
-              Se usara automaticamente el pago registrado del expediente. No se
-              muestra el ID tecnico.
+              {item?.pago?.idPagoInfraccion
+                ? "Se usara automaticamente el pago registrado del expediente. No se muestra el ID tecnico."
+                : "Si el expediente fue solventado con No aplica pago, la liberacion usara automaticamente esa solventacion como respaldo."}
             </RequiredNote>
 
             <Field
@@ -793,10 +917,12 @@ export function InfraccionOperacionModal({
         {error ? <div className="notice notice-error">{error}</div> : null}
 
         <FormActions
+          alternateLabel={alternateLabel}
           disabled={!canSubmit}
+          onAlternate={type === "pago" ? toggleNoAplicaPago : undefined}
           onClose={onClose}
           saving={saving}
-          submitLabel={copy.submitLabel}
+          submitLabel={submitLabel}
         />
       </form>
     </Modal>
