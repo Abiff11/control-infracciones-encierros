@@ -17,6 +17,14 @@ import "./InfraccionCreatePage.css";
 const MAX_MOTIVOS = 5;
 const DEFAULT_TIPO_PROCEDIMIENTO_CLAVE = "INFRACCION";
 const DEFAULT_ESTATUS_INFRACCION = "CAPTURADA";
+const VEHICULO_SIN_INFRACCION_CLAVE = "VEHICULO_SIN_INFRACCION";
+const DOCUMENTO_PARTE_INFORMATIVO = "PARTE_INFORMATIVO";
+const DOCUMENTO_FOLIO_LIBERACION = "FOLIO_LIBERACION";
+const FALLBACK_SEXO = "SE IGNORA";
+const FALLBACK_CATALOGO = "NO ESPECIFICADO";
+const FALLBACK_MOTIVO = "SIN_DATO";
+const FALLBACK_TEXTO = "SE IGNORA";
+const FALLBACK_LUGAR = "SIN DATO";
 
 function getTodayDate(): string {
   return formatDateInput();
@@ -97,6 +105,7 @@ const INITIAL_FORM = {
   horaInfraccion: getCurrentTime(),
   observaciones: "",
   clavePolicia: "",
+  tipoDocumentoReferencia: DOCUMENTO_PARTE_INFORMATIVO,
   numParteInformativo: "",
 };
 
@@ -274,15 +283,41 @@ function InfraccionCreatePage({
     [selectedMotivos, sortedMotivos],
   );
 
+  const fallbackSexo = catalogs?.sexos.find(
+    (sexo) => normalizeCatalogText(sexo.nombreSexo) === FALLBACK_SEXO,
+  );
+  const fallbackClaseVehiculo = catalogs?.clasesVehiculo.find(
+    (clase) => normalizeCatalogText(clase.nombreClaseVehiculo) === FALLBACK_CATALOGO,
+  );
+  const fallbackLineaVehiculo = catalogs?.lineasVehiculo.find(
+    (linea) => normalizeCatalogText(linea.nombreLineaVehiculo) === FALLBACK_CATALOGO,
+  );
+  const fallbackServicio = catalogs?.servicios.find(
+    (servicio) => normalizeCatalogText(servicio.nombreServicio) === FALLBACK_CATALOGO,
+  );
+  const fallbackMotivo = catalogs?.motivos.find(
+    (motivo) => normalizeCatalogText(motivo.nombreMotivo) === FALLBACK_MOTIVO,
+  );
+
   const requiereFolioInfraccion =
     selectedTipoProcedimiento?.requiereFolioInfraccion ?? false;
   const requiereNumParteInformativo =
     selectedTipoProcedimiento?.requiereNumParteInformativo ?? false;
   const requiereMotivos = selectedTipoProcedimiento?.requiereMotivos ?? false;
   const permiteRetencion = selectedTipoProcedimiento?.permiteRetencion ?? false;
+  const esVehiculoSinInfraccion =
+    normalizeCatalogText(
+      selectedTipoProcedimiento?.claveTipoProcedimiento ?? "",
+    ) === VEHICULO_SIN_INFRACCION_CLAVE;
+  const referenciaDocumento = form.numParteInformativo.trim();
+  const numParteInformativoPersistido =
+    form.tipoDocumentoReferencia === DOCUMENTO_FOLIO_LIBERACION &&
+    referenciaDocumento
+      ? `FL-${referenciaDocumento}`
+      : referenciaDocumento;
   const folioExpediente =
     !requiereFolioInfraccion && requiereNumParteInformativo
-      ? `PI-${normalizeFolioPart(form.numParteInformativo)}`
+      ? `PI-${normalizeFolioPart(numParteInformativoPersistido)}`
       : form.folioInfraccion.trim();
 
   function updateField(field: keyof FormState, value: string) {
@@ -302,6 +337,9 @@ function InfraccionCreatePage({
       idEncierro: nextTipo?.permiteRetencion ? current.idEncierro : "",
       folioInfraccion: nextTipo?.requiereFolioInfraccion
         ? current.folioInfraccion
+        : "",
+      tipoDocumentoReferencia: nextTipo?.requiereNumParteInformativo
+        ? current.tipoDocumentoReferencia || DOCUMENTO_PARTE_INFORMATIVO
         : "",
       numParteInformativo: nextTipo?.requiereNumParteInformativo
         ? current.numParteInformativo
@@ -367,24 +405,20 @@ function InfraccionCreatePage({
       return "No se encontro el estatus inicial CAPTURADA en catalogos.";
     }
 
-    if (!isFilled(form.idSexo)) {
-      return "Selecciona el sexo.";
+    if (!isFilled(form.idSexo) && !fallbackSexo) {
+      return "No se encontro el valor SE IGNORA para sexo en catalogos.";
     }
 
-    if (!isFilled(form.nombre) || !isFilled(form.apellidoPaterno)) {
-      return "Completa los datos personales obligatorios.";
+    if (!isFilled(form.idClaseVehiculo) && !fallbackClaseVehiculo) {
+      return "No se encontro la clase NO ESPECIFICADO en catalogos.";
     }
 
-    if (
-      !isFilled(form.idClaseVehiculo) ||
-      !isFilled(form.idLineaVehiculo) ||
-      !isFilled(form.idServicio)
-    ) {
-      return "Completa los datos obligatorios del vehiculo.";
+    if (!isFilled(form.idLineaVehiculo) && !fallbackLineaVehiculo) {
+      return "No se encontro la linea NO ESPECIFICADO en catalogos.";
     }
 
-    if (!isFilled(form.municipio)) {
-      return "Ingresa el municipio.";
+    if (!isFilled(form.idServicio) && !fallbackServicio) {
+      return "No se encontro el servicio NO ESPECIFICADO en catalogos.";
     }
 
     if (
@@ -392,15 +426,29 @@ function InfraccionCreatePage({
       !isFilled(form.fechaInfraccion) ||
       !isFilled(form.horaInfraccion)
     ) {
-      return "Completa los datos operativos obligatorios.";
+      return "Completa delegacion, fecha y hora.";
     }
 
     if (requiereFolioInfraccion && !isFilled(form.folioInfraccion)) {
       return "Captura el folio de infraccion.";
     }
 
+    if (
+      requiereNumParteInformativo &&
+      ![
+        DOCUMENTO_PARTE_INFORMATIVO,
+        DOCUMENTO_FOLIO_LIBERACION,
+      ].includes(form.tipoDocumentoReferencia)
+    ) {
+      return "Selecciona el tipo de documento de referencia.";
+    }
+
     if (requiereNumParteInformativo && !isFilled(form.numParteInformativo)) {
-      return "Captura el numero de parte informativo.";
+      return "Captura el numero o folio del documento de referencia.";
+    }
+
+    if (esVehiculoSinInfraccion && !isFilled(form.idEncierro)) {
+      return "Selecciona el encierro para el vehiculo sin infraccion.";
     }
 
     if (
@@ -411,8 +459,8 @@ function InfraccionCreatePage({
       return "El tipo de expediente seleccionado no puede generar folio.";
     }
 
-    if (requiereMotivos && selectedMotivos.length === 0) {
-      return "Selecciona al menos un motivo.";
+    if (requiereMotivos && selectedMotivos.length === 0 && !fallbackMotivo) {
+      return "No se encontro el motivo SIN_DATO para completar una captura sin motivos disponibles.";
     }
 
     if (selectedMotivos.length !== countFilled(motivoSlots)) {
@@ -422,47 +470,48 @@ function InfraccionCreatePage({
     return null;
   }
 
-  const infractorRequiredCompleted = countFilled([
+  const infractorCompleted = countFilled([
     form.idSexo,
     form.nombre,
     form.apellidoPaterno,
   ]);
-  const vehiculoRequiredCompleted = countFilled([
+  const vehiculoCompleted = countFilled([
     form.idClaseVehiculo,
     form.idLineaVehiculo,
     form.idServicio,
   ]);
-  const lugarRequiredCompleted = countFilled([form.municipio]);
-  const infraccionRequiredCompleted = countFilled([
+  const lugarCompleted = countFilled([form.municipio]);
+  const infraccionRequiredValues = [
     selectedTipoProcedimiento ? "x" : "",
     form.idDelegacion,
     form.fechaInfraccion,
     form.horaInfraccion,
-    requiereNumParteInformativo ? form.numParteInformativo : "",
-    requiereFolioInfraccion ? form.folioInfraccion : "",
-  ]);
+    ...(requiereFolioInfraccion ? [form.folioInfraccion] : []),
+    ...(requiereNumParteInformativo
+      ? [form.tipoDocumentoReferencia, form.numParteInformativo]
+      : []),
+    ...(esVehiculoSinInfraccion ? [form.idEncierro] : []),
+  ];
+  const infraccionRequiredCompleted = countFilled(infraccionRequiredValues);
+  const infraccionRequiredTotal = infraccionRequiredValues.length;
   const systemDefaultsReady = Boolean(
     selectedTipoProcedimiento && defaultEstatusInfraccion,
   );
   const motivoSelectionValid =
     selectedMotivos.length === countFilled(motivoSlots) &&
-    (!requiereMotivos || selectedMotivos.length > 0);
+    (!requiereMotivos || selectedMotivos.length > 0 || Boolean(fallbackMotivo));
+  const fallbackDataReady = Boolean(
+    (isFilled(form.idSexo) || fallbackSexo) &&
+      (isFilled(form.idClaseVehiculo) || fallbackClaseVehiculo) &&
+      (isFilled(form.idLineaVehiculo) || fallbackLineaVehiculo) &&
+      (isFilled(form.idServicio) || fallbackServicio),
+  );
   const canSubmit =
     Boolean(catalogs) &&
     systemDefaultsReady &&
+    fallbackDataReady &&
     motivoSelectionValid &&
-    infractorRequiredCompleted === 3 &&
-    vehiculoRequiredCompleted === 3 &&
-    lugarRequiredCompleted === 1 &&
-    infraccionRequiredCompleted ===
-      countFilled([
-        selectedTipoProcedimiento ? "x" : "",
-        form.idDelegacion,
-        form.fechaInfraccion,
-        form.horaInfraccion,
-        requiereNumParteInformativo ? "x" : "",
-        requiereFolioInfraccion ? "x" : "",
-      ]);
+    infraccionRequiredCompleted === infraccionRequiredTotal;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -472,7 +521,11 @@ function InfraccionCreatePage({
     if (
       validationError ||
       !selectedTipoProcedimiento ||
-      !defaultEstatusInfraccion
+      !defaultEstatusInfraccion ||
+      !fallbackSexo ||
+      !fallbackClaseVehiculo ||
+      !fallbackLineaVehiculo ||
+      !fallbackServicio
     ) {
       setError(
         validationError ??
@@ -492,19 +545,31 @@ function InfraccionCreatePage({
       return;
     }
 
+    const motivosPersistidos = requiereMotivos
+      ? selectedMotivos.length > 0
+        ? selectedMotivos
+        : fallbackMotivo
+          ? [fallbackMotivo.idMotivo]
+          : []
+      : [];
+
     const payload: CreateInfraccionCompletaPayload = {
       infractor: {
-        idSexo: Number(form.idSexo),
-        nombre: form.nombre.trim(),
-        apellidoPaterno: form.apellidoPaterno.trim(),
+        idSexo: Number(form.idSexo || fallbackSexo.idSexo),
+        nombre: form.nombre.trim() || FALLBACK_TEXTO,
+        apellidoPaterno: form.apellidoPaterno.trim() || FALLBACK_TEXTO,
         apellidoMaterno: toNullableString(form.apellidoMaterno) ?? null,
         licencia: toNullableString(form.licencia) ?? null,
         curp: toNullableString(form.curp) ?? null,
       },
       vehiculo: {
-        idClaseVehiculo: Number(form.idClaseVehiculo),
-        idLineaVehiculo: Number(form.idLineaVehiculo),
-        idServicio: Number(form.idServicio),
+        idClaseVehiculo: Number(
+          form.idClaseVehiculo || fallbackClaseVehiculo.idClaseVehiculo,
+        ),
+        idLineaVehiculo: Number(
+          form.idLineaVehiculo || fallbackLineaVehiculo.idLineaVehiculo,
+        ),
+        idServicio: Number(form.idServicio || fallbackServicio.idServicio),
         anioModelo: toOptionalNumber(form.anioModelo),
         sitioServicioPublico:
           toNullableString(form.sitioServicioPublico) ?? null,
@@ -515,7 +580,7 @@ function InfraccionCreatePage({
         motor: toNullableString(form.motor) ?? null,
       },
       lugarInfraccion: {
-        municipio: form.municipio.trim(),
+        municipio: form.municipio.trim() || FALLBACK_LUGAR,
         colonia: toNullableString(form.colonia) ?? null,
         calle: toNullableString(form.calle) ?? null,
         numero: toNullableString(form.numero) ?? null,
@@ -533,8 +598,10 @@ function InfraccionCreatePage({
         horaInfraccion: form.horaInfraccion,
         observaciones: toNullableString(form.observaciones) ?? null,
         clavePolicia: toNullableString(form.clavePolicia) ?? null,
-        numParteInformativo: toNullableString(form.numParteInformativo) ?? null,
-        motivos: requiereMotivos ? selectedMotivos : [],
+        numParteInformativo: requiereNumParteInformativo
+          ? numParteInformativoPersistido
+          : null,
+        motivos: motivosPersistidos,
       },
     };
 
@@ -587,8 +654,9 @@ function InfraccionCreatePage({
           <p className="eyebrow">Operacion</p>
           <h1>Nuevo expediente</h1>
           <p className="page-description">
-            Captura una infraccion o un vehiculo sin infraccion con numero de
-            parte informativo.
+            Captura los datos disponibles en el documento fisico. Delegacion,
+            fecha, hora y el identificador del expediente se mantienen
+            obligatorios.
           </p>
         </div>
         <div className="create-required-summary">
@@ -668,7 +736,7 @@ function InfraccionCreatePage({
         <SectionCard
           eyebrow="Infractor"
           title="Datos personales"
-          completed={infractorRequiredCompleted}
+          completed={infractorCompleted}
           total={3}
         >
           <div className="form-grid form-grid-3">
@@ -677,9 +745,8 @@ function InfraccionCreatePage({
                 id="infractor-sexo"
                 value={form.idSexo}
                 onChange={(event) => updateField("idSexo", event.target.value)}
-                required
               >
-                <option value="">Selecciona</option>
+                <option value="">Sin dato</option>
                 {catalogs?.sexos.map((sexo) => (
                   <option key={sexo.idSexo} value={sexo.idSexo}>
                     {sexo.nombreSexo}
@@ -692,7 +759,6 @@ function InfraccionCreatePage({
                 id="infractor-nombre"
                 value={form.nombre}
                 onChange={(event) => updateField("nombre", event.target.value)}
-                required
               />
             </Field>
             <Field
@@ -705,7 +771,6 @@ function InfraccionCreatePage({
                 onChange={(event) =>
                   updateField("apellidoPaterno", event.target.value)
                 }
-                required
               />
             </Field>
             <Field
@@ -742,7 +807,7 @@ function InfraccionCreatePage({
         <SectionCard
           eyebrow="Vehiculo"
           title="Caracteristicas"
-          completed={vehiculoRequiredCompleted}
+          completed={vehiculoCompleted}
           total={3}
         >
           <div className="form-grid form-grid-3">
@@ -753,9 +818,8 @@ function InfraccionCreatePage({
                 onChange={(event) =>
                   updateField("idClaseVehiculo", event.target.value)
                 }
-                required
               >
-                <option value="">Selecciona</option>
+                <option value="">Sin dato</option>
                 {catalogs?.clasesVehiculo.map((clase) => (
                   <option
                     key={clase.idClaseVehiculo}
@@ -773,9 +837,8 @@ function InfraccionCreatePage({
                 onChange={(event) =>
                   updateField("idLineaVehiculo", event.target.value)
                 }
-                required
               >
-                <option value="">Selecciona</option>
+                <option value="">Sin dato</option>
                 {catalogs?.lineasVehiculo.map((linea) => (
                   <option
                     key={linea.idLineaVehiculo}
@@ -795,9 +858,8 @@ function InfraccionCreatePage({
                 onChange={(event) =>
                   updateField("idServicio", event.target.value)
                 }
-                required
               >
-                <option value="">Selecciona</option>
+                <option value="">Sin dato</option>
                 {catalogs?.servicios.map((servicio) => (
                   <option key={servicio.idServicio} value={servicio.idServicio}>
                     {servicio.nombreServicio}
@@ -868,7 +930,7 @@ function InfraccionCreatePage({
         <SectionCard
           eyebrow="Lugar"
           title="Ubicacion"
-          completed={lugarRequiredCompleted}
+          completed={lugarCompleted}
           total={1}
         >
           <div className="form-grid form-grid-4">
@@ -879,7 +941,6 @@ function InfraccionCreatePage({
                 onChange={(event) =>
                   updateField("municipio", event.target.value)
                 }
-                required
               />
             </Field>
             <Field htmlFor="lugar-colonia" label="Colonia">
@@ -910,7 +971,7 @@ function InfraccionCreatePage({
           eyebrow="Operacion"
           title="Datos operativos"
           completed={infraccionRequiredCompleted}
-          total={4}
+          total={infraccionRequiredTotal}
         >
           <div className="form-grid form-grid-3">
             <Field htmlFor="infraccion-delegacion" label="Delegacion">
@@ -960,6 +1021,7 @@ function InfraccionCreatePage({
                   updateField("idEncierro", event.target.value)
                 }
                 disabled={!permiteRetencion}
+                required={esVehiculoSinInfraccion}
               >
                 <option value="">
                   {permiteRetencion ? "Sin encierro" : "No aplica"}
@@ -1020,19 +1082,46 @@ function InfraccionCreatePage({
               />
             </Field>
             {requiereNumParteInformativo ? (
-              <Field
-                htmlFor="infraccion-num-parte"
-                label="Numero parte informativo"
-              >
-                <TextInput
-                  id="infraccion-num-parte"
-                  value={form.numParteInformativo}
-                  onChange={(event) =>
-                    updateField("numParteInformativo", event.target.value)
+              <>
+                <Field
+                  htmlFor="infraccion-tipo-documento"
+                  label="Tipo de documento"
+                >
+                  <SelectField
+                    id="infraccion-tipo-documento"
+                    value={form.tipoDocumentoReferencia}
+                    onChange={(event) =>
+                      updateField("tipoDocumentoReferencia", event.target.value)
+                    }
+                    required
+                  >
+                    <option value={DOCUMENTO_PARTE_INFORMATIVO}>
+                      Parte informativo
+                    </option>
+                    <option value={DOCUMENTO_FOLIO_LIBERACION}>
+                      Folio de liberacion
+                    </option>
+                  </SelectField>
+                </Field>
+                <Field
+                  htmlFor="infraccion-num-parte"
+                  label={
+                    form.tipoDocumentoReferencia ===
+                    DOCUMENTO_FOLIO_LIBERACION
+                      ? "Folio de liberacion"
+                      : "Numero de parte informativo"
                   }
-                  required
-                />
-              </Field>
+                >
+                  <TextInput
+                    id="infraccion-num-parte"
+                    value={form.numParteInformativo}
+                    onChange={(event) =>
+                      updateField("numParteInformativo", event.target.value)
+                    }
+                    required
+                  />
+                </Field>
+              </>
             ) : null}
             <div className="field field-span-3">
               <label htmlFor="infraccion-observaciones">Observaciones</label>
@@ -1055,7 +1144,8 @@ function InfraccionCreatePage({
                 <p className="section-label">Motivos</p>
                 <h2>Selecciona hasta {MAX_MOTIVOS}</h2>
                 <p className="page-description">
-                  Usa un selector por motivo. No se permiten motivos repetidos.
+                  Captura los motivos disponibles. Si la boleta no los contiene,
+                  el expediente puede guardarse sin obligar a inventarlos.
                 </p>
               </div>
               <span className="create-section-counter">
@@ -1111,7 +1201,7 @@ function InfraccionCreatePage({
             </div>
             <div className="create-selected-motivos">
               {selectedMotivoLabels.length === 0 ? (
-                <FieldValue>Sin motivos seleccionados.</FieldValue>
+                <FieldValue>Sin motivos capturados.</FieldValue>
               ) : (
                 selectedMotivoLabels.map((label) => (
                   <span key={label} className="motivo-chip">
@@ -1130,8 +1220,8 @@ function InfraccionCreatePage({
             <p className="section-label">Guardar captura</p>
             <FieldValue>
               {canSubmit
-                ? "El expediente tiene los datos obligatorios completos."
-                : "Completa los campos obligatorios para guardar."}
+                ? "El expediente tiene los datos indispensables para guardar."
+                : "Completa los datos indispensables. Los demas campos pueden quedar sin dato."}
             </FieldValue>
           </div>
           <div className="button-row button-row-end">
