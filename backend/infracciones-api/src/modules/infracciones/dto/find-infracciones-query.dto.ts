@@ -1,4 +1,4 @@
-import { Transform, Type } from 'class-transformer';
+import { Type } from 'class-transformer';
 import {
   IsIn,
   IsDateString,
@@ -34,9 +34,6 @@ export class FindInfraccionesQueryDto {
   claveOficial?: string;
 
   @IsOptional()
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.trim().toUpperCase() : value,
-  )
   @IsString()
   @MaxLength(50)
   clavePago?: string;
