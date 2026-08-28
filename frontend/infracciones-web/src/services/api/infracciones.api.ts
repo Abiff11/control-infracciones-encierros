@@ -12,12 +12,14 @@ import type {
   CreateInfraccionCompletaPayload,
   InfraccionDetalleResponse,
   InfraccionFlujoResponse,
+  InfraccionListItem,
   InfraccionesQuery,
   InfraccionesResponse,
 } from '../../types/infracciones.types';
 
 const DEFAULT_INFRACCIONES_LIMIT = 30;
 const LEGACY_INFRACCIONES_LIMIT = 10;
+const REPORT_INFRACCIONES_LIMIT = 100;
 const adminExpedienteVersions = new Map<number, string>();
 
 function normalizeInfraccionesQuery(query?: InfraccionesQuery): InfraccionesQuery {
@@ -55,6 +57,43 @@ export function getInfracciones(
     {},
     token,
   );
+}
+
+export async function getAllInfracciones(
+  token: string,
+  query?: InfraccionesQuery,
+): Promise<InfraccionListItem[]> {
+  const filters: InfraccionesQuery = { ...query };
+  delete filters.page;
+  delete filters.limit;
+
+  const firstResponse = await getInfracciones(token, {
+    ...filters,
+    page: 1,
+    limit: REPORT_INFRACCIONES_LIMIT,
+  });
+
+  const allItems = [...firstResponse.data];
+  const totalPages = firstResponse.meta?.totalPages ?? 1;
+
+  for (let page = 2; page <= totalPages; page += 1) {
+    const response = await getInfracciones(token, {
+      ...filters,
+      page,
+      limit: REPORT_INFRACCIONES_LIMIT,
+    });
+    allItems.push(...response.data);
+  }
+
+  const seenIds = new Set<number>();
+  return allItems.filter((item) => {
+    if (seenIds.has(item.idInfraccion)) {
+      return false;
+    }
+
+    seenIds.add(item.idInfraccion);
+    return true;
+  });
 }
 
 export function getInfraccionFlujo(
