@@ -455,6 +455,23 @@ export class InfraccionesListService {
       });
     }
 
+    const clavePago = query.clavePago?.trim().toUpperCase();
+    if (clavePago) {
+      builder.andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM pago_infraccion pago_clave
+          INNER JOIN pago_concepto pago_concepto_clave
+            ON pago_concepto_clave.id_pago_infraccion = pago_clave.id_pago_infraccion
+          INNER JOIN concepto_pago concepto_pago_clave
+            ON concepto_pago_clave.id_concepto_pago = pago_concepto_clave.id_concepto_pago
+          WHERE pago_clave.id_infraccion = infraccion.id_infraccion
+            AND concepto_pago_clave.clave_concepto = :clavePago
+        )`,
+        { clavePago },
+      );
+    }
+
     if (query.anio) {
       builder.andWhere(
         'EXTRACT(YEAR FROM infraccion.fechaInfraccion) = :anio',
