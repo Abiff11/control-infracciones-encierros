@@ -19,13 +19,14 @@ import {
 } from './infracciones-report-export';
 import './InfraccionesReportModal.css';
 
-type ReportScope = 'page' | 'selected';
+type ReportScope = 'all' | 'selected';
 type ReportFormat = 'excel' | 'pdf';
 
 interface InfraccionesReportModalProps {
   open: boolean;
   items: InfraccionListItem[];
   selectedRowIds: Set<number>;
+  dateRangeLabel: string;
   onClose: () => void;
 }
 
@@ -264,12 +265,13 @@ function getPreviewMessage(canExport: boolean, selectedFieldIdsLength: number, e
 }
 
 export function InfraccionesReportModal({
+  dateRangeLabel,
   items,
   onClose,
   open,
   selectedRowIds,
 }: InfraccionesReportModalProps) {
-  const [scope, setScope] = useState<ReportScope>('page');
+  const [scope, setScope] = useState<ReportScope>('all');
   const [fieldSearch, setFieldSearch] = useState('');
   const [activeTab, setActiveTab] = useState<ActiveTab>('scope');
   const [reportFilters, setReportFilters] = useState<ReportFilters>(INITIAL_REPORT_FILTERS);
@@ -277,7 +279,7 @@ export function InfraccionesReportModal({
     readStoredReportFieldIds,
   );
 
-  const effectiveScope = selectedRowIds.size === 0 && scope === 'selected' ? 'page' : scope;
+  const effectiveScope = selectedRowIds.size === 0 && scope === 'selected' ? 'all' : scope;
   const scopeItems = useMemo(
     () => getExportItems(items, selectedRowIds, effectiveScope),
     [effectiveScope, items, selectedRowIds],
@@ -362,8 +364,9 @@ export function InfraccionesReportModal({
   const payload = {
     title: 'Reporte de infracciones',
     contextLines: [
-      `Alcance: ${effectiveScope === 'selected' ? 'Seleccionadas' : 'Página actual'}`,
-      `Registros visibles: ${items.length}`,
+      `Alcance: ${effectiveScope === 'selected' ? 'Seleccionadas' : 'Todos los resultados'}`,
+      `Rango de fecha: ${dateRangeLabel}`,
+      `Registros disponibles: ${items.length}`,
       `Registros a exportar: ${exportItems.length}`,
       `Campos incluidos: ${selectedFieldIds.length}`,
     ],
@@ -445,12 +448,12 @@ export function InfraccionesReportModal({
             <div className="report-scope-switch" role="group" aria-label="Alcance del reporte">
               <button
                 type="button"
-                className={`report-scope-option ${effectiveScope === 'page' ? 'is-active' : ''}`}
-                aria-pressed={effectiveScope === 'page'}
-                onClick={() => setScope('page')}
+                className={`report-scope-option ${effectiveScope === 'all' ? 'is-active' : ''}`}
+                aria-pressed={effectiveScope === 'all'}
+                onClick={() => setScope('all')}
               >
-                <strong>Página actual</strong>
-                <span>Exporta lo que ves con los filtros actuales.</span>
+                <strong>Todos los resultados</strong>
+                <span>Exporta todos los registros que cumplen el rango de fecha y los filtros del reporte.</span>
               </button>
               <button
                 type="button"
@@ -756,14 +759,14 @@ export function InfraccionesReportModal({
     <Modal
       open={open}
       title="Generar reporte"
-      description="Elige el alcance y los campos del archivo. La tabla principal no cambia."
+      description="Elige el alcance y los campos del archivo. El reporte usa todos los resultados del rango aplicado."
       eyebrowLabel="Reportes"
       size="wide"
       onClose={onClose}
     >
       <div className="report-modal-shell">
         <header className="report-modal-summary" aria-label="Resumen del reporte">
-          <span>{items.length} visibles</span>
+          <span>{items.length} disponibles</span>
           <span>{selectedRowIds.size} seleccionadas</span>
           <span>{selectedFieldIds.length} campos</span>
           <span>{exportItems.length} a exportar</span>
