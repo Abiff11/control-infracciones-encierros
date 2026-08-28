@@ -1,4 +1,6 @@
 import {
+  BeforeInsert,
+  BeforeUpdate,
   Column,
   Entity,
   JoinColumn,
@@ -89,4 +91,41 @@ export class Infraccion {
     nullable: true,
   })
   numParteInformativo!: string | null;
+
+  @Column({
+    name: 'tipo_documento_referencia',
+    type: 'varchar',
+    length: 30,
+    nullable: true,
+  })
+  tipoDocumentoReferencia!: string | null;
+
+  @Column({
+    name: 'folio_documento_referencia',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
+  folioDocumentoReferencia!: string | null;
+
+  @BeforeInsert()
+  @BeforeUpdate()
+  sincronizarDocumentoReferencia(): void {
+    const referencia = this.numParteInformativo?.trim();
+
+    if (!referencia) {
+      this.tipoDocumentoReferencia = null;
+      this.folioDocumentoReferencia = null;
+      return;
+    }
+
+    if (referencia.toUpperCase().startsWith('FL-')) {
+      this.tipoDocumentoReferencia = 'FOLIO_LIBERACION';
+      this.folioDocumentoReferencia = referencia.slice(3).trim() || null;
+      return;
+    }
+
+    this.tipoDocumentoReferencia = 'PARTE_INFORMATIVO';
+    this.folioDocumentoReferencia = referencia;
+  }
 }
