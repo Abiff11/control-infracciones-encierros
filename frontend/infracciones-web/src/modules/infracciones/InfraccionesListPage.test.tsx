@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { InfraccionListItem } from "../../types/infracciones.types";
@@ -161,5 +161,25 @@ describe("InfraccionesListPage solventacion sin pago", () => {
       screen.getByRole("button", { name: "Autorizar liberacion" }),
     ).toBeEnabled();
     expect(screen.getByText("Expediente solventado sin pago")).toBeInTheDocument();
+  });
+
+  it("envia la clave de pago normalizada al aplicar los filtros", async () => {
+    await renderWithItem(createItem());
+
+    fireEvent.change(screen.getByLabelText("Clave de pago"), {
+      target: { value: " 1eaaa002 " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+
+    await waitFor(() => {
+      expect(apiMocks.getInfracciones).toHaveBeenLastCalledWith(
+        "token-test",
+        expect.objectContaining({
+          clavePago: "1EAAA002",
+          page: 1,
+          limit: 30,
+        }),
+      );
+    });
   });
 });
