@@ -56,6 +56,7 @@ interface FiltersForm {
   placas: string;
   rfc: string;
   claveOficial: string;
+  clavePago: string;
   estadoOperativo: string;
   page: string;
   limit: string;
@@ -97,6 +98,7 @@ const DEFAULT_FILTERS: FiltersForm = {
   placas: "",
   rfc: "",
   claveOficial: "",
+  clavePago: "",
   estadoOperativo: "",
   page: "1",
   limit: "30",
@@ -145,6 +147,7 @@ function buildQuery(filters: FiltersForm): InfraccionesQuery {
     placas: filters.placas || undefined,
     rfc: filters.rfc || undefined,
     claveOficial: filters.claveOficial || undefined,
+    clavePago: filters.clavePago.trim().toUpperCase() || undefined,
     estadoOperativo: (filters.estadoOperativo || undefined) as
       EstadoOperativoVehiculo | undefined,
     page: toNumber(filters.page),
@@ -536,7 +539,6 @@ function InfraccionesListPage({
         </div>
       );
     }
-
     return (
       <div className="table-cell-stack">
         <OperationButton
@@ -695,6 +697,18 @@ function InfraccionesListPage({
                 onChange={(event) =>
                   updateDraftField("claveOficial", event.target.value)
                 }
+              />
+            </Field>
+
+            <Field htmlFor="infracciones-clave-pago" label="Clave de pago">
+              <TextInput
+                id="infracciones-clave-pago"
+                value={draftFilters.clavePago}
+                onChange={(event) =>
+                  updateDraftField("clavePago", event.target.value)
+                }
+                placeholder="1EAAA002"
+                maxLength={50}
               />
             </Field>
           </div>
