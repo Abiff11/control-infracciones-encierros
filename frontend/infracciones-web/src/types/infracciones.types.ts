@@ -287,6 +287,7 @@ export interface InfraccionesQuery {
   idEncierro?: number;
   rfc?: string;
   claveOficial?: string;
+  clavePago?: string;
   placas?: string;
   serie?: string;
   motor?: string;
