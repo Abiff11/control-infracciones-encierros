@@ -17,7 +17,9 @@ import { Infraccion } from './entities/infraccion.entity';
 import { InfraccionesAdminOperacionesService } from './infracciones-admin-operaciones.service';
 import { InfraccionesAdminService } from './infracciones-admin.service';
 import { InfraccionesController } from './infracciones.controller';
+import { InfraccionesExcelReportService } from './infracciones-excel-report.service';
 import { InfraccionesListService } from './infracciones-list.service';
+import { InfraccionesReportesService } from './infracciones-reportes.service';
 import { InfraccionesService } from './infracciones.service';
 
 @Module({
@@ -42,6 +44,8 @@ import { InfraccionesService } from './infracciones.service';
   providers: [
     InfraccionesService,
     InfraccionesListService,
+    InfraccionesExcelReportService,
+    InfraccionesReportesService,
     InfraccionesAdminService,
     InfraccionesAdminOperacionesService,
   ],

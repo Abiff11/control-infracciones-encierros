@@ -94,6 +94,17 @@ export interface InfraccionesResponse {
   meta?: PaginationMeta;
 }
 
+export interface PdfReportAvailability {
+  total: number;
+  limitePdf: number;
+  permitido: boolean;
+}
+
+export interface ExportInfraccionesExcelPayload extends InfraccionesQuery {
+  campos: string[];
+  idInfracciones?: number[];
+}
+
 export interface InfraccionMotivoDetalle {
   idMotivo: number;
   nombreMotivo: string;
@@ -283,6 +294,7 @@ export interface InfraccionesQuery {
   idDelegacion?: number;
   idRegion?: number;
   idTipoProcedimiento?: number;
+  idInfracciones?: number[];
   idMotivo?: number;
   idEncierro?: number;
   rfc?: string;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -9,7 +9,10 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { getErrorMessage } from '../../services/api/apiClient';
 import {
   getAllInfracciones,
+  exportInfraccionesExcel,
   getInfracciones,
+  getPdfReportAvailability,
+  validatePdfReport,
 } from '../../services/api/infracciones.api';
 import {
   formatCurrencyMxn,
@@ -21,11 +24,14 @@ import {
 } from '../../utils/formatters';
 import type {
   InfraccionesQuery,
+  ExportInfraccionesExcelPayload,
   InfraccionesResponse,
   InfraccionListItem,
   PaginationMeta,
+  PdfReportAvailability,
 } from '../../types/infracciones.types';
 import { InfraccionesReportModal } from './InfraccionesReportModal';
+import { getPdfLimitMessage } from './pdf-report-limit';
 import './InfraccionesReportPage.css';
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -131,9 +137,9 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
   const [page, setPage] = useState(1);
   const [selectedRowIds, setSelectedRowIds] = useState<Set<number>>(() => new Set());
   const [reportOpen, setReportOpen] = useState(false);
-  const [reportItems, setReportItems] = useState<InfraccionListItem[]>([]);
-  const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  const [pdfAvailability, setPdfAvailability] =
+    useState<PdfReportAvailability | null>(null);
   const [dateRangeDraft, setDateRangeDraft] = useState<DateRangeFilters>(INITIAL_DATE_RANGE);
   const [dateRange, setDateRange] = useState<DateRangeFilters>(INITIAL_DATE_RANGE);
   const [dateRangeError, setDateRangeError] = useState<string | null>(null);
@@ -164,7 +170,10 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
       }));
 
       try {
-        const response = await getInfracciones(token, query);
+        const [response, availability] = await Promise.all([
+          getInfracciones(token, query),
+          getPdfReportAvailability(token, query),
+        ]);
 
         if (!mounted) {
           return;
@@ -175,6 +184,7 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
           data: response,
           error: null,
         });
+        setPdfAvailability(availability);
       } catch (error) {
         if (!mounted) {
           return;
@@ -185,6 +195,7 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
           data: null,
           error: getErrorMessage(error),
         });
+        setPdfAvailability(null);
       }
     }
 
@@ -244,7 +255,6 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
     setDateRange({ ...dateRangeDraft });
     setDateRangeError(null);
     setSelectedRowIds(new Set());
-    setReportItems([]);
     setReportError(null);
     setReportOpen(false);
     setPage(1);
@@ -255,29 +265,38 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
     setDateRange(INITIAL_DATE_RANGE);
     setDateRangeError(null);
     setSelectedRowIds(new Set());
-    setReportItems([]);
     setReportError(null);
     setReportOpen(false);
     setPage(1);
   }
 
   async function openReport(): Promise<void> {
-    setReportLoading(true);
     setReportError(null);
-
-    try {
-      const allItems = await getAllInfracciones(token, {
-        fechaInicio: dateRange.fechaInicio || undefined,
-        fechaFin: dateRange.fechaFin || undefined,
-      });
-      setReportItems(allItems);
-      setReportOpen(true);
-    } catch (error) {
-      setReportError(getErrorMessage(error));
-    } finally {
-      setReportLoading(false);
-    }
+    setReportOpen(true);
   }
+
+  const generatePdf = useCallback(async (reportQuery: InfraccionesQuery): Promise<InfraccionListItem[]> => {
+    await validatePdfReport(token, reportQuery);
+    const ids = new Set(reportQuery.idInfracciones ?? []);
+    const allItems = await getAllInfracciones(token, {
+      ...reportQuery,
+      idInfracciones: undefined,
+    });
+
+    return ids.size > 0
+      ? allItems.filter((item) => ids.has(item.idInfraccion))
+      : allItems;
+  }, [token]);
+
+  const getReportAvailability = useCallback(
+    (reportQuery: InfraccionesQuery) => getPdfReportAvailability(token, reportQuery),
+    [token],
+  );
+  const exportExcelReport = useCallback(
+    (payload: ExportInfraccionesExcelPayload) =>
+      exportInfraccionesExcel(token, payload),
+    [token],
+  );
 
   return (
     <section className="page-stack infracciones-report-page">
@@ -300,13 +319,18 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
           <Button
             type="button"
             variant="primary"
-            disabled={reportLoading}
             onClick={() => void openReport()}
           >
-            {reportLoading ? 'Preparando reporte...' : 'Generar reporte'}
+            Generar reporte
           </Button>
         </div>
       </header>
+
+      {pdfAvailability && !pdfAvailability.permitido ? (
+        <div className="notice notice-error" role="alert">
+          {getPdfLimitMessage(pdfAvailability)}
+        </div>
+      ) : null}
 
       <Card>
         <div className="report-date-filter">
@@ -372,10 +396,9 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
               <Button
                 type="button"
                 variant="secondary"
-                disabled={reportLoading}
                 onClick={() => void openReport()}
               >
-                {reportLoading ? 'Preparando...' : 'Abrir reporte'}
+                Abrir reporte
               </Button>
             </div>
           </div>
@@ -510,9 +533,14 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
 
       <InfraccionesReportModal
         open={reportOpen}
-        items={reportItems}
+        items={items}
         selectedRowIds={selectedRowIds}
         dateRangeLabel={appliedDateRangeLabel}
+        reportQuery={query}
+        pdfAvailability={pdfAvailability}
+        onGetReportAvailability={getReportAvailability}
+        onExportExcel={exportExcelReport}
+        onGeneratePdf={generatePdf}
         onClose={() => setReportOpen(false)}
       />
     </section>

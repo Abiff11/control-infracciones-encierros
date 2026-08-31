@@ -1,4 +1,4 @@
-import { buildQuery, request } from './apiClient';
+import { buildQuery, request, requestBlob } from './apiClient';
 import { getPagosByInfraccion } from './pagos.api';
 import type {
   AdminActualizarExpedientePayload,
@@ -14,13 +14,22 @@ import type {
   InfraccionFlujoResponse,
   InfraccionListItem,
   InfraccionesQuery,
+  ExportInfraccionesExcelPayload,
   InfraccionesResponse,
+  PdfReportAvailability,
 } from '../../types/infracciones.types';
 
 const DEFAULT_INFRACCIONES_LIMIT = 30;
 const LEGACY_INFRACCIONES_LIMIT = 10;
 const REPORT_INFRACCIONES_LIMIT = 100;
 const adminExpedienteVersions = new Map<number, string>();
+
+function getReportFilters<T extends InfraccionesQuery>(query?: T): T {
+  const filters = { ...query } as T;
+  delete filters.page;
+  delete filters.limit;
+  return filters;
+}
 
 function normalizeInfraccionesQuery(query?: InfraccionesQuery): InfraccionesQuery {
   const limit = query?.limit;
@@ -63,9 +72,7 @@ export async function getAllInfracciones(
   token: string,
   query?: InfraccionesQuery,
 ): Promise<InfraccionListItem[]> {
-  const filters: InfraccionesQuery = { ...query };
-  delete filters.page;
-  delete filters.limit;
+  const filters = getReportFilters(query);
 
   const firstResponse = await getInfracciones(token, {
     ...filters,
@@ -223,6 +230,56 @@ export function createInfraccion(
     {
       method: 'POST',
       body: JSON.stringify(payload),
+    },
+    token,
+  );
+}
+
+export function getPdfReportAvailability(
+  token: string,
+  query?: InfraccionesQuery,
+): Promise<PdfReportAvailability> {
+  if (query?.idInfracciones?.length) {
+    return request<PdfReportAvailability>(
+      '/infracciones/reportes/pdf/disponibilidad',
+      {
+        method: 'POST',
+        body: JSON.stringify(getReportFilters(query)),
+      },
+      token,
+    );
+  }
+
+  return request<PdfReportAvailability>(
+    `/infracciones/reportes/pdf/disponibilidad${buildQuery(getReportFilters(query))}`,
+    {},
+    token,
+  );
+}
+
+export function validatePdfReport(
+  token: string,
+  query?: InfraccionesQuery,
+): Promise<PdfReportAvailability> {
+  return request<PdfReportAvailability>(
+    '/infracciones/reportes/pdf/validacion',
+    {
+      method: 'POST',
+      body: JSON.stringify(getReportFilters(query)),
+    },
+    token,
+  );
+}
+
+export function exportInfraccionesExcel(
+  token: string,
+  payload: ExportInfraccionesExcelPayload,
+): Promise<Blob> {
+  return requestBlob(
+    '/infracciones/reportes/excel',
+    {
+      method: 'POST',
+      body: JSON.stringify(getReportFilters(payload)),
     },
     token,
   );

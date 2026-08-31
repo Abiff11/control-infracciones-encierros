@@ -1,6 +1,9 @@
 import { Type } from 'class-transformer';
 import {
   IsIn,
+  IsArray,
+  ArrayMaxSize,
+  ArrayUnique,
   IsDateString,
   IsInt,
   IsOptional,
@@ -72,6 +75,15 @@ export class FindInfraccionesQueryDto {
   @IsInt()
   @Min(1)
   idTipoProcedimiento?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @ArrayUnique()
+  @Type(() => Number)
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  idInfracciones?: number[];
 
   @IsOptional()
   @Type(() => Number)
