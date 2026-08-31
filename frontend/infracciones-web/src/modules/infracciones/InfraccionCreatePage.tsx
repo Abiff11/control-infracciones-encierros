@@ -12,14 +12,17 @@ import type {
   InfraccionFlujoResponse,
 } from "../../types/infracciones.types";
 import { formatDateInput, formatTimeInput } from "../../utils/timezone";
+import {
+  buildVehiculoSinInfraccionFolio,
+  DOCUMENTO_FOLIO_LIBERACION,
+  DOCUMENTO_PARTE_INFORMATIVO,
+} from "./expediente-folio";
 import "./InfraccionCreatePage.css";
 
 const MAX_MOTIVOS = 5;
 const DEFAULT_TIPO_PROCEDIMIENTO_CLAVE = "INFRACCION";
 const DEFAULT_ESTATUS_INFRACCION = "CAPTURADA";
 const VEHICULO_SIN_INFRACCION_CLAVE = "VEHICULO_SIN_INFRACCION";
-const DOCUMENTO_PARTE_INFORMATIVO = "PARTE_INFORMATIVO";
-const DOCUMENTO_FOLIO_LIBERACION = "FOLIO_LIBERACION";
 const FALLBACK_SEXO = "SE IGNORA";
 const FALLBACK_CATALOGO = "NO ESPECIFICADO";
 const FALLBACK_MOTIVO = "SIN_DATO";
@@ -316,7 +319,12 @@ function InfraccionCreatePage({
       ? `FL-${referenciaDocumento}`
       : referenciaDocumento;
   const folioExpediente =
-    !requiereFolioInfraccion && requiereNumParteInformativo
+    esVehiculoSinInfraccion
+      ? buildVehiculoSinInfraccionFolio(
+          form.tipoDocumentoReferencia,
+          form.numParteInformativo,
+        )
+      : !requiereFolioInfraccion && requiereNumParteInformativo
       ? `PI-${normalizeFolioPart(numParteInformativoPersistido)}`
       : form.folioInfraccion.trim();
 
@@ -594,6 +602,9 @@ function InfraccionCreatePage({
           ? toOptionalNumber(form.idEncierro)
           : undefined,
         folioInfraccion: requiereFolioInfraccion ? folioExpediente : undefined,
+        tipoDocumentoReferencia: requiereNumParteInformativo
+          ? form.tipoDocumentoReferencia
+          : undefined,
         fechaInfraccion: form.fechaInfraccion,
         horaInfraccion: form.horaInfraccion,
         observaciones: toNullableString(form.observaciones) ?? null,

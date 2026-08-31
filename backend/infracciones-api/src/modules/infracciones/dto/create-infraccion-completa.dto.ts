@@ -3,6 +3,7 @@ import {
   ArrayUnique,
   IsArray,
   IsDateString,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -154,6 +155,10 @@ export class CreateInfraccionCapturaDto {
   @IsString()
   @IsNotEmpty()
   folioInfraccion?: string;
+
+  @IsOptional()
+  @IsIn(['PARTE_INFORMATIVO', 'FOLIO_LIBERACION'])
+  tipoDocumentoReferencia?: string;
 
   @IsDateString()
   fechaInfraccion!: string;
