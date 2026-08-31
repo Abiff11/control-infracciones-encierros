@@ -54,9 +54,9 @@ export class FlexibleExpedienteCapture1970000000000
       `INSERT INTO linea_vehiculo (id_marca_vehiculo, nombre_linea_vehiculo)
        SELECT id_marca_vehiculo, $1
        FROM marca_vehiculo
-       WHERE nombre_marca_vehiculo = $1
+       WHERE nombre_marca_vehiculo = $2
        ON CONFLICT (id_marca_vehiculo, nombre_linea_vehiculo) DO NOTHING`,
-      [FALLBACK_VALUE],
+      [FALLBACK_VALUE, FALLBACK_VALUE],
     );
     await queryRunner.query(
       `INSERT INTO motivo (nombre_motivo, descripcion_motivo)
