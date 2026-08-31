@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { InfraccionListItem } from '../../types/infracciones.types';
-import { getAllInfracciones } from './infracciones.api';
+import { exportInfraccionesExcel, getAllInfracciones } from './infracciones.api';
 
 const apiMocks = vi.hoisted(() => ({
   request: vi.fn(),
+  requestBlob: vi.fn(),
 }));
 
 vi.mock('./apiClient', () => ({
@@ -25,6 +26,7 @@ vi.mock('./apiClient', () => ({
     return query ? `?${query}` : '';
   },
   request: apiMocks.request,
+  requestBlob: apiMocks.requestBlob,
 }));
 
 function createItem(idInfraccion: number): InfraccionListItem {
@@ -102,5 +104,37 @@ describe('getAllInfracciones', () => {
     const result = await getAllInfracciones('token-test');
 
     expect(result.map((item) => item.idInfraccion)).toEqual([1, 2, 3]);
+  });
+
+  it('exporta Excel con una sola solicitud POST sin paginar el listado', async () => {
+    apiMocks.requestBlob.mockResolvedValue(new Blob(['xlsx']));
+
+    await exportInfraccionesExcel('token-test', {
+      fechaInicio: '2026-08-01',
+      fechaFin: '2026-08-31',
+      idDelegacion: 3,
+      idRegion: 2,
+      idEstatusInfraccion: 4,
+      idTipoProcedimiento: 5,
+      campos: ['folioInfraccion'],
+    });
+
+    expect(apiMocks.requestBlob).toHaveBeenCalledTimes(1);
+    expect(apiMocks.request).not.toHaveBeenCalled();
+    expect(apiMocks.requestBlob).toHaveBeenCalledWith(
+      '/infracciones/reportes/excel',
+      expect.objectContaining({ method: 'POST' }),
+      'token-test',
+    );
+    const body = String(apiMocks.requestBlob.mock.calls[0]?.[1]?.body);
+    expect(JSON.parse(body)).toMatchObject({
+      fechaInicio: '2026-08-01',
+      fechaFin: '2026-08-31',
+      idDelegacion: 3,
+      idRegion: 2,
+      idEstatusInfraccion: 4,
+      idTipoProcedimiento: 5,
+      campos: ['folioInfraccion'],
+    });
   });
 });

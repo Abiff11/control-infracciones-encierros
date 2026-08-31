@@ -6,12 +6,18 @@ import InfraccionesReportPage from './InfraccionesReportPage';
 
 const apiMocks = vi.hoisted(() => ({
   getAllInfracciones: vi.fn(),
+  exportInfraccionesExcel: vi.fn(),
   getInfracciones: vi.fn(),
+  getPdfReportAvailability: vi.fn(),
+  validatePdfReport: vi.fn(),
 }));
 
 vi.mock('../../services/api/infracciones.api', () => ({
   getAllInfracciones: apiMocks.getAllInfracciones,
+  exportInfraccionesExcel: apiMocks.exportInfraccionesExcel,
   getInfracciones: apiMocks.getInfracciones,
+  getPdfReportAvailability: apiMocks.getPdfReportAvailability,
+  validatePdfReport: apiMocks.validatePdfReport,
 }));
 
 vi.mock('./InfraccionesReportModal', () => ({
@@ -122,9 +128,19 @@ describe('InfraccionesReportPage', () => {
       createItem(),
       createItem({ idInfraccion: 11, folioInfraccion: 'INF-11' }),
     ]);
+    apiMocks.getPdfReportAvailability.mockResolvedValue({
+      total: 125,
+      limitePdf: 500,
+      permitido: true,
+    });
+    apiMocks.validatePdfReport.mockResolvedValue({
+      total: 125,
+      limitePdf: 500,
+      permitido: true,
+    });
   });
 
-  it('aplica el rango al listado y lo reutiliza para cargar todos los registros del reporte', async () => {
+  it('aplica el rango al listado y abre el reporte sin descargar todas las paginas', async () => {
     render(<InfraccionesReportPage refreshKey={0} token="token-test" />);
 
     expect(await screen.findByText('INF-10')).toBeInTheDocument();
@@ -151,15 +167,10 @@ describe('InfraccionesReportPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Generar reporte' }));
 
-    await waitFor(() => {
-      expect(apiMocks.getAllInfracciones).toHaveBeenCalledWith('token-test', {
-        fechaInicio: '2026-08-01',
-        fechaFin: '2026-08-31',
-      });
-    });
+    expect(apiMocks.getAllInfracciones).not.toHaveBeenCalled();
 
     const modal = await screen.findByTestId('report-modal');
-    expect(modal).toHaveAttribute('data-count', '2');
+    expect(modal).toHaveAttribute('data-count', '1');
     expect(modal.getAttribute('data-range')).not.toBe('Todas las fechas');
   });
 
@@ -181,5 +192,23 @@ describe('InfraccionesReportPage', () => {
       screen.getByText('La fecha inicial no puede ser posterior a la fecha final.'),
     ).toBeInTheDocument();
     expect(apiMocks.getInfracciones).toHaveBeenCalledTimes(callsBeforeInvalidRange);
+  });
+
+  it('muestra el limite de PDF con el total disponible sin cargar el reporte completo', async () => {
+    apiMocks.getPdfReportAvailability.mockResolvedValueOnce({
+      total: 501,
+      limitePdf: 500,
+      permitido: false,
+    });
+
+    render(<InfraccionesReportPage refreshKey={0} token="token-test" />);
+
+    expect(await screen.findByText('INF-10')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'PDF no disponible para esta consulta. El reporte contiene 501 registros y supera el límite de 500 registros para PDF. Reduce el rango o los filtros, o utiliza Exportar Excel.',
+      ),
+    ).toBeInTheDocument();
+    expect(apiMocks.getAllInfracciones).not.toHaveBeenCalled();
   });
 });
