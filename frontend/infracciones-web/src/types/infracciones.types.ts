@@ -268,6 +268,7 @@ export interface CreateInfraccionCaptura {
   idOperativo?: number | null;
   idEncierro?: number | null;
   folioInfraccion?: string;
+  tipoDocumentoReferencia?: string;
   fechaInfraccion: string;
   horaInfraccion: string;
   observaciones?: string | null;

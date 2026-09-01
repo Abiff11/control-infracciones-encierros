@@ -368,7 +368,7 @@ describe('InfraccionesService crearInfraccionCompleta', () => {
     );
   });
 
-  it('genera PI-* para VEHICULO_SIN_INFRACCION', async () => {
+  it('genera PI-12345 para VEHICULO_SIN_INFRACCION con parte informativo', async () => {
     const context = createServiceContext({
       claveTipoProcedimiento: 'VEHICULO_SIN_INFRACCION',
       nombreTipoProcedimiento: 'VEHICULO SIN INFRACCION',
@@ -382,7 +382,9 @@ describe('InfraccionesService crearInfraccionCompleta', () => {
       createBaseDto({
         infraccion: {
           folioInfraccion: '',
-          numParteInformativo: 'parte 001',
+          idEncierro: 7,
+          tipoDocumentoReferencia: 'PARTE_INFORMATIVO',
+          numParteInformativo: '12345',
           motivos: [],
         },
       }),
@@ -391,7 +393,67 @@ describe('InfraccionesService crearInfraccionCompleta', () => {
 
     expect(context.repositories.infraccionRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        folioInfraccion: 'PI-PARTE-001',
+        folioInfraccion: 'PI-12345',
+      }),
+    );
+  });
+
+  it('usa el folio de liberacion sin prefijo PI- para VEHICULO_SIN_INFRACCION', async () => {
+    const context = createServiceContext({
+      claveTipoProcedimiento: 'VEHICULO_SIN_INFRACCION',
+      nombreTipoProcedimiento: 'VEHICULO SIN INFRACCION',
+      requiereFolioInfraccion: false,
+      requiereNumParteInformativo: true,
+      requiereMotivos: false,
+      permiteRetencion: true,
+    });
+
+    await context.service.crearInfraccionCompleta(
+      createBaseDto({
+        infraccion: {
+          folioInfraccion: 'PI-LEGACY',
+          idEncierro: 7,
+          tipoDocumentoReferencia: 'FOLIO_LIBERACION',
+          numParteInformativo: 'FL-ABC-456',
+          motivos: [],
+        },
+      }),
+      5,
+    );
+
+    expect(context.repositories.infraccionRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        folioInfraccion: 'ABC-456',
+      }),
+    );
+  });
+
+  it('no duplica PI- al recibir un numero de parte con el prefijo', async () => {
+    const context = createServiceContext({
+      claveTipoProcedimiento: 'VEHICULO_SIN_INFRACCION',
+      nombreTipoProcedimiento: 'VEHICULO SIN INFRACCION',
+      requiereFolioInfraccion: false,
+      requiereNumParteInformativo: true,
+      requiereMotivos: false,
+      permiteRetencion: true,
+    });
+
+    await context.service.crearInfraccionCompleta(
+      createBaseDto({
+        infraccion: {
+          folioInfraccion: '',
+          idEncierro: 7,
+          tipoDocumentoReferencia: 'PARTE_INFORMATIVO',
+          numParteInformativo: 'PI-12345',
+          motivos: [],
+        },
+      }),
+      5,
+    );
+
+    expect(context.repositories.infraccionRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        folioInfraccion: 'PI-12345',
       }),
     );
   });
@@ -411,7 +473,59 @@ describe('InfraccionesService crearInfraccionCompleta', () => {
         createBaseDto({
           infraccion: {
             folioInfraccion: '',
+            idEncierro: 7,
+            tipoDocumentoReferencia: 'PARTE_INFORMATIVO',
             numParteInformativo: ' ',
+            motivos: [],
+          },
+        }),
+        5,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rechaza VEHICULO_SIN_INFRACCION sin tipo de documento', async () => {
+    const context = createServiceContext({
+      claveTipoProcedimiento: 'VEHICULO_SIN_INFRACCION',
+      nombreTipoProcedimiento: 'VEHICULO SIN INFRACCION',
+      requiereFolioInfraccion: false,
+      requiereNumParteInformativo: true,
+      requiereMotivos: false,
+      permiteRetencion: true,
+    });
+
+    await expect(
+      context.service.crearInfraccionCompleta(
+        createBaseDto({
+          infraccion: {
+            folioInfraccion: '',
+            idEncierro: 7,
+            numParteInformativo: '12345',
+            motivos: [],
+          },
+        }),
+        5,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rechaza VEHICULO_SIN_INFRACCION sin encierro', async () => {
+    const context = createServiceContext({
+      claveTipoProcedimiento: 'VEHICULO_SIN_INFRACCION',
+      nombreTipoProcedimiento: 'VEHICULO SIN INFRACCION',
+      requiereFolioInfraccion: false,
+      requiereNumParteInformativo: true,
+      requiereMotivos: false,
+      permiteRetencion: true,
+    });
+
+    await expect(
+      context.service.crearInfraccionCompleta(
+        createBaseDto({
+          infraccion: {
+            folioInfraccion: '',
+            tipoDocumentoReferencia: 'PARTE_INFORMATIVO',
+            numParteInformativo: '12345',
             motivos: [],
           },
         }),
