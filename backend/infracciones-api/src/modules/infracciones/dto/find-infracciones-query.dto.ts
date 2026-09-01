@@ -37,6 +37,11 @@ export class FindInfraccionesQueryDto {
   claveOficial?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  clavePago?: string;
+
+  @IsOptional()
   @IsDateString()
   fechaInicio?: string;
 
