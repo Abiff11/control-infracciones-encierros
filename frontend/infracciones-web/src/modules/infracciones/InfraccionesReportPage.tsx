@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -7,7 +7,13 @@ import { LoadingMessage } from '../../components/ui/LoadingMessage';
 import { PaginationControls } from '../../components/ui/PaginationControls';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { getErrorMessage } from '../../services/api/apiClient';
-import { getInfracciones } from '../../services/api/infracciones.api';
+import {
+  getAllInfracciones,
+  exportInfraccionesExcel,
+  getInfracciones,
+  getPdfReportAvailability,
+  validatePdfReport,
+} from '../../services/api/infracciones.api';
 import {
   formatCurrencyMxn,
   formatDate,
@@ -17,11 +23,15 @@ import {
   formatTimeOfDay,
 } from '../../utils/formatters';
 import type {
+  InfraccionesQuery,
+  ExportInfraccionesExcelPayload,
   InfraccionesResponse,
   InfraccionListItem,
   PaginationMeta,
+  PdfReportAvailability,
 } from '../../types/infracciones.types';
 import { InfraccionesReportModal } from './InfraccionesReportModal';
+import { getPdfLimitMessage } from './pdf-report-limit';
 import './InfraccionesReportPage.css';
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -37,7 +47,16 @@ interface InfraccionesReportPageProps {
   token: string;
 }
 
+interface DateRangeFilters {
+  fechaInicio: string;
+  fechaFin: string;
+}
+
 const DEFAULT_PAGE_SIZE = 30;
+const INITIAL_DATE_RANGE: DateRangeFilters = {
+  fechaInicio: '',
+  fechaFin: '',
+};
 
 function createIdleState<T>(): LoadState<T> {
   return {
@@ -89,17 +108,56 @@ function getSalidaLabel(item: InfraccionListItem): string {
   return formatDateTime(item.salida.fechaSalida);
 }
 
+function getDateRangeError(filters: DateRangeFilters): string | null {
+  if (filters.fechaInicio && filters.fechaFin && filters.fechaInicio > filters.fechaFin) {
+    return 'La fecha inicial no puede ser posterior a la fecha final.';
+  }
+
+  return null;
+}
+
+function getDateRangeLabel(filters: DateRangeFilters): string {
+  if (filters.fechaInicio && filters.fechaFin) {
+    return `${formatDate(filters.fechaInicio)} al ${formatDate(filters.fechaFin)}`;
+  }
+
+  if (filters.fechaInicio) {
+    return `Desde ${formatDate(filters.fechaInicio)}`;
+  }
+
+  if (filters.fechaFin) {
+    return `Hasta ${formatDate(filters.fechaFin)}`;
+  }
+
+  return 'Todas las fechas';
+}
+
 export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReportPageProps) {
   const [state, setState] = useState<LoadState<InfraccionesResponse>>(createIdleState());
   const [page, setPage] = useState(1);
   const [selectedRowIds, setSelectedRowIds] = useState<Set<number>>(() => new Set());
   const [reportOpen, setReportOpen] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [pdfAvailability, setPdfAvailability] =
+    useState<PdfReportAvailability | null>(null);
+  const [dateRangeDraft, setDateRangeDraft] = useState<DateRangeFilters>(INITIAL_DATE_RANGE);
+  const [dateRange, setDateRange] = useState<DateRangeFilters>(INITIAL_DATE_RANGE);
+  const [dateRangeError, setDateRangeError] = useState<string | null>(null);
 
-  const query = useMemo(() => ({ page, limit: DEFAULT_PAGE_SIZE }), [page]);
+  const query = useMemo<InfraccionesQuery>(
+    () => ({
+      page,
+      limit: DEFAULT_PAGE_SIZE,
+      fechaInicio: dateRange.fechaInicio || undefined,
+      fechaFin: dateRange.fechaFin || undefined,
+    }),
+    [dateRange.fechaFin, dateRange.fechaInicio, page],
+  );
   const meta: PaginationMeta | null = state.data?.meta ?? null;
   const items = state.data?.data ?? [];
   const allVisibleSelected =
     items.length > 0 && items.every((item) => selectedRowIds.has(item.idInfraccion));
+  const appliedDateRangeLabel = getDateRangeLabel(dateRange);
 
   useEffect(() => {
     let mounted = true;
@@ -112,7 +170,10 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
       }));
 
       try {
-        const response = await getInfracciones(token, query);
+        const [response, availability] = await Promise.all([
+          getInfracciones(token, query),
+          getPdfReportAvailability(token, query),
+        ]);
 
         if (!mounted) {
           return;
@@ -123,6 +184,7 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
           data: response,
           error: null,
         });
+        setPdfAvailability(availability);
       } catch (error) {
         if (!mounted) {
           return;
@@ -133,6 +195,7 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
           data: null,
           error: getErrorMessage(error),
         });
+        setPdfAvailability(null);
       }
     }
 
@@ -174,6 +237,67 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
     });
   }
 
+  function updateDateRange(field: keyof DateRangeFilters, value: string): void {
+    setDateRangeDraft((current) => ({
+      ...current,
+      [field]: value,
+    }));
+    setDateRangeError(null);
+  }
+
+  function applyDateRange(): void {
+    const validationError = getDateRangeError(dateRangeDraft);
+    if (validationError) {
+      setDateRangeError(validationError);
+      return;
+    }
+
+    setDateRange({ ...dateRangeDraft });
+    setDateRangeError(null);
+    setSelectedRowIds(new Set());
+    setReportError(null);
+    setReportOpen(false);
+    setPage(1);
+  }
+
+  function clearDateRange(): void {
+    setDateRangeDraft(INITIAL_DATE_RANGE);
+    setDateRange(INITIAL_DATE_RANGE);
+    setDateRangeError(null);
+    setSelectedRowIds(new Set());
+    setReportError(null);
+    setReportOpen(false);
+    setPage(1);
+  }
+
+  async function openReport(): Promise<void> {
+    setReportError(null);
+    setReportOpen(true);
+  }
+
+  const generatePdf = useCallback(async (reportQuery: InfraccionesQuery): Promise<InfraccionListItem[]> => {
+    await validatePdfReport(token, reportQuery);
+    const ids = new Set(reportQuery.idInfracciones ?? []);
+    const allItems = await getAllInfracciones(token, {
+      ...reportQuery,
+      idInfracciones: undefined,
+    });
+
+    return ids.size > 0
+      ? allItems.filter((item) => ids.has(item.idInfraccion))
+      : allItems;
+  }, [token]);
+
+  const getReportAvailability = useCallback(
+    (reportQuery: InfraccionesQuery) => getPdfReportAvailability(token, reportQuery),
+    [token],
+  );
+  const exportExcelReport = useCallback(
+    (payload: ExportInfraccionesExcelPayload) =>
+      exportInfraccionesExcel(token, payload),
+    [token],
+  );
+
   return (
     <section className="page-stack infracciones-report-page">
       <header className="page-header report-page-header">
@@ -181,21 +305,80 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
           <p className="eyebrow">Reportes</p>
           <h1>Generar reporte</h1>
           <p className="page-description">
-            Elige el alcance y los campos del archivo. La tabla principal no cambia.
+            Consulta por rango de fecha y exporta todos los resultados a Excel o PDF.
           </p>
         </div>
 
         <div className="report-page-actions">
           <div className="report-page-chips" aria-label="Resumen de selección">
             <span>{items.length} visibles</span>
+            <span>{meta ? `${meta.total} en el rango` : '0 en el rango'}</span>
             <span>{selectedRowIds.size} seleccionadas</span>
           </div>
 
-          <Button type="button" variant="primary" onClick={() => setReportOpen(true)}>
+          <Button
+            type="button"
+            variant="primary"
+            onClick={() => void openReport()}
+          >
             Generar reporte
           </Button>
         </div>
       </header>
+
+      {pdfAvailability && !pdfAvailability.permitido ? (
+        <div className="notice notice-error" role="alert">
+          {getPdfLimitMessage(pdfAvailability)}
+        </div>
+      ) : null}
+
+      <Card>
+        <div className="report-date-filter">
+          <div className="report-date-filter-copy">
+            <p className="section-label">Rango de fecha</p>
+            <h2>Fecha de infracción</h2>
+            <p>
+              El rango se aplica a la tabla y al reporte completo. Si no indicas fechas se incluyen todos los registros.
+            </p>
+          </div>
+
+          <div className="report-date-filter-controls">
+            <label className="report-date-filter-field" htmlFor="report-fecha-inicio">
+              <span>Desde</span>
+              <input
+                id="report-fecha-inicio"
+                type="date"
+                value={dateRangeDraft.fechaInicio}
+                onChange={(event) => updateDateRange('fechaInicio', event.target.value)}
+              />
+            </label>
+
+            <label className="report-date-filter-field" htmlFor="report-fecha-fin">
+              <span>Hasta</span>
+              <input
+                id="report-fecha-fin"
+                type="date"
+                value={dateRangeDraft.fechaFin}
+                onChange={(event) => updateDateRange('fechaFin', event.target.value)}
+              />
+            </label>
+
+            <div className="report-date-filter-buttons">
+              <Button type="button" variant="primary" onClick={applyDateRange}>
+                Aplicar rango
+              </Button>
+              <Button type="button" variant="secondary" onClick={clearDateRange}>
+                Limpiar
+              </Button>
+            </div>
+          </div>
+
+          <div className="report-date-filter-status">
+            <strong>Rango aplicado:</strong> {appliedDateRangeLabel}
+          </div>
+          <ErrorMessage message={dateRangeError} />
+        </div>
+      </Card>
 
       <Card>
         <div className="page-stack">
@@ -210,7 +393,11 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
             </div>
 
             <div className="button-row">
-              <Button type="button" variant="secondary" onClick={() => setReportOpen(true)}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => void openReport()}
+              >
                 Abrir reporte
               </Button>
             </div>
@@ -218,6 +405,7 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
 
           {state.status === 'loading' ? <LoadingMessage message="Cargando infracciones..." /> : null}
           <ErrorMessage message={state.error} />
+          <ErrorMessage message={reportError} />
 
           <div className="table-wrap table-wrap-expanded">
             <table className="data-table">
@@ -347,6 +535,12 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
         open={reportOpen}
         items={items}
         selectedRowIds={selectedRowIds}
+        dateRangeLabel={appliedDateRangeLabel}
+        reportQuery={query}
+        pdfAvailability={pdfAvailability}
+        onGetReportAvailability={getReportAvailability}
+        onExportExcel={exportExcelReport}
+        onGeneratePdf={generatePdf}
         onClose={() => setReportOpen(false)}
       />
     </section>

@@ -34,6 +34,7 @@ export class ApiError extends Error {
 }
 
 type QueryValue = string | number | boolean | null | undefined;
+type ResponseReader<T> = (response: Response) => Promise<T>;
 
 export function buildQuery<T extends object>(params?: T): string {
   if (!params) {
@@ -268,6 +269,7 @@ async function requestOnce<T>(
   isMutating: boolean,
   allowCsrfRetry: boolean,
   allowAuthRetry: boolean,
+  readResponse: ResponseReader<T> = (response) => response.json() as Promise<T>,
 ): Promise<T> {
   const method = resolveMethod(options.method);
   const headers = new Headers(options.headers);
@@ -316,6 +318,7 @@ async function requestOnce<T>(
       isMutating,
       false,
       allowAuthRetry,
+      readResponse,
     );
   }
 
@@ -332,6 +335,7 @@ async function requestOnce<T>(
       isMutating,
       allowCsrfRetry,
       false,
+      readResponse,
     );
   }
 
@@ -349,7 +353,31 @@ async function requestOnce<T>(
     return undefined as T;
   }
 
-  return response.json() as Promise<T>;
+  return readResponse(response);
+}
+
+export async function requestBlob(
+  path: string,
+  options: RequestInit = {},
+  token?: string | null,
+): Promise<Blob> {
+  const method = resolveMethod(options.method);
+  const isMutating = MUTATING_METHODS.has(method);
+  const sessionToken = token ?? getAuthSession()?.token ?? null;
+
+  if (isMutating) {
+    await ensureCsrfToken(false);
+  }
+
+  return requestOnce(
+    path,
+    options,
+    sessionToken,
+    isMutating,
+    true,
+    true,
+    (response) => response.blob(),
+  );
 }
 
 export function isUnauthorizedError(error: unknown): boolean {

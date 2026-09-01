@@ -11,11 +11,12 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { createHash } from 'node:crypto';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 
 import { InfraccionWriteLock } from '../../common/concurrency/infraccion-write-lock.interceptor';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -35,6 +36,7 @@ import {
 } from './dto/admin-expediente.dto';
 import { EliminarOperacionAdminDto } from './dto/eliminar-operacion-admin.dto';
 import { CreateInfraccionCompletaDto } from './dto/create-infraccion-completa.dto';
+import { ExportInfraccionesExcelDto } from './dto/export-infracciones-excel.dto';
 import { FindInfraccionesQueryDto } from './dto/find-infracciones-query.dto';
 import { RegistrarMovimientoDto } from './dto/registrar-movimiento.dto';
 import { InfraccionesAdminOperacionesService } from './infracciones-admin-operaciones.service';
@@ -44,6 +46,8 @@ import {
   InfraccionesAdminService,
 } from './infracciones-admin.service';
 import { InfraccionesListService } from './infracciones-list.service';
+import { InfraccionesExcelReportService } from './infracciones-excel-report.service';
+import { InfraccionesReportesService } from './infracciones-reportes.service';
 import { InfraccionesService } from './infracciones.service';
 import { redactOperationalSensitiveDataForConsulta } from './infracciones.visibility';
 
@@ -67,6 +71,8 @@ export class InfraccionesController {
   constructor(
     private readonly infraccionesService: InfraccionesService,
     private readonly infraccionesListService: InfraccionesListService,
+    private readonly infraccionesExcelReportService: InfraccionesExcelReportService,
+    private readonly infraccionesReportesService: InfraccionesReportesService,
     private readonly infraccionesAdminService: InfraccionesAdminService,
     private readonly infraccionesAdminOperacionesService: InfraccionesAdminOperacionesService,
   ) {}
@@ -90,6 +96,44 @@ export class InfraccionesController {
   @ApiOperation({ summary: 'Obtener resumen de infracciones por estatus' })
   getResumenPorEstatus() {
     return this.infraccionesService.getResumenPorEstatus();
+  }
+
+  @Get('reportes/pdf/disponibilidad')
+  @ApiOperation({ summary: 'Consultar disponibilidad del reporte PDF' })
+  getPdfReportAvailability(@Query() query: FindInfraccionesQueryDto) {
+    return this.infraccionesReportesService.getPdfAvailability(query);
+  }
+
+  @Post('reportes/pdf/disponibilidad')
+  @ApiOperation({ summary: 'Consultar disponibilidad del reporte PDF con seleccion' })
+  getPdfReportAvailabilityForSelection(@Body() query: FindInfraccionesQueryDto) {
+    return this.infraccionesReportesService.getPdfAvailability(query);
+  }
+
+  @Post('reportes/pdf/validacion')
+  @ApiOperation({ summary: 'Validar limite antes de generar reporte PDF' })
+  validatePdfReport(@Body() query: FindInfraccionesQueryDto) {
+    return this.infraccionesReportesService.assertPdfAllowed(query);
+  }
+
+  @Post('reportes/excel')
+  @ApiOperation({ summary: 'Exportar reporte de infracciones en formato XLSX' })
+  async exportExcelReport(
+    @Body() query: ExportInfraccionesExcelDto,
+    @Res() response: Response,
+  ): Promise<void> {
+    this.infraccionesExcelReportService.assertValidFields(query.campos);
+    response.status(200);
+    response.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    response.setHeader(
+      'Content-Disposition',
+      'attachment; filename="reporte-infracciones.xlsx"',
+    );
+
+    await this.infraccionesExcelReportService.write(query, response);
   }
 
   @Get(':folioInfraccion/flujo')

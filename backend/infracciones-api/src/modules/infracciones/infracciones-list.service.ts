@@ -105,6 +105,29 @@ export class InfraccionesListService {
     };
   }
 
+  countForPdfReport(query: FindInfraccionesQueryDto): Promise<number> {
+    return this.buildBaseQuery(query).getCount();
+  }
+
+  async findForReportExportBlock(
+    query: FindInfraccionesQueryDto,
+    offset: number,
+    limit: number,
+  ) {
+    const rows = await this.applySelects(this.buildBaseQuery(query))
+      .orderBy(this.resolveSortColumn(query.sortBy), this.resolveSortOrder(query.sortOrder))
+      .addOrderBy('infraccion.horaInfraccion', this.resolveSortOrder(query.sortOrder))
+      .addOrderBy('infraccion.idInfraccion', 'DESC')
+      .offset(offset)
+      .limit(limit)
+      .getRawMany<InfraccionListRow>();
+
+    const ids = rows.map((row) => this.toNumber(row.idInfraccion));
+    const motivosMap = await this.loadMotivosMap(ids);
+
+    return rows.map((row) => this.mapRow(row, motivosMap));
+  }
+
   private buildBaseQuery(
     query: FindInfraccionesQueryDto,
   ): SelectQueryBuilder<Infraccion> {
@@ -390,6 +413,12 @@ export class InfraccionesListService {
           idTipoProcedimiento: query.idTipoProcedimiento,
         },
       );
+    }
+
+    if (query.idInfracciones?.length) {
+      builder.andWhere('infraccion.idInfraccion IN (:...idInfracciones)', {
+        idInfracciones: query.idInfracciones,
+      });
     }
 
     if (query.idEncierro) {
