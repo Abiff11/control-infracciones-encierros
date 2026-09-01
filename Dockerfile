@@ -53,7 +53,7 @@ RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:1-alpine3.24 AS web-production
 USER root
-RUN apk upgrade --no-cache libcrypto3 libssl3
+RUN apk upgrade --no-cache libcrypto3 libssl3 libexpat
 COPY nginx/frontend.conf /etc/nginx/conf.d/default.conf
 COPY --from=web-builder /app/frontend/dist /usr/share/nginx/html
 USER nginx
