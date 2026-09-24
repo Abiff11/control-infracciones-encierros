@@ -13,6 +13,7 @@ import {
   getInfraccionDetalle,
   getInfracciones,
 } from "../../services/api/infracciones.api";
+import { findConceptosPago } from "../../services/api/pagos.api";
 import {
   formatCurrencyMxn,
   formatDate,
@@ -30,6 +31,7 @@ import type {
   InfraccionListItem,
   PaginationMeta,
 } from "../../types/infracciones.types";
+import type { ConceptoPagoOption } from "../../types/operaciones.types";
 import { InfraccionDetalleModal } from "./InfraccionDetalleModal";
 import {
   InfraccionOperacionModal,
@@ -56,6 +58,7 @@ interface FiltersForm {
   placas: string;
   rfc: string;
   claveOficial: string;
+  claveConcepto: string;
   estadoOperativo: string;
   page: string;
   limit: string;
@@ -97,6 +100,7 @@ const DEFAULT_FILTERS: FiltersForm = {
   placas: "",
   rfc: "",
   claveOficial: "",
+  claveConcepto: "",
   estadoOperativo: "",
   page: "1",
   limit: "30",
@@ -145,6 +149,7 @@ function buildQuery(filters: FiltersForm): InfraccionesQuery {
     placas: filters.placas || undefined,
     rfc: filters.rfc || undefined,
     claveOficial: filters.claveOficial || undefined,
+    claveConcepto: filters.claveConcepto.trim().toUpperCase() || undefined,
     estadoOperativo: (filters.estadoOperativo || undefined) as
       EstadoOperativoVehiculo | undefined,
     page: toNumber(filters.page),
@@ -354,10 +359,22 @@ function InfraccionesListPage({
     null,
   );
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
+  const [conceptSuggestions, setConceptSuggestions] = useState<
+    ConceptoPagoOption[]
+  >([]);
+  const [conceptSearchLoading, setConceptSearchLoading] = useState(false);
+  const [conceptSearchError, setConceptSearchError] = useState(false);
 
   const query = useMemo(() => buildQuery(activeFilters), [activeFilters]);
   const meta: PaginationMeta | null = state.data?.meta ?? null;
   const items = state.data?.data ?? [];
+  const conceptSuggestionKeys = useMemo(
+    () =>
+      Array.from(
+        new Set(conceptSuggestions.map((concepto) => concepto.claveConcepto)),
+      ),
+    [conceptSuggestions],
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -400,6 +417,45 @@ function InfraccionesListPage({
       mounted = false;
     };
   }, [query, refreshKey, localRefreshKey, token]);
+
+  useEffect(() => {
+    const conceptQuery = draftFilters.claveConcepto.trim();
+    if (!conceptQuery) {
+      setConceptSuggestions([]);
+      setConceptSearchError(false);
+      setConceptSearchLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      setConceptSearchLoading(true);
+      setConceptSearchError(false);
+
+      void findConceptosPago(token, conceptQuery, 20)
+        .then((result) => {
+          if (!cancelled) {
+            setConceptSuggestions(result);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setConceptSuggestions([]);
+            setConceptSearchError(true);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setConceptSearchLoading(false);
+          }
+        });
+    }, 220);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [draftFilters.claveConcepto, token]);
 
   useEffect(() => {
     const detailId = selectedId;
@@ -454,6 +510,17 @@ function InfraccionesListPage({
     }));
   }
 
+  function updateConceptFilter(value: string): void {
+    const normalized = value.toUpperCase();
+    updateDraftField("claveConcepto", normalized);
+
+    if (!normalized.trim()) {
+      setConceptSuggestions([]);
+      setConceptSearchError(false);
+      setConceptSearchLoading(false);
+    }
+  }
+
   function applyFilters(event?: FormEvent<HTMLFormElement>): void {
     event?.preventDefault();
     const nextFilters = {
@@ -468,6 +535,9 @@ function InfraccionesListPage({
   function resetFilters(): void {
     setDraftFilters(DEFAULT_FILTERS);
     setActiveFilters(DEFAULT_FILTERS);
+    setConceptSuggestions([]);
+    setConceptSearchError(false);
+    setConceptSearchLoading(false);
   }
 
   function applyQuickStatusFilter(value: EstadoOperativoVehiculo | ""): void {
@@ -700,6 +770,36 @@ function InfraccionesListPage({
           </div>
 
           <div className="form-grid form-grid-3">
+            <Field
+              htmlFor="infracciones-clave-concepto"
+              label="Clave de concepto"
+            >
+              <TextInput
+                id="infracciones-clave-concepto"
+                type="text"
+                list="infracciones-conceptos-sugerencias"
+                value={draftFilters.claveConcepto}
+                onChange={(event) => updateConceptFilter(event.target.value)}
+                placeholder="Todas / buscar clave"
+                maxLength={50}
+                autoComplete="off"
+              />
+              <datalist id="infracciones-conceptos-sugerencias">
+                {conceptSuggestionKeys.map((clave) => (
+                  <option key={clave} value={clave} />
+                ))}
+              </datalist>
+              <small>
+                {conceptSearchLoading
+                  ? "Buscando claves..."
+                  : conceptSearchError
+                    ? "No se pudieron consultar coincidencias."
+                    : draftFilters.claveConcepto.trim()
+                      ? `${conceptSuggestionKeys.length} coincidencia(s).`
+                      : "Todas las claves"}
+              </small>
+            </Field>
+
             <Field
               htmlFor="infracciones-estatus"
               label="Estatus administrativo"
