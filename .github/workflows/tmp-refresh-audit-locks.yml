@@ -1,9 +1,9 @@
 name: Temporary refresh audit lockfiles
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/control-operativo-clave-concepto
+      - main
     paths:
       - .github/workflows/tmp-refresh-audit-locks.yml
 
