@@ -11,7 +11,11 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { InfraccionWriteLock } from '../../common/concurrency/infraccion-write-lock.interceptor';
-import { READ_ROLES, YARD_ROLES } from '../auth/constants/roles.constants';
+import {
+  READ_ROLES,
+  YARD_ENTRY_ROLES,
+  YARD_ROLES,
+} from '../auth/constants/roles.constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { LoginResponseUsuarioDto } from '../auth/dto/login-response.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -60,7 +64,7 @@ export class EncierrosController {
     return this.encierrosService.findEncierroByIdOrFail(idEncierro);
   }
 
-  @Roles(...YARD_ROLES)
+  @Roles(...YARD_ENTRY_ROLES)
   @Post('retenciones')
   @InfraccionWriteLock('body.idInfraccion')
   @ApiOperation({ summary: 'Registrar retención vehicular' })
