@@ -421,9 +421,6 @@ function InfraccionesListPage({
   useEffect(() => {
     const conceptQuery = draftFilters.claveConcepto.trim();
     if (!conceptQuery) {
-      setConceptSuggestions([]);
-      setConceptSearchError(false);
-      setConceptSearchLoading(false);
       return;
     }
 
