@@ -4,16 +4,32 @@ import { ROLES } from '../auth/constants/roles.constants';
 import { ROLES_KEY } from '../auth/decorators/roles.decorator';
 import { EncierrosController } from './encierros.controller';
 
+type EncierrosHandlerName = 'registrarRetencion' | 'registrarSalida';
+
+function getHandlerRoles(handlerName: EncierrosHandlerName): string[] {
+  const prototype = EncierrosController.prototype as unknown as Record<
+    string,
+    unknown
+  >;
+  const handler = prototype[handlerName];
+
+  if (typeof handler !== 'function') {
+    throw new Error(`No se encontro el handler ${handlerName}`);
+  }
+
+  const metadata: unknown = Reflect.getMetadata(ROLES_KEY, handler);
+
+  if (!Array.isArray(metadata)) {
+    return [];
+  }
+
+  return metadata.filter((role): role is string => typeof role === 'string');
+}
+
 describe('EncierrosController authorization', () => {
   it('permite a INFRACCIONES registrar ingresos sin autorizar salidas', () => {
-    const retencionRoles = Reflect.getMetadata(
-      ROLES_KEY,
-      EncierrosController.prototype.registrarRetencion,
-    ) as string[];
-    const salidaRoles = Reflect.getMetadata(
-      ROLES_KEY,
-      EncierrosController.prototype.registrarSalida,
-    ) as string[];
+    const retencionRoles = getHandlerRoles('registrarRetencion');
+    const salidaRoles = getHandlerRoles('registrarSalida');
 
     expect(retencionRoles).toContain(ROLES.INFRACCIONES);
     expect(retencionRoles).toContain(ROLES.ENCIERRO);
