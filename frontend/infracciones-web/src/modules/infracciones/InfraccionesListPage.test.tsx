@@ -1,10 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { InfraccionListItem } from "../../types/infracciones.types";
 import InfraccionesListPage from "./InfraccionesListPage";
 
 const apiMocks = vi.hoisted(() => ({
+  findConceptosPago: vi.fn(),
   getInfraccionDetalle: vi.fn(),
   getInfracciones: vi.fn(),
 }));
@@ -12,6 +13,10 @@ const apiMocks = vi.hoisted(() => ({
 vi.mock("../../services/api/infracciones.api", () => ({
   getInfraccionDetalle: apiMocks.getInfraccionDetalle,
   getInfracciones: apiMocks.getInfracciones,
+}));
+
+vi.mock("../../services/api/pagos.api", () => ({
+  findConceptosPago: apiMocks.findConceptosPago,
 }));
 
 vi.mock("./InfraccionDetalleModal", () => ({
@@ -121,6 +126,7 @@ async function renderWithItem(item: InfraccionListItem) {
 describe("InfraccionesListPage solventacion sin pago", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    apiMocks.findConceptosPago.mockResolvedValue([]);
   });
 
   it("marca como completada una infraccion sin retencion solventada sin pago", async () => {
@@ -161,5 +167,69 @@ describe("InfraccionesListPage solventacion sin pago", () => {
       screen.getByRole("button", { name: "Autorizar liberacion" }),
     ).toBeEnabled();
     expect(screen.getByText("Expediente solventado sin pago")).toBeInTheDocument();
+  });
+
+  it("envia la clave de concepto normalizada al aplicar los filtros", async () => {
+    await renderWithItem(createItem());
+
+    fireEvent.change(screen.getByLabelText("Clave de concepto"), {
+      target: { value: " 1eaaa002 " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+
+    await waitFor(() => {
+      expect(apiMocks.getInfracciones).toHaveBeenLastCalledWith(
+        "token-test",
+        expect.objectContaining({
+          claveConcepto: "1EAAA002",
+          page: 1,
+          limit: 30,
+        }),
+      );
+    });
+  });
+
+  it("consulta y muestra sugerencias de claves de concepto", async () => {
+    apiMocks.findConceptosPago.mockResolvedValue([
+      {
+        idConceptoPago: 7,
+        claveConcepto: "1EAAA002",
+        activo: true,
+      },
+    ]);
+    await renderWithItem(createItem());
+
+    fireEvent.change(screen.getByLabelText("Clave de concepto"), {
+      target: { value: "1e" },
+    });
+
+    await waitFor(() => {
+      expect(apiMocks.findConceptosPago).toHaveBeenCalledWith(
+        "token-test",
+        "1E",
+        20,
+      );
+    });
+
+    await waitFor(() => {
+      expect(
+        document.querySelector(
+          '#infracciones-conceptos-sugerencias option[value="1EAAA002"]',
+        ),
+      ).not.toBeNull();
+    });
+  });
+
+  it("restablece la clave de concepto al limpiar filtros", async () => {
+    await renderWithItem(createItem());
+
+    const input = screen.getByLabelText("Clave de concepto");
+    fireEvent.change(input, { target: { value: "1EAAA002" } });
+    expect(input).toHaveValue("1EAAA002");
+
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+
+    expect(input).toHaveValue("");
+    expect(screen.getByText("Todas las claves")).toBeInTheDocument();
   });
 });
