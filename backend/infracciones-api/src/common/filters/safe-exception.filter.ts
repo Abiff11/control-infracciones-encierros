@@ -95,10 +95,17 @@ export class SafeExceptionFilter implements ExceptionFilter {
     const payload = getExceptionPayload(exception);
 
     if (payload.statusCode >= 500) {
+      const error = exception instanceof Error ? exception : null;
+      const databaseErrorCode = getDatabaseErrorCode(exception);
+
       this.logger.error({
         statusCode: payload.statusCode,
         method: request.method,
         path: request.originalUrl,
+        exceptionName: error?.name ?? typeof exception,
+        exceptionMessage: error?.message ?? String(exception),
+        databaseErrorCode,
+        stack: error?.stack,
       });
     }
 
