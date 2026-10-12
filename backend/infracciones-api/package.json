@@ -59,7 +59,8 @@
   "overrides": {
     "@nestjs/swagger": {
       "js-yaml": "5.2.2"
-    }
+    },
+    "handlebars": "4.7.10"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
