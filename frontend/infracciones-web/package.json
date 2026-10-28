@@ -30,10 +30,11 @@
     "jsdom": "^27.0.1",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.12",
+    "vite": "^8.1.6",
     "vitest": "^3.2.4"
   },
   "overrides": {
-    "tinypool": "2.1.2"
+    "tinypool": "2.1.2",
+    "zod": "4.6.6"
   }
 }
