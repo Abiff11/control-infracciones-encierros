@@ -43,7 +43,6 @@ export const RELEASE_ROLES: RoleName[] = [
 export const YARD_ENTRY_ROLES: RoleName[] = [
   ROLES.ADMIN,
   ROLES.INFRACCIONES,
-  ROLES.ENCIERRO,
   ROLES.OPERADOR,
 ];
 
