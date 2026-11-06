@@ -1,19 +1,11 @@
 import type { PageKey } from '../../app/app.types';
 import type { NavigationItem } from '../../app/navigation';
+import { getVisibleNavigationItems } from '../../app/navigation-access';
 import type { LoginResponseUsuario } from '../../types/auth.types';
 import '../../app/App.institutional.css';
 
 const INSTITUTIONAL_LOGO_SRC = `${import.meta.env.BASE_URL}policia-vial-estatal-oaxaca-seeklogo.png`;
 const SWAGGER_ROLES = new Set(['ADMIN', 'SUPERADMIN', 'SUPER_ADMIN']);
-const INFRACCIONES_HIDDEN_KEYS = new Set<SidebarItem['key']>([
-  'encierros-vehiculos',
-  'importaciones',
-  'catalogos',
-  'usuarios',
-  'admin-expedientes',
-  'admin-operaciones',
-]);
-
 export interface SidebarItem {
   key: PageKey;
   label: string;
@@ -47,19 +39,8 @@ function canAccessTechnicalTools(user: LoginResponseUsuario): boolean {
 
 export function Sidebar({ currentPage, items, onLogout, onNavigate, swaggerUrl, user }: SidebarProps) {
   const roleName = user.rol?.nombreRol?.toUpperCase();
-  const isAdmin = roleName === 'ADMIN';
   const showSwagger = canAccessTechnicalTools(user);
-  const visibleItems = items.filter((item) => {
-    if (isAdmin) {
-      return true;
-    }
-
-    if (roleName === 'INFRACCIONES') {
-      return !INFRACCIONES_HIDDEN_KEYS.has(item.key);
-    }
-
-    return !['usuarios', 'admin-expedientes', 'admin-operaciones'].includes(item.key);
-  });
+  const visibleItems = getVisibleNavigationItems(items, roleName);
   const groups = Array.from(new Set(visibleItems.map((item) => item.group)));
 
   return (
