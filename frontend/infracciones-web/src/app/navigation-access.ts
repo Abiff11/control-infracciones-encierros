@@ -62,3 +62,12 @@ export function getVisibleNavigationItems(
 
   return items.filter((item) => canAccessPageForRole(roleName, item.key));
 }
+
+export type OperacionOperativa = 'retencion' | 'pago' | 'liberacion' | 'salida';
+
+export function canPerformOperationForRole(
+  roleName: string | undefined,
+  type: OperacionOperativa,
+): boolean {
+  return roleName?.toUpperCase() !== 'ENCIERRO' || type === 'salida';
+}

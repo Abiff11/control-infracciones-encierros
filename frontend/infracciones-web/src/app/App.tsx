@@ -301,6 +301,7 @@ function App() {
           catalogs={catalogs}
           refreshKey={refreshKey}
           token={session.token}
+          roleName={roleName}
           onNavigateCreate={() => setCurrentPage("nueva-infraccion")}
         />
       ) : null}

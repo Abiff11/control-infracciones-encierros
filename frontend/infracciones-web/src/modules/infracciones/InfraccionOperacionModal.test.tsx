@@ -107,8 +107,9 @@ function createItem(
 }
 
 function renderModal(
-  type: "pago" | "liberacion",
+  type: "pago" | "liberacion" | "retencion" | "salida",
   item = createItem(),
+  roleName?: string,
 ) {
   const onClose = vi.fn();
   const onCompleted = vi.fn();
@@ -120,6 +121,7 @@ function renderModal(
       open
       token="token-test"
       type={type}
+      roleName={roleName}
       onClose={onClose}
       onCompleted={onCompleted}
     />,
@@ -248,6 +250,73 @@ describe("InfraccionOperacionModal No aplica pago", () => {
       }),
     );
     expect(payload).not.toHaveProperty("idPagoInfraccion");
+    expect(onCompleted).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("InfraccionOperacionModal rol ENCIERRO", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    apiMocks.confirmAction.mockResolvedValue(true);
+    apiMocks.createSalida.mockResolvedValue({ idSalidaVehiculo: 99 });
+  });
+
+  it.each(["retencion", "pago", "liberacion"] as const)(
+    "bloquea el formulario de %s",
+    (operation) => {
+      renderModal(operation, createItem(), "ENCIERRO");
+      expect(
+        screen.getByRole("alert"),
+      ).toHaveTextContent("solo puede registrar salidas vehiculares");
+      const submitButton = screen.getByRole("button", {
+        name: /guardar (retencion|pago|liberacion)/i,
+      });
+      expect(submitButton).toBeDisabled();
+      fireEvent.click(submitButton);
+      expect(apiMocks.createRetencion).not.toHaveBeenCalled();
+      expect(apiMocks.createPago).not.toHaveBeenCalled();
+      expect(apiMocks.createLiberacion).not.toHaveBeenCalled();
+    },
+  );
+
+  it("permite guardar una salida con liberacion registrada", async () => {
+    const item = createItem({
+      retencion: {
+        idRetencionVehiculo: 50,
+        encierro: "Encierro Central",
+        fechaIngreso: "2026-08-26T08:00:00.000Z",
+        folioResguardo: "RES-1",
+        estadoIngreso: "CAPTURADO",
+      },
+      liberacion: {
+        tieneLiberacion: true,
+        idLiberacionVehiculo: 51,
+        fechaLiberacion: "2026-08-26T09:00:00.000Z",
+      },
+      estadoOperativoCalculado: "LIBERADO_PENDIENTE_SALIDA",
+    });
+
+    const { onCompleted } = renderModal("salida", item, "ENCIERRO");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/Validado por/i), {
+      target: { value: "Encargado de encierro" },
+    });
+    fireEvent.change(screen.getByLabelText(/Persona recibe vehiculo/i), {
+      target: { value: "Propietario" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar salida" }));
+
+    await waitFor(() => {
+      expect(apiMocks.createSalida).toHaveBeenCalledWith(
+        "token-test",
+        expect.objectContaining({
+          idRetencionVehiculo: 50,
+          idLiberacionVehiculo: 51,
+          validadoPor: "Encargado de encierro",
+          personaRecibeVehiculo: "Propietario",
+        }),
+      );
+    });
     expect(onCompleted).toHaveBeenCalledTimes(1);
   });
 });
