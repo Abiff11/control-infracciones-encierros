@@ -1,3 +1,4 @@
+import { canPerformOperationForRole } from "../../app/navigation-access";
 import {
   useEffect,
   useMemo,
@@ -60,6 +61,7 @@ interface InfraccionOperacionModalProps {
   open: boolean;
   token: string;
   type: InfraccionOperacionTipo | null;
+  roleName?: string;
   onClose: () => void;
   onCompleted: () => void;
 }
@@ -262,6 +264,7 @@ export function InfraccionOperacionModal({
   open,
   token,
   type,
+  roleName,
 }: InfraccionOperacionModalProps) {
   const copy = useMemo(() => getOperationCopy(type), [type]);
   const [form, setForm] = useState<OperationFormState>(() =>
@@ -320,6 +323,10 @@ export function InfraccionOperacionModal({
   function getValidationError(): string | null {
     if (!item || !type) {
       return "No hay expediente seleccionado.";
+    }
+
+    if (!canPerformOperationForRole(roleName, type)) {
+      return "El rol ENCIERRO solo puede registrar salidas vehiculares.";
     }
 
     if (type === "retencion") {
@@ -596,6 +603,9 @@ export function InfraccionOperacionModal({
     }
   }
 
+  const operationRestricted = Boolean(
+    type && !canPerformOperationForRole(roleName, type),
+  );
   const canSubmit = getValidationError() === null;
   const submitLabel =
     type === "pago" && noAplicaPago ? "Solventar sin pago" : copy.submitLabel;
@@ -614,6 +624,11 @@ export function InfraccionOperacionModal({
       onClose={onClose}
     >
       {item ? <OperationSummary item={item} /> : null}
+      {operationRestricted ? (
+        <p className="notice notice-error" role="alert">
+          El rol ENCIERRO solo puede registrar salidas vehiculares.
+        </p>
+      ) : null}
 
       <form className="operation-modal-form" onSubmit={handleSubmit}>
         {type === "retencion" ? (

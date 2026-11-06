@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { canPerformOperationForRole } from "../../app/navigation-access";
 
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -73,6 +74,7 @@ interface InfraccionesListPageProps {
   catalogs: CatalogosBundle | null;
   token: string;
   refreshKey: number;
+  roleName?: string;
   onNavigateCreate: () => void;
 }
 
@@ -344,6 +346,7 @@ function InfraccionesListPage({
   catalogs,
   refreshKey,
   token,
+  roleName,
   onNavigateCreate,
 }: InfraccionesListPageProps) {
   const [draftFilters, setDraftFilters] =
@@ -573,6 +576,9 @@ function InfraccionesListPage({
     type: InfraccionOperacionTipo,
     item: InfraccionListItem,
   ): void {
+    if (!canPerformOperationForRole(roleName, type)) {
+      return;
+    }
     setOperationState({ type, item });
   }
 
@@ -587,6 +593,15 @@ function InfraccionesListPage({
 
   function renderNextActionCell(item: InfraccionListItem) {
     const nextOperation = getNextOperation(item);
+
+    if (nextOperation.type && !canPerformOperationForRole(roleName, nextOperation.type)) {
+      return (
+        <div className="table-cell-stack">
+          <strong>Pendiente: {nextOperation.label.toLowerCase()}</strong>
+          <PendingText>{nextOperation.helper}</PendingText>
+        </div>
+      );
+    }
 
     if (!nextOperation.type || nextOperation.disabled) {
       return (
@@ -630,11 +645,13 @@ function InfraccionesListPage({
           </p>
         </div>
 
-        <div className="button-row">
-          <Button variant="primary" type="button" onClick={onNavigateCreate}>
-            Nueva infraccion
-          </Button>
-        </div>
+        {roleName?.toUpperCase() !== "ENCIERRO" ? (
+          <div className="button-row">
+            <Button variant="primary" type="button" onClick={onNavigateCreate}>
+              Nueva infraccion
+            </Button>
+          </div>
+        ) : null}
       </header>
 
       <Card>
@@ -1015,6 +1032,7 @@ function InfraccionesListPage({
         open={operationState !== null}
         token={token}
         type={operationState?.type ?? null}
+        roleName={roleName}
         onClose={closeOperation}
         onCompleted={completeOperation}
       />

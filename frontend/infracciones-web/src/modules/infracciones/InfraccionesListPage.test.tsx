@@ -24,7 +24,13 @@ vi.mock("./InfraccionDetalleModal", () => ({
 }));
 
 vi.mock("./InfraccionOperacionModal", () => ({
-  InfraccionOperacionModal: () => null,
+  InfraccionOperacionModal: ({
+    open,
+    type,
+  }: {
+    open: boolean;
+    type: string | null;
+  }) => (open ? <div data-testid="operation-open">{type}</div> : null),
 }));
 
 function createItem(
@@ -100,7 +106,7 @@ function createItem(
   };
 }
 
-async function renderWithItem(item: InfraccionListItem) {
+async function renderWithItem(item: InfraccionListItem, roleName?: string) {
   apiMocks.getInfracciones.mockResolvedValue({
     data: [item],
     meta: {
@@ -116,6 +122,7 @@ async function renderWithItem(item: InfraccionListItem) {
       catalogs={null}
       token="token-test"
       refreshKey={0}
+      roleName={roleName}
       onNavigateCreate={vi.fn()}
     />,
   );
@@ -231,5 +238,86 @@ describe("InfraccionesListPage solventacion sin pago", () => {
 
     expect(input).toHaveValue("");
     expect(screen.getByText("Todas las claves")).toBeInTheDocument();
+  });
+});
+
+function createItemEnEncierro(
+  state: "EN_ENCIERRO_SIN_PAGO" | "LIBERADO_PENDIENTE_SALIDA",
+): InfraccionListItem {
+  const item = createItem();
+  const liberado = state === "LIBERADO_PENDIENTE_SALIDA";
+  return createItem({
+    estatusInfraccion: {
+      idEstatusInfraccion: 1,
+      nombreEstatus: "PENDIENTE_PAGO",
+    },
+    tipoProcedimiento: {
+      ...item.tipoProcedimiento,
+      permiteRetencion: true,
+    },
+    retencion: {
+      idRetencionVehiculo: 50,
+      encierro: "Encierro Central",
+      fechaIngreso: "2026-08-26T08:00:00.000Z",
+      folioResguardo: "RES-1",
+      estadoIngreso: "CAPTURADO",
+    },
+    pago: {
+      tienePago: liberado,
+      idPagoInfraccion: liberado ? 60 : null,
+      fechaUltimoPago: null,
+      montoPagado: null,
+      clavesConcepto: null,
+    },
+    liberacion: {
+      tieneLiberacion: liberado,
+      idLiberacionVehiculo: liberado ? 70 : null,
+      fechaLiberacion: null,
+    },
+    estadoOperativoCalculado: state,
+  });
+}
+
+describe("InfraccionesListPage rol ENCIERRO", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    apiMocks.findConceptosPago.mockResolvedValue([]);
+  });
+
+  it("muestra el pago pendiente sin permitirlo y oculta Nueva infraccion", async () => {
+    await renderWithItem(
+      createItemEnEncierro("EN_ENCIERRO_SIN_PAGO"),
+      "ENCIERRO",
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /Nueva infraccion/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Registrar pago" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Pendiente: registrar pago")).toBeInTheDocument();
+    expect(screen.getByText("Infracciones debe registrar el pago")).toBeInTheDocument();
+  });
+
+  it("mantiene habilitada la salida cuando el expediente fue liberado", async () => {
+    await renderWithItem(
+      createItemEnEncierro("LIBERADO_PENDIENTE_SALIDA"),
+      "ENCIERRO",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Registrar salida" }));
+    expect(screen.getByTestId("operation-open")).toHaveTextContent("salida");
+  });
+
+  it("conserva la accion de pago del rol ADMIN", async () => {
+    await renderWithItem(createItemEnEncierro("EN_ENCIERRO_SIN_PAGO"), "ADMIN");
+
+    expect(
+      screen.getByRole("button", { name: "Registrar pago" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: /Nueva infraccion/i }),
+    ).toBeEnabled();
   });
 });
