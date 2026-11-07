@@ -408,6 +408,10 @@ export function InfraccionOperacionModal({
         return "No se encontraron los datos tecnicos de retencion/liberacion. Actualiza el listado.";
       }
 
+      if (!item.liberacion.folioLiberacion?.trim()) {
+        return "No se encontro el folio de liberacion. Actualiza el listado.";
+      }
+
       if (!form.validadoPor.trim() || !form.personaRecibeVehiculo.trim()) {
         return "Captura quien valida y quien recibe el vehiculo.";
       }
@@ -568,7 +572,7 @@ export function InfraccionOperacionModal({
       ) {
         const confirmed = await confirmAction({
           title: "Registrar salida",
-          text: `Vas a registrar la salida del expediente ${item.folioInfraccion} con la retención ${item.retencion.idRetencionVehiculo} y la liberación ${item.liberacion.idLiberacionVehiculo}.`,
+          text: `Vas a registrar la salida del vehículo correspondiente al expediente de infracción ${item.folioInfraccion}, con folio de liberación ${item.liberacion.folioLiberacion}.`,
           confirmButtonText: "Registrar salida",
           cancelButtonText: "Seguir editando",
         });

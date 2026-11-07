@@ -53,6 +53,7 @@ interface InfraccionListRow {
   montoPagado: string | number | null;
   tieneLiberacion: boolean | number | string | null;
   idUltimaLiberacion: string | number | null;
+  folioLiberacion: string | null;
   fechaLiberacion: string | Date | null;
   tieneSalida: boolean | number | string | null;
   fechaSalida: string | Date | null;
@@ -279,6 +280,16 @@ export class InfraccionesListService {
           LIMIT 1
         )`,
         'idUltimaLiberacion',
+      )
+      .addSelect(
+        `(
+          SELECT liberacion.folio_liberacion
+          FROM liberacion_vehiculo liberacion
+          WHERE liberacion.id_infraccion = infraccion.id_infraccion
+          ORDER BY liberacion.fecha_liberacion DESC, liberacion.id_liberacion_vehiculo DESC
+          LIMIT 1
+        )`,
+        'folioLiberacion',
       )
       .addSelect(
         `(
@@ -742,6 +753,7 @@ export class InfraccionesListService {
       liberacion: {
         tieneLiberacion: hasLiberacion,
         idLiberacionVehiculo: this.toNullableNumber(row.idUltimaLiberacion),
+        folioLiberacion: this.toNullableString(row.folioLiberacion),
         fechaLiberacion: this.toIsoString(row.fechaLiberacion),
       },
       salida: {
