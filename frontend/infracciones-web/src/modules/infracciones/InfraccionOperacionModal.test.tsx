@@ -95,6 +95,7 @@ function createItem(
     liberacion: {
       tieneLiberacion: false,
       idLiberacionVehiculo: null,
+      folioLiberacion: null,
       fechaLiberacion: null,
     },
     salida: {
@@ -291,6 +292,7 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
       liberacion: {
         tieneLiberacion: true,
         idLiberacionVehiculo: 51,
+        folioLiberacion: "LI-1236",
         fechaLiberacion: "2026-08-26T09:00:00.000Z",
       },
       estadoOperativoCalculado: "LIBERADO_PENDIENTE_SALIDA",
@@ -317,6 +319,45 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
         }),
       );
     });
+    expect(apiMocks.confirmAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Registrar salida",
+        text: "Vas a registrar la salida del vehículo correspondiente al expediente de infracción INF-10, con folio de liberación LI-1236.",
+      }),
+    );
     expect(onCompleted).toHaveBeenCalledTimes(1);
+  });
+
+  it("bloquea la salida cuando el listado no incluye el folio de liberacion", () => {
+    const item = createItem({
+      retencion: {
+        idRetencionVehiculo: 50,
+        encierro: "Encierro Central",
+        fechaIngreso: "2026-08-26T08:00:00.000Z",
+        folioResguardo: "RES-1",
+        estadoIngreso: "CAPTURADO",
+      },
+      liberacion: {
+        tieneLiberacion: true,
+        idLiberacionVehiculo: 51,
+        folioLiberacion: null,
+        fechaLiberacion: "2026-08-26T09:00:00.000Z",
+      },
+      estadoOperativoCalculado: "LIBERADO_PENDIENTE_SALIDA",
+    });
+
+    renderModal("salida", item, "ENCIERRO");
+    fireEvent.change(screen.getByLabelText(/Validado por/i), {
+      target: { value: "Encargado de encierro" },
+    });
+    fireEvent.change(screen.getByLabelText(/Persona recibe vehiculo/i), {
+      target: { value: "Propietario" },
+    });
+    const submitButton = screen.getByRole("button", { name: "Guardar salida" });
+    expect(submitButton).toBeDisabled();
+    fireEvent.click(submitButton);
+
+    expect(apiMocks.confirmAction).not.toHaveBeenCalled();
+    expect(apiMocks.createSalida).not.toHaveBeenCalled();
   });
 });

@@ -59,3 +59,34 @@ describe('InfraccionesListService filtro de clave de concepto', () => {
     expect(andWhere).not.toHaveBeenCalled();
   });
 });
+
+describe('InfraccionesListService folio de liberacion', () => {
+  it('obtiene el folio y el ID del mismo registro de liberacion vigente', () => {
+    const addSelect = jest.fn().mockReturnThis();
+    const builder = {
+      select: jest.fn().mockReturnThis(),
+      addSelect,
+    } as unknown as SelectQueryBuilder<Infraccion>;
+    const service = new InfraccionesListService({} as DataSource) as unknown as {
+      applySelects(query: SelectQueryBuilder<Infraccion>): SelectQueryBuilder<Infraccion>;
+    };
+
+    service.applySelects(builder);
+
+    const queryByAlias = (alias: string): string | undefined =>
+      (addSelect.mock.calls as Array<[string, string]>).find(
+        ([, selectedAlias]) => selectedAlias === alias,
+      )?.[0];
+    const idQuery = queryByAlias('idUltimaLiberacion');
+    const folioQuery = queryByAlias('folioLiberacion');
+
+    expect(idQuery).toBeDefined();
+    expect(folioQuery).toContain('SELECT liberacion.folio_liberacion');
+    expect(
+      folioQuery?.replace(
+        'SELECT liberacion.folio_liberacion',
+        'SELECT liberacion.id_liberacion_vehiculo',
+      ),
+    ).toBe(idQuery);
+  });
+});

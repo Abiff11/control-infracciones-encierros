@@ -51,6 +51,7 @@ export interface InfraccionListPagoSummary {
 export interface InfraccionListLiberacionSummary {
   tieneLiberacion: boolean;
   idLiberacionVehiculo: number | null;
+  folioLiberacion?: string | null;
   fechaLiberacion: string | null;
 }
 
