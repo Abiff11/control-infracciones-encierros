@@ -86,6 +86,36 @@ export function getObservacionesPendientes(
   );
 }
 
+export type DecisionObservacion = 'CORREGIR' | 'RECHAZAR';
+
+export interface ResolverObservacionPayload {
+  decision: DecisionObservacion;
+  resolucion: string;
+}
+
+export interface ResolverObservacionResponse {
+  idObservacion: number;
+  idInfraccion: number;
+  campoObservado: ObservacionPendienteItem['campoObservado'];
+  estatus: 'CORREGIDA' | 'RECHAZADA';
+  resolucion: string;
+  fechaResolucion: string;
+  valorAnterior: string | null;
+  valorPosterior: string | null;
+}
+
+export function resolverObservacion(
+  token: string,
+  idObservacion: number,
+  payload: ResolverObservacionPayload,
+): Promise<ResolverObservacionResponse> {
+  return request<ResolverObservacionResponse>(
+    '/encierros/observaciones/' + idObservacion,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+    token,
+  );
+}
+
 export function getVehiculosEnEncierro(
   token: string,
   query?: VehiculosEncierroQuery,

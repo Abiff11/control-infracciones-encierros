@@ -27,6 +27,29 @@ vi.mock("../../services/api/pagos.api", () => ({
   findConceptosPago: apiMocks.findConceptosPago,
 }));
 
+vi.mock("./ObservacionAtencionModal", () => ({
+  ObservacionAtencionModal: ({
+    open,
+    observacion,
+    onClose,
+    onCompleted,
+  }: {
+    open: boolean;
+    observacion: { idObservacion: number } | null;
+    onClose: () => void;
+    onCompleted: (result: { idObservacion: number; estatus: "CORREGIDA" }) => void;
+  }) => open ? (
+    <div data-testid="observacion-atencion">
+      <span>Atendiendo observación {observacion?.idObservacion}</span>
+      <button type="button" onClick={() => onCompleted({
+        idObservacion: observacion?.idObservacion ?? 0,
+        estatus: "CORREGIDA",
+      })}>Simular resolución</button>
+      <button type="button" onClick={onClose}>Cerrar atención</button>
+    </div>
+  ) : null,
+}));
+
 vi.mock("./InfraccionDetalleModal", () => ({
   InfraccionDetalleModal: () => null,
 }));
@@ -174,6 +197,37 @@ describe("InfraccionesListPage bandeja de observaciones", () => {
     expect(apiMocks.getObservacionesPendientes).toHaveBeenCalledWith(
       "token-test", 1, 20,
     );
+  });
+
+  it("abre la atención de la observación seleccionada sin modificar otras operaciones", async () => {
+    await renderWithItem(createItem(), "INFRACCIONES");
+    fireEvent.click(await screen.findByRole("button", { name: "Ver observaciones (1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Atender observación" }));
+
+    expect(screen.getByTestId("observacion-atencion")).toHaveTextContent(
+      "Atendiendo observación 12",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar atención" }));
+    expect(screen.queryByTestId("observacion-atencion")).not.toBeInTheDocument();
+  });
+
+  it("actualiza bandeja y listado al terminar una corrección", async () => {
+    await renderWithItem(createItem(), "INFRACCIONES");
+    fireEvent.click(await screen.findByRole("button", { name: "Ver observaciones (1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Atender observación" }));
+    apiMocks.getObservacionesPendientes.mockResolvedValue({
+      data: [],
+      meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Simular resolución" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Observación 12 corregida correctamente.");
+    expect(screen.queryByTestId("observacion-atencion")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(apiMocks.getObservacionesPendientes).toHaveBeenCalledTimes(2);
+      expect(apiMocks.getInfracciones).toHaveBeenCalledTimes(2);
+    });
+    expect(await screen.findByText("No hay observaciones pendientes para mostrar.")).toBeInTheDocument();
   });
 
   it("no muestra ni consulta la bandeja con el rol ENCIERRO", async () => {

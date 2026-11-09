@@ -13,6 +13,8 @@ import { getErrorMessage } from "../../services/api/apiClient";
 import {
   getObservacionesPendientes,
   type ObservacionesPendientesResponse,
+  type ObservacionPendienteItem,
+  type ResolverObservacionResponse,
 } from "../../services/api/encierros.api";
 import {
   getInfraccionDetalle,
@@ -38,6 +40,7 @@ import type {
 } from "../../types/infracciones.types";
 import type { ConceptoPagoOption } from "../../types/operaciones.types";
 import { InfraccionDetalleModal } from "./InfraccionDetalleModal";
+import { ObservacionAtencionModal } from "./ObservacionAtencionModal";
 import {
   InfraccionOperacionModal,
   type InfraccionOperacionTipo,
@@ -435,6 +438,9 @@ function InfraccionesListPage({
   const [paginaObservaciones, setPaginaObservaciones] = useState(1);
   const [observacionesState, setObservacionesState] =
     useState<LoadState<ObservacionesPendientesResponse>>(createIdleState());
+  const [observacionSeleccionada, setObservacionSeleccionada] =
+    useState<ObservacionPendienteItem | null>(null);
+  const [resultadoObservacion, setResultadoObservacion] = useState<string | null>(null);
 
   const query = useMemo(() => buildQuery(activeFilters), [activeFilters]);
   const meta: PaginationMeta | null = state.data?.meta ?? null;
@@ -693,6 +699,33 @@ function InfraccionesListPage({
     setLocalRefreshKey((current) => current + 1);
   }
 
+  function abrirAtencionObservacion(observacion: ObservacionPendienteItem): void {
+    if (!puedeConsultarObservaciones) {
+      return;
+    }
+    setObservacionSeleccionada(observacion);
+    setResultadoObservacion(null);
+  }
+
+  function cerrarAtencionObservacion(): void {
+    setObservacionSeleccionada(null);
+  }
+
+  function completarAtencionObservacion(resultado: ResolverObservacionResponse): void {
+    setObservacionSeleccionada(null);
+    setResultadoObservacion(
+      'Observación ' + resultado.idObservacion + ' ' +
+      (resultado.estatus === 'CORREGIDA'
+        ? 'corregida correctamente.'
+        : 'rechazada con justificación.'),
+    );
+    if (paginaObservaciones > 1 &&
+        observacionesState.data?.data.length === 1) {
+      setPaginaObservaciones((actual) => Math.max(1, actual - 1));
+    }
+    setLocalRefreshKey((actual) => actual + 1);
+  }
+
   function renderNextActionCell(item: InfraccionListItem) {
     const nextOperation = getNextOperation(item, roleName);
 
@@ -764,8 +797,8 @@ function InfraccionesListPage({
                 <p className="section-label">Seguimiento entre áreas</p>
                 <h2>Observaciones pendientes</h2>
                 <p className="page-description">
-                  Discrepancias menores reportadas por Encierros. Consulta de
-                  evidencia y valores; las correcciones aún no están habilitadas.
+                  Revisa las diferencias reportadas por Encierros y decide si
+                  corresponde corregir el dato o rechazar la observación.
                 </p>
               </div>
               <Button
@@ -777,6 +810,9 @@ function InfraccionesListPage({
                   `Ver observaciones (${observacionesState.data?.meta.total ?? 0})`}
               </Button>
             </div>
+            {resultadoObservacion ? (
+              <div className="notice" role="status">{resultadoObservacion}</div>
+            ) : null}
             {bandejaAbierta ? (
               <>
                 {observacionesState.status === "loading" ? (
@@ -793,12 +829,13 @@ function InfraccionesListPage({
                         <th>Motivo y evidencia</th>
                         <th>Reportó / Fecha</th>
                         <th>Estado</th>
+                        <th>Atención</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(observacionesState.data?.data ?? []).length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="empty-state">
+                          <td colSpan={7} className="empty-state">
                             {observacionesState.status === "loading"
                               ? "Cargando observaciones..."
                               : "No hay observaciones pendientes para mostrar."}
@@ -834,6 +871,15 @@ function InfraccionesListPage({
                               </div>
                             </td>
                             <td><StatusBadge value={observacion.estatus} /></td>
+                            <td>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={() => abrirAtencionObservacion(observacion)}
+                              >
+                                Atender observación
+                              </Button>
+                            </td>
                           </tr>
                         ))
                       )}
@@ -1218,6 +1264,16 @@ function InfraccionesListPage({
           ) : null}
         </div>
       </Card>
+
+      {observacionSeleccionada ? (
+        <ObservacionAtencionModal
+          open
+          observacion={observacionSeleccionada}
+          token={token}
+          onClose={cerrarAtencionObservacion}
+          onCompleted={completarAtencionObservacion}
+        />
+      ) : null}
 
       <InfraccionDetalleModal
         open={selectedId !== null}
