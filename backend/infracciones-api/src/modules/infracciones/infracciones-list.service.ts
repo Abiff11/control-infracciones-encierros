@@ -24,6 +24,7 @@ interface InfraccionListRow {
   serie: string | null;
   motor: string | null;
   color: string | null;
+  anioModelo: string | number | null;
   marca: string | null;
   linea: string | null;
   clase: string | null;
@@ -188,6 +189,7 @@ export class InfraccionesListService {
       .addSelect('vehiculo.serie', 'serie')
       .addSelect('vehiculo.motor', 'motor')
       .addSelect('vehiculo.color', 'color')
+      .addSelect('vehiculo.anioModelo', 'anioModelo')
       .addSelect('lineaVehiculo.nombreLineaVehiculo', 'linea')
       .addSelect('marcaVehiculo.nombreMarcaVehiculo', 'marca')
       .addSelect('claseVehiculo.nombreClaseVehiculo', 'clase')
@@ -723,6 +725,7 @@ export class InfraccionesListService {
         serie: this.toNullableString(row.serie),
         motor: this.toNullableString(row.motor),
         color: this.toNullableString(row.color),
+        anioModelo: this.toNullableNumber(row.anioModelo),
         marca: this.toNullableString(row.marca),
         linea: this.toNullableString(row.linea),
         clase: this.toNullableString(row.clase),

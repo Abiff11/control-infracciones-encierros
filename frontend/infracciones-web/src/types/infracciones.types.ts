@@ -27,6 +27,7 @@ export interface VehiculoSummary {
   serie: string | null;
   motor: string | null;
   color: string | null;
+  anioModelo?: number | null;
   marca?: string | null;
   linea?: string | null;
   clase?: string | null;

@@ -106,6 +106,9 @@ interface OperationFormState {
   referenciaDocumentoLiberacion: string;
   nombrePropietarioDeclarado: string;
   autorizacionDocumentalVerificada: boolean;
+  reportarDiferencia: boolean;
+  motivoDiferencia: string;
+  evidenciaDiferencia: string;
 }
 
 function toNullableString(value: string): string | null {
@@ -164,7 +167,109 @@ function createInitialForm(
     referenciaDocumentoLiberacion: "",
     nombrePropietarioDeclarado: "",
     autorizacionDocumentalVerificada: false,
+    reportarDiferencia: false,
+    motivoDiferencia: "",
+    evidenciaDiferencia: "",
   };
+}
+
+
+interface DiferenciaCotejo {
+  campo: "COLOR" | "ANIO_MODELO";
+  etiqueta: string;
+  registrado: string;
+  reportado: string;
+}
+
+interface ResultadoCotejo {
+  coincidencias: number;
+  diferencias: DiferenciaCotejo[];
+  problemas: string[];
+}
+
+function normalizarCotejo(value: string | number): string {
+  return String(value).normalize("NFKC").trim().replace(/\s+/gu, " ").toUpperCase();
+}
+
+function normalizarPlacas(value: string): string {
+  return normalizarCotejo(value).replace(/[\s-]/gu, "");
+}
+
+function analizarCotejo(
+  item: InfraccionListItem,
+  form: OperationFormState,
+): ResultadoCotejo {
+  const result: ResultadoCotejo = {
+    coincidencias: 0,
+    diferencias: [],
+    problemas: [],
+  };
+
+  if (form.placasCotejadas.trim() &&
+      (!item.vehiculo.placas ||
+        normalizarPlacas(form.placasCotejadas) !==
+          normalizarPlacas(item.vehiculo.placas))) {
+    result.problemas.push(
+      "Las placas no coinciden con el expediente. Se requiere revisión antes de la entrega.",
+    );
+  }
+
+  const generales: Array<{
+    etiqueta: string;
+    valor: string;
+    registrado: string | number | null | undefined;
+    menor?: DiferenciaCotejo["campo"];
+  }> = [
+    { etiqueta: "Marca", valor: form.marcaCotejada, registrado: item.vehiculo.marca },
+    { etiqueta: "Línea", valor: form.lineaCotejada, registrado: item.vehiculo.linea },
+    { etiqueta: "Clase", valor: form.claseCotejada, registrado: item.vehiculo.clase },
+    { etiqueta: "Color", valor: form.colorCotejado, registrado: item.vehiculo.color, menor: "COLOR" },
+    { etiqueta: "Año modelo", valor: form.anioModeloCotejado, registrado: item.vehiculo.anioModelo, menor: "ANIO_MODELO" },
+  ];
+
+  for (const { etiqueta, valor, registrado, menor } of generales) {
+    if (!valor.trim()) {
+      continue;
+    }
+    if (registrado === null || registrado === undefined || String(registrado).trim() === "") {
+      result.problemas.push(etiqueta + ": no hay dato registrado para cotejar.");
+      continue;
+    }
+    if (normalizarCotejo(valor) === normalizarCotejo(registrado)) {
+      result.coincidencias += 1;
+    } else if (menor) {
+      result.diferencias.push({
+        campo: menor,
+        etiqueta,
+        registrado: String(registrado),
+        reportado: valor.trim(),
+      });
+    } else {
+      result.problemas.push(etiqueta + ": el dato observado no coincide con el expediente.");
+    }
+  }
+
+  const identificadores: Array<{
+    etiqueta: string;
+    valor: string;
+    registrado: string | null | undefined;
+  }> = [
+    { etiqueta: "Estado de placas", valor: form.estadoPlacasCotejado, registrado: item.vehiculo.estadoPlacas },
+    { etiqueta: "Número de serie", valor: form.serieCotejada, registrado: item.vehiculo.serie },
+    { etiqueta: "Número de motor", valor: form.motorCotejado, registrado: item.vehiculo.motor },
+  ];
+  for (const { etiqueta, valor, registrado } of identificadores) {
+    if (valor.trim() &&
+        (!registrado || normalizarCotejo(valor) !== normalizarCotejo(registrado))) {
+      result.problemas.push(etiqueta + ": discrepancia que requiere revisión.");
+    }
+  }
+  if (result.diferencias.length > 1) {
+    result.problemas.push(
+      "Hay dos diferencias generales: se requiere revisión antes de entregar el vehículo.",
+    );
+  }
+  return result;
 }
 
 function getOperationCopy(type: InfraccionOperacionTipo | null): OperationCopy {
@@ -233,6 +338,7 @@ function OperationSummary({ item }: { item: InfraccionListItem }) {
         <span>Placas: {formatEmptyValue(item.vehiculo.placas)}</span>
         <span>{getVehicleLabel(item)}</span>
         <span>Color: {formatEmptyValue(item.vehiculo.color)}</span>
+        <span>Año modelo: {formatEmptyValue(item.vehiculo.anioModelo == null ? null : String(item.vehiculo.anioModelo))}</span>
       </div>
 
       <StatusBadge value={item.estadoOperativoCalculado} />
@@ -324,6 +430,14 @@ export function InfraccionOperacionModal({
     type === "salida" &&
     Boolean(item?.retencion?.idRetencionVehiculo) &&
     !item?.liberacion?.tieneLiberacion;
+  const cotejo = isSalidaAnticipada && item
+    ? analizarCotejo(item, form)
+    : null;
+  const diferenciaMenor = cotejo &&
+    cotejo.diferencias.length === 1 &&
+    cotejo.problemas.length === 0
+      ? cotejo.diferencias[0]
+      : null;
 
   useEffect(() => {
     if (open) {
@@ -339,6 +453,11 @@ export function InfraccionOperacionModal({
 
   function updateField(field: keyof OperationFormState, value: string): void {
     setForm((current) => ({ ...current, [field]: value }));
+    setError(null);
+  }
+
+  function updateReporteDiferencia(checked: boolean): void {
+    setForm((current) => ({ ...current, reportarDiferencia: checked }));
     setError(null);
   }
 
@@ -454,18 +573,25 @@ export function InfraccionOperacionModal({
         if (!form.placasCotejadas.trim()) {
           return "Escribe las placas verificadas fisicamente.";
         }
-        const comparables = [
-          form.marcaCotejada, form.lineaCotejada, form.claseCotejada,
-          form.colorCotejado, form.anioModeloCotejado,
-        ].filter((value) => value.trim());
-        if (comparables.length < 2) {
-          return "Coteja por lo menos dos datos generales adicionales a las placas.";
-        }
         if (form.anioModeloCotejado.trim() &&
             (!/^[0-9]{4}$/u.test(form.anioModeloCotejado.trim()) ||
               Number(form.anioModeloCotejado) < 1900 ||
               Number(form.anioModeloCotejado) > 2100)) {
           return "Captura un año modelo valido.";
+        }
+        if (cotejo?.problemas.length) {
+          return cotejo.problemas[0];
+        }
+        if (!cotejo || cotejo.coincidencias < 2) {
+          return "Las placas y al menos dos datos generales deben coincidir con el expediente.";
+        }
+        if (diferenciaMenor) {
+          if (!form.reportarDiferencia) {
+            return "Confirma que reportaras la diferencia menor a Infracciones.";
+          }
+          if (!form.motivoDiferencia.trim() || !form.evidenciaDiferencia.trim()) {
+            return "Describe la diferencia y la referencia de evidencia.";
+          }
         }
         if (!form.autorizacionDocumentalVerificada) {
           return "Confirma que verificaste la autorizacion documental.";
@@ -628,7 +754,7 @@ export function InfraccionOperacionModal({
       if (type === "salida" && isSalidaAnticipada && item.retencion?.idRetencionVehiculo) {
         const confirmed = await confirmAction({
           title: "Registrar salida anticipada",
-          text: `Vas a entregar el vehículo del expediente ${item.folioInfraccion} sin liberación electrónica. Folio presentado: ${form.folioLiberacionPresentado.trim()}.`,
+          text: `Vas a entregar el vehículo del expediente ${item.folioInfraccion} sin liberación electrónica. Folio presentado: ${form.folioLiberacionPresentado.trim()}.${diferenciaMenor ? " Se creará una observación pendiente para Infracciones." : ""}`,
           confirmButtonText: "Registrar salida anticipada",
           cancelButtonText: "Seguir editando",
         });
@@ -658,6 +784,12 @@ export function InfraccionOperacionModal({
           validadoPor: datos.validadoPor.trim(),
           personaRecibeVehiculo: datos.personaRecibeVehiculo.trim(),
           observacionesSalida: toNullableString(datos.observacionesSalida),
+          ...(diferenciaMenor && {
+            discrepanciaMenor: {
+              motivo: datos.motivoDiferencia.trim(),
+              referenciaEvidencia: datos.evidenciaDiferencia.trim(),
+            },
+          }),
         };
         await createSalidaAnticipada(token, payload);
         completed = true;
@@ -970,7 +1102,7 @@ export function InfraccionOperacionModal({
           <div className="form-grid form-grid-2">
             <RequiredNote>
               {isSalidaAnticipada
-                ? "Salida anticipada: coteja fisicamente placas y datos del vehiculo. Se conservara pendiente la liberacion electronica. Si detectas diferencias, solicita revision."
+                ? "Salida anticipada: coteja las placas y los datos del vehiculo. Si el color o año modelo difiere, registra una observación para Infracciones con motivo y evidencia. Otras diferencias bloquean la salida."
                 : "Se usaran automaticamente la retencion y la liberacion vigentes del expediente."}
             </RequiredNote>
 
@@ -1072,6 +1204,60 @@ export function InfraccionOperacionModal({
                     onChange={(event) => updateField("nombrePropietarioDeclarado", event.target.value)}
                   />
                 </Field>
+                {cotejo && cotejo.problemas.length > 0 ? (
+                  <div className="notice notice-error field-span-2" role="alert">
+                    <strong>Salida bloqueada por diferencias de identidad.</strong>
+                    <ul>
+                      {cotejo.problemas.map((problema) => (
+                        <li key={problema}>{problema}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {diferenciaMenor ? (
+                  <section
+                    className="field field-span-2"
+                    aria-label="Detalle de discrepancia menor"
+                  >
+                    <div className="notice">
+                      <strong>Diferencia menor detectada: {diferenciaMenor.etiqueta}</strong>
+                      <p>Registrado: {diferenciaMenor.registrado}</p>
+                      <p>Cotejado por Encierros: {diferenciaMenor.reportado}</p>
+                      <p>La salida requiere reporte con evidencia; el expediente no se modifica.</p>
+                    </div>
+                    <label htmlFor="operacion-ant-reportar-diferencia">
+                      <input
+                        id="operacion-ant-reportar-diferencia"
+                        type="checkbox"
+                        checked={form.reportarDiferencia}
+                        onChange={(event) => updateReporteDiferencia(event.target.checked)}
+                      />
+                      {" "}Reportar diferencia a Infracciones
+                    </label>
+                    {form.reportarDiferencia ? (
+                      <>
+                        <label htmlFor="operacion-ant-motivo-diferencia">Motivo de la diferencia</label>
+                        <textarea
+                          id="operacion-ant-motivo-diferencia"
+                          rows={3}
+                          maxLength={1000}
+                          value={form.motivoDiferencia}
+                          onChange={(event) => updateField("motivoDiferencia", event.target.value)}
+                          required
+                        />
+                        <label htmlFor="operacion-ant-evidencia-diferencia">Referencia de evidencia</label>
+                        <TextInput
+                          id="operacion-ant-evidencia-diferencia"
+                          maxLength={255}
+                          placeholder="Documento o constancia consultada"
+                          value={form.evidenciaDiferencia}
+                          onChange={(event) => updateField("evidenciaDiferencia", event.target.value)}
+                          required
+                        />
+                      </>
+                    ) : null}
+                  </section>
+                ) : null}
                 <div className="field field-span-2">
                   <label htmlFor="operacion-ant-autorizacion">
                     <input
