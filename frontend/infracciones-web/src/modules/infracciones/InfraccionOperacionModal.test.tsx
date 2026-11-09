@@ -11,6 +11,7 @@ const apiMocks = vi.hoisted(() => ({
   createPago: vi.fn(),
   createRetencion: vi.fn(),
   createSalida: vi.fn(),
+  createSalidaAnticipada: vi.fn(),
   findConceptosPago: vi.fn(),
 }));
 
@@ -31,6 +32,7 @@ vi.mock("../../services/api/liberaciones.api", () => ({
 vi.mock("../../services/api/encierros.api", () => ({
   createRetencion: apiMocks.createRetencion,
   createSalida: apiMocks.createSalida,
+  createSalidaAnticipada: apiMocks.createSalidaAnticipada,
 }));
 
 function createItem(
@@ -260,6 +262,7 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
     vi.clearAllMocks();
     apiMocks.confirmAction.mockResolvedValue(true);
     apiMocks.createSalida.mockResolvedValue({ idSalidaVehiculo: 99 });
+    apiMocks.createSalidaAnticipada.mockResolvedValue({ idSalidaVehiculo: 100 });
   });
 
   it.each(["retencion", "pago", "liberacion"] as const)(
@@ -326,6 +329,64 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
       }),
     );
     expect(onCompleted).toHaveBeenCalledTimes(1);
+  });
+
+
+  it("permite salida anticipada con cotejo y autorizacion documental", async () => {
+    const item = createItem({
+      retencion: {
+        idRetencionVehiculo: 50,
+        encierro: "Encierro Central",
+        fechaIngreso: "2026-08-26T08:00:00.000Z",
+        folioResguardo: "RES-1",
+        estadoIngreso: "CAPTURADO",
+      },
+    });
+    const { onCompleted } = renderModal("salida", item, "ENCIERRO");
+    const fields = [
+      ["Folio de liberacion presentado", "FL-2026-55"],
+      ["Placas verificadas fisicamente", "ABC123"],
+      ["Marca cotejada", "SUZUKI"],
+      ["Linea cotejada", "SWIFT"],
+      ["Propietario declarado", "Persona propietaria"],
+      ["Referencia del documento de liberacion", "Oficio firmado"],
+      ["Validado por", "Encargado"],
+      ["Persona recibe vehiculo", "Persona receptora"],
+    ] as const;
+    for (const [name, value] of fields) {
+      fireEvent.change(screen.getByLabelText(name), { target: { value } });
+    }
+    fireEvent.click(screen.getByLabelText(/Verifique fisicamente el vehiculo y el documento/i));
+    fireEvent.click(screen.getByRole("button", { name: "Registrar salida anticipada" }));
+    await waitFor(() => {
+      expect(apiMocks.createSalidaAnticipada).toHaveBeenCalledWith(
+        "token-test",
+        expect.objectContaining({
+          idRetencionVehiculo: 50,
+          folioLiberacionPresentado: "FL-2026-55",
+          placasCotejadas: "ABC123",
+          datosVehiculoCotejados: { marca: "SUZUKI", linea: "SWIFT" },
+          autorizacionDocumentalVerificada: true,
+        }),
+      );
+    });
+    expect(apiMocks.createSalida).not.toHaveBeenCalled();
+    expect(onCompleted).toHaveBeenCalledTimes(1);
+  });
+
+  it("bloquea salida anticipada sin verificar la autorizacion y el cotejo", () => {
+    const item = createItem({
+      retencion: {
+        idRetencionVehiculo: 50,
+        encierro: "Encierro Central",
+        fechaIngreso: "2026-08-26T08:00:00.000Z",
+        folioResguardo: "RES-1",
+        estadoIngreso: "CAPTURADO",
+      },
+    });
+    renderModal("salida", item, "ENCIERRO");
+    expect(screen.getByRole("button", { name: "Registrar salida anticipada" })).toBeDisabled();
+    expect(apiMocks.createSalidaAnticipada).not.toHaveBeenCalled();
   });
 
   it("bloquea la salida cuando el listado no incluye el folio de liberacion", () => {

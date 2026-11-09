@@ -2,6 +2,7 @@ import { buildQuery, request } from './apiClient';
 import type {
   RegistrarRetencionPayload,
   RegistrarSalidaPayload,
+  RegistrarSalidaAnticipadaPayload,
 } from '../../types/operaciones.types';
 import type {
   VehiculosEncierroQuery,
@@ -33,6 +34,17 @@ export function createSalida(
       method: 'POST',
       body: JSON.stringify(payload),
     },
+    token,
+  );
+}
+
+export function createSalidaAnticipada(
+  token: string,
+  payload: RegistrarSalidaAnticipadaPayload,
+): Promise<unknown> {
+  return request<unknown>(
+    '/encierros/salidas/anticipadas',
+    { method: 'POST', body: JSON.stringify(payload) },
     token,
   );
 }

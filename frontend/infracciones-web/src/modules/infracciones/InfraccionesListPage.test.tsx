@@ -284,7 +284,7 @@ describe("InfraccionesListPage rol ENCIERRO", () => {
     apiMocks.findConceptosPago.mockResolvedValue([]);
   });
 
-  it("muestra el pago pendiente sin permitirlo y oculta Nueva infraccion", async () => {
+  it("muestra salida anticipada cuando aun no hay pago y oculta Nueva infraccion", async () => {
     await renderWithItem(
       createItemEnEncierro("EN_ENCIERRO_SIN_PAGO"),
       "ENCIERRO",
@@ -296,8 +296,18 @@ describe("InfraccionesListPage rol ENCIERRO", () => {
     expect(
       screen.queryByRole("button", { name: "Registrar pago" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Pendiente: registrar pago")).toBeInTheDocument();
-    expect(screen.getByText("Infracciones debe registrar el pago")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Registrar salida anticipada" }));
+    expect(screen.getByTestId("operation-open")).toHaveTextContent("salida");
+  });
+
+  it("bloquea salida anticipada si la entrega ya fue registrada", async () => {
+    const item = createItemEnEncierro("EN_ENCIERRO_SIN_PAGO");
+    await renderWithItem({
+      ...item,
+      salida: { tieneSalida: true, fechaSalida: "2026-08-26T10:00:00.000Z" },
+      estadoOperativoCalculado: "VEHICULO_ENTREGADO",
+    }, "ENCIERRO");
+    expect(screen.queryByRole("button", { name: "Registrar salida anticipada" })).not.toBeInTheDocument();
   });
 
   it("mantiene habilitada la salida cuando el expediente fue liberado", async () => {

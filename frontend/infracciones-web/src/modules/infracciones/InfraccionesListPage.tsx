@@ -225,7 +225,20 @@ function getOperationalDetail(item: InfraccionListItem): string {
   }
 }
 
-function getNextOperation(item: InfraccionListItem): NextOperation {
+function getNextOperation(item: InfraccionListItem, roleName?: string): NextOperation {
+  if (
+    roleName?.toUpperCase() === "ENCIERRO" &&
+    item.retencion?.idRetencionVehiculo &&
+    !item.salida?.tieneSalida &&
+    !item.liberacion?.tieneLiberacion &&
+    getEstadoOperativoEfectivo(item) !== "VEHICULO_ENTREGADO"
+  ) {
+    return {
+      type: "salida",
+      label: "Registrar salida anticipada",
+      helper: "Cotejar placas, datos generales y documento de liberacion",
+    };
+  }
   switch (getEstadoOperativoEfectivo(item)) {
     case "SIN_RETENCION":
       if (!item.tipoProcedimiento.permiteRetencion) {
@@ -592,7 +605,7 @@ function InfraccionesListPage({
   }
 
   function renderNextActionCell(item: InfraccionListItem) {
-    const nextOperation = getNextOperation(item);
+    const nextOperation = getNextOperation(item, roleName);
 
     if (nextOperation.type && !canPerformOperationForRole(roleName, nextOperation.type)) {
       return (
