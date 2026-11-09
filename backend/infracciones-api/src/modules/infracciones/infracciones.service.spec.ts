@@ -560,3 +560,78 @@ describe('InfraccionesService crearInfraccionCompleta', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
+
+describe('InfraccionesService actualizacion posterior a salida', () => {
+  function buildFixture(hasSalida: boolean) {
+    const infraccion = {
+      idInfraccion: 15,
+      estatusInfraccion: { idEstatusInfraccion: 1, nombreEstatus: 'VEHICULO_ENTREGADO' },
+    };
+    const infraccionesRepository = {
+      save: jest.fn((value: unknown) => Promise.resolve(value)),
+    };
+    const salidasRepository = {
+      exists: jest.fn().mockResolvedValue(hasSalida),
+    };
+    const estatusRepository = {
+      findOne: jest.fn(({ where }: { where: { nombreEstatus: string } }) =>
+        Promise.resolve({
+          idEstatusInfraccion: where.nombreEstatus === 'VEHICULO_ENTREGADO' ? 5 : 3,
+          nombreEstatus: where.nombreEstatus,
+        }),
+      ),
+    };
+    const movimientosRepository = {
+      create: jest.fn((value: unknown) => value),
+      save: jest.fn((value: unknown) => Promise.resolve(value)),
+    };
+    const fallbackRepo = createRepositoryMock();
+    const service = new InfraccionesService(
+      {} as never,
+      infraccionesRepository as never,
+      fallbackRepo as never,
+      movimientosRepository as never,
+      estatusRepository as never,
+      fallbackRepo as never,
+      fallbackRepo as never,
+      fallbackRepo as never,
+      salidasRepository as never,
+    );
+    jest.spyOn(service, 'findByIdOrFail').mockResolvedValue(infraccion as Infraccion);
+    return { service, infraccionesRepository, salidasRepository, estatusRepository, movimientosRepository };
+  }
+
+  it('mantiene VEHICULO_ENTREGADO al registrar un pago posterior', async () => {
+    const f = buildFixture(true);
+    await f.service.actualizarEstatusYRegistrarMovimiento({
+      idInfraccion: 15,
+      nombreEstatus: 'PAGADA',
+      accion: 'PAGO_REGISTRADO',
+      idUsuario: 7,
+    });
+
+    expect(f.salidasRepository.exists).toHaveBeenCalledWith({
+      where: { retencionVehiculo: { infraccion: { idInfraccion: 15 } } },
+    });
+    expect(f.estatusRepository.findOne).toHaveBeenCalledWith({
+      where: { nombreEstatus: 'VEHICULO_ENTREGADO' },
+    });
+    expect(f.movimientosRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ accion: 'PAGO_REGISTRADO' }),
+    );
+  });
+
+  it('conserva el estatus solicitado en expedientes sin salida', async () => {
+    const f = buildFixture(false);
+    await f.service.actualizarEstatusYRegistrarMovimiento({
+      idInfraccion: 15,
+      nombreEstatus: 'LIBERACION_GENERADA',
+      accion: 'LIBERACION_GENERADA',
+      idUsuario: 7,
+    });
+
+    expect(f.estatusRepository.findOne).toHaveBeenCalledWith({
+      where: { nombreEstatus: 'LIBERACION_GENERADA' },
+    });
+  });
+});

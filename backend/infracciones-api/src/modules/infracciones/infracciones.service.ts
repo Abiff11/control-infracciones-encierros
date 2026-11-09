@@ -33,7 +33,7 @@ import { LiberacionVehiculo } from '../liberaciones/entities/liberacion-vehiculo
 import { PagoInfraccion } from '../pagos/entities/pago-infraccion.entity';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { Vehiculo } from '../vehiculos/entities/vehiculo.entity';
-import { type EstatusInfraccionNombre } from './constants/estatus-infraccion.constants';
+import { ESTATUS_INFRACCION, type EstatusInfraccionNombre } from './constants/estatus-infraccion.constants';
 import { ACCION_MOVIMIENTO } from './constants/accion-movimiento.constants';
 import { CreateInfraccionCompletaDto } from './dto/create-infraccion-completa.dto';
 import { FindInfraccionesQueryDto } from './dto/find-infracciones-query.dto';
@@ -845,9 +845,23 @@ export class InfraccionesService {
   async actualizarEstatusYRegistrarMovimiento(
     params: ActualizarEstatusYRegistrarMovimientoParams,
   ): Promise<InfraccionMovimiento> {
+    // La salida es un hecho fisico: los movimientos administrativos
+    // posteriores no deben devolver el expediente a un estatus anterior.
+    const hasSalida =
+      params.nombreEstatus !== ESTATUS_INFRACCION.VEHICULO_ENTREGADO &&
+      (await this.salidasRepository.exists({
+        where: {
+          retencionVehiculo: {
+            infraccion: { idInfraccion: params.idInfraccion },
+          },
+        },
+      }));
+    const nombreEstatus = hasSalida
+      ? ESTATUS_INFRACCION.VEHICULO_ENTREGADO
+      : params.nombreEstatus;
     const [infraccion, estatusInfraccion] = await Promise.all([
       this.findByIdOrFail(params.idInfraccion),
-      this.findEstatusByNombreOrFail(params.nombreEstatus),
+      this.findEstatusByNombreOrFail(nombreEstatus),
     ]);
 
     infraccion.estatusInfraccion = estatusInfraccion;
