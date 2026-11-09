@@ -6,6 +6,13 @@ import {
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
 
+import { sanitizeAuditPayload } from '../../common/redact-sensitive-data';
+import { Auditoria } from '../auditoria/entities/auditoria.entity';
+import { EstatusInfraccion } from '../catalogos/entities/estatus-infraccion.entity';
+import { InfraccionMovimiento } from '../infracciones/entities/infraccion-movimiento.entity';
+import { Infraccion } from '../infracciones/entities/infraccion.entity';
+import type { RegistrarSalidaAnticipadaDto } from './dto/registrar-salida-anticipada.dto';
+
 import { normalizeDate } from '../../common/utils/normalize-date';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { ACCION_MOVIMIENTO } from '../infracciones/constants/accion-movimiento.constants';
@@ -383,6 +390,211 @@ export class EncierrosService {
     });
 
     return savedSalida;
+  }
+
+
+  /**
+   * Registra una entrega fisica sobre una infraccion/retencion existente.
+   * No genera pago ni liberacion electronica y no modifica el flujo ordinario.
+   */
+  async registrarSalidaAnticipada(
+    params: RegistrarSalidaAnticipadaDto & { idUsuarioValidaSalida: number },
+  ): Promise<SalidaVehiculo> {
+    const folio = params.folioLiberacionPresentado?.trim();
+    const placas = params.placasCotejadas?.trim();
+    const referencia = params.referenciaDocumentoLiberacion?.trim();
+    const propietario = params.nombrePropietarioDeclarado?.trim();
+    if (!folio || !placas || !referencia || !propietario ||
+        params.autorizacionDocumentalVerificada !== true) {
+      throw new BadRequestException(
+        'La salida anticipada requiere placas, folio, propietario y autorizacion documental verificada.',
+      );
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      const retencion = await manager.getRepository(RetencionVehiculo)
+        .createQueryBuilder('retencion')
+        .innerJoinAndSelect('retencion.infraccion', 'infraccion')
+        .innerJoinAndSelect('infraccion.vehiculo', 'vehiculo')
+        .leftJoinAndSelect('vehiculo.lineaVehiculo', 'linea')
+        .leftJoinAndSelect('linea.marcaVehiculo', 'marca')
+        .leftJoinAndSelect('vehiculo.claseVehiculo', 'clase')
+        .where('retencion.idRetencionVehiculo = :idRetencion', {
+          idRetencion: params.idRetencionVehiculo,
+        })
+        .getOne();
+
+      if (!retencion) {
+        throw new NotFoundException('No existe una retencion con expediente y vehiculo asociado.');
+      }
+
+      const idInfraccion = retencion.infraccion.idInfraccion;
+      const salidaRepository = manager.getRepository(SalidaVehiculo);
+      if (await salidaRepository.exists({
+        where: { retencionVehiculo: { idRetencionVehiculo: params.idRetencionVehiculo } },
+      })) {
+        throw new BadRequestException('La retencion ya tiene una salida registrada.');
+      }
+
+      if (await manager.getRepository(LiberacionVehiculo).exists({
+        where: { infraccion: { idInfraccion } },
+      })) {
+        throw new BadRequestException(
+          'El expediente ya cuenta con liberacion electronica; utiliza el registro ordinario de salida.',
+        );
+      }
+
+      const folioRegistrado = await manager.query<Array<{ id_infraccion: number }>>(
+        `SELECT id_infraccion
+         FROM liberacion_vehiculo
+         WHERE UPPER(BTRIM(folio_liberacion)) = $1
+         LIMIT 1`,
+        [folio.toUpperCase()],
+      );
+      if (folioRegistrado.length > 0) {
+        throw new BadRequestException('El folio de liberacion presentado ya corresponde a una liberacion electronica.');
+      }
+
+      this.validarCotejoSalidaAnticipada(params, retencion.infraccion);
+
+      const estatus = await manager.getRepository(EstatusInfraccion).findOne({
+        where: { nombreEstatus: ESTATUS_INFRACCION.VEHICULO_ENTREGADO },
+      });
+      if (!estatus) {
+        throw new NotFoundException('No se encontro el estatus VEHICULO_ENTREGADO.');
+      }
+
+      const fechaSalida = new Date();
+      const datos = params.datosVehiculoCotejados;
+      const savedSalida = await salidaRepository.save(salidaRepository.create({
+        retencionVehiculo: { idRetencionVehiculo: params.idRetencionVehiculo } as RetencionVehiculo,
+        liberacionVehiculo: null,
+        usuarioValidaSalida: { idUsuario: params.idUsuarioValidaSalida } as Usuario,
+        fechaSalida,
+        validadoPor: params.validadoPor.trim(),
+        personaRecibeVehiculo: params.personaRecibeVehiculo.trim(),
+        observacionesSalida: params.observacionesSalida?.trim() || null,
+        estadoSalida: 'ENTREGADO',
+        modalidadSalida: 'ANTICIPADA',
+        folioLiberacionPresentado: folio,
+        placasCotejadas: placas,
+        datosVehiculoCotejados: {
+          placas,
+          estadoPlacas: datos.estadoPlacas?.trim() || null,
+          marca: datos.marca?.trim() || null,
+          linea: datos.linea?.trim() || null,
+          clase: datos.clase?.trim() || null,
+          anioModelo: datos.anioModelo ?? null,
+          color: datos.color?.trim() || null,
+          serie: datos.serie?.trim() || null,
+          motor: datos.motor?.trim() || null,
+        },
+        nombrePropietarioDeclarado: propietario,
+        autorizacionDocumentalVerificada: true,
+        referenciaDocumentoLiberacion: referencia,
+      }));
+
+      await manager.getRepository(Infraccion).update(
+        { idInfraccion },
+        { estatusInfraccion: estatus },
+      );
+      const movimientosRepository = manager.getRepository(InfraccionMovimiento);
+      await movimientosRepository.save(movimientosRepository.create({
+        infraccion: { idInfraccion } as Infraccion,
+        estatusInfraccion: estatus,
+        usuario: { idUsuario: params.idUsuarioValidaSalida } as Usuario,
+        accion: ACCION_MOVIMIENTO.VEHICULO_ENTREGADO,
+        observaciones: 'Salida anticipada con autorizacion documental; pago/liberacion electronica pendientes.',
+        fechaMovimiento: fechaSalida,
+      }));
+
+      const auditoriaRepository = manager.getRepository(Auditoria);
+      await auditoriaRepository.save(auditoriaRepository.create({
+        idUsuario: params.idUsuarioValidaSalida,
+        accion: 'SALIDA_ENCIERRO_ANTICIPADA',
+        entidad: 'salidas_vehiculo',
+        entidadId: String(savedSalida.idSalidaVehiculo),
+        severity: 'HIGH',
+        antesJson: null,
+        despuesJson: sanitizeAuditPayload({
+          idInfraccion,
+          idRetencionVehiculo: params.idRetencionVehiculo,
+          modalidadSalida: 'ANTICIPADA',
+          folioLiberacionPresentado: folio,
+          documentoVerificado: true,
+        }),
+      }));
+
+      return savedSalida;
+    });
+  }
+
+  /**
+   * El cotejo no corrige datos del expediente. Cualquier diferencia se
+   * bloquea hasta que exista el flujo auditado de observaciones.
+   */
+  private validarCotejoSalidaAnticipada(
+    params: RegistrarSalidaAnticipadaDto,
+    infraccion: Infraccion,
+  ): void {
+    const vehiculo = infraccion.vehiculo;
+    const normalize = (value: string | number) =>
+      String(value).normalize('NFKC').trim().replace(/\s+/gu, ' ').toUpperCase();
+    const normalizePlacas = (value: string) =>
+      normalize(value).replace(/[\s-]/gu, '');
+
+    if (!vehiculo.placas || normalizePlacas(vehiculo.placas) !==
+        normalizePlacas(params.placasCotejadas)) {
+      throw new BadRequestException(
+        'Las placas cotejadas no coinciden con el expediente. Requiere revision.',
+      );
+    }
+
+    const datos = params.datosVehiculoCotejados;
+    if (!datos) {
+      throw new BadRequestException('Captura los datos generales cotejados.');
+    }
+    const generales: Array<[string, string | number | null | undefined, string | number | null | undefined]> = [
+      ['marca', datos.marca, vehiculo.lineaVehiculo?.marcaVehiculo?.nombreMarcaVehiculo],
+      ['linea', datos.linea, vehiculo.lineaVehiculo?.nombreLineaVehiculo],
+      ['clase', datos.clase, vehiculo.claseVehiculo?.nombreClaseVehiculo],
+      ['color', datos.color, vehiculo.color],
+      ['anio modelo', datos.anioModelo, vehiculo.anioModelo],
+    ];
+    let coincidencias = 0;
+    for (const [campo, reportado, registrado] of generales) {
+      if (reportado === null || reportado === undefined || String(reportado).trim() === '') {
+        continue;
+      }
+      if (registrado === null || registrado === undefined ||
+          normalize(reportado) !== normalize(registrado)) {
+        throw new BadRequestException(
+          `El campo ${campo} del vehiculo no coincide con el expediente. Solicita revision.`,
+        );
+      }
+      coincidencias += 1;
+    }
+    if (coincidencias < 2) {
+      throw new BadRequestException(
+        'Debes cotejar placas y al menos dos datos generales coincidentes.',
+      );
+    }
+
+    const criticos: Array<[string, string | undefined, string | null]> = [
+      ['numero de serie', datos.serie, vehiculo.serie],
+      ['numero de motor', datos.motor, vehiculo.motor],
+      ['estado de placas', datos.estadoPlacas, vehiculo.estadoPlacas],
+    ];
+    for (const [campo, reportado, registrado] of criticos) {
+      if (reportado === undefined || reportado.trim() === '') {
+        continue;
+      }
+      if (!registrado || normalize(reportado) !== normalize(registrado)) {
+        throw new BadRequestException(
+          `El ${campo} no coincide con el expediente. Requiere revision.`,
+        );
+      }
+    }
   }
 
   private buildVehiculosEnEncierroBaseQuery(

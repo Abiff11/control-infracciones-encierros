@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 
-import { ExecutionContext, INestApplication } from '@nestjs/common';
+import { ExecutionContext, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
@@ -11,7 +11,7 @@ import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
 import { EncierrosController } from './encierros.controller';
 import { EncierrosService } from './encierros.service';
 
-type EncierrosHandlerName = 'registrarRetencion' | 'registrarSalida';
+type EncierrosHandlerName = 'registrarRetencion' | 'registrarSalida' | 'registrarSalidaAnticipada';
 
 function getHandlerRoles(handlerName: EncierrosHandlerName): string[] {
   const prototype = EncierrosController.prototype as unknown as Record<
@@ -37,6 +37,7 @@ describe('EncierrosController authorization', () => {
   it('permite a INFRACCIONES registrar ingresos sin autorizar salidas', () => {
     const retencionRoles = getHandlerRoles('registrarRetencion');
     const salidaRoles = getHandlerRoles('registrarSalida');
+    const anticipadaRoles = getHandlerRoles('registrarSalidaAnticipada');
 
     expect(retencionRoles).toContain(ROLES.INFRACCIONES);
     expect(retencionRoles).not.toContain(ROLES.ENCIERRO);
@@ -46,6 +47,9 @@ describe('EncierrosController authorization', () => {
     expect(salidaRoles).not.toContain(ROLES.INFRACCIONES);
     expect(salidaRoles).toContain(ROLES.ENCIERRO);
     expect(salidaRoles).toContain(ROLES.ADMIN);
+    expect(anticipadaRoles).toContain(ROLES.ENCIERRO);
+    expect(anticipadaRoles).toContain(ROLES.ADMIN);
+    expect(anticipadaRoles).not.toContain(ROLES.INFRACCIONES);
   });
 });
 
@@ -55,6 +59,7 @@ describe('EncierrosController accesos HTTP de ENCIERRO', () => {
   const encierrosService = {
     registrarRetencion: jest.fn(),
     registrarSalida: jest.fn(),
+    registrarSalidaAnticipada: jest.fn(),
     findVehiculosEnEncierro: jest.fn(),
   };
 
@@ -83,11 +88,19 @@ describe('EncierrosController accesos HTTP de ENCIERRO', () => {
       .compile();
 
     app = moduleRef.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     await app.init();
   });
 
   beforeEach(() => {
     jest.clearAllMocks();
+    encierrosService.registrarSalidaAnticipada.mockResolvedValue({ idSalidaVehiculo: 101 });
     encierrosService.registrarSalida.mockResolvedValue({
       idSalidaVehiculo: 100,
     });
@@ -129,6 +142,48 @@ describe('EncierrosController accesos HTTP de ENCIERRO', () => {
         idUsuarioValidaSalida: 25,
       }),
     );
+  });
+
+
+  it('permite salida anticipada sin ID de liberacion y asigna usuario autenticado', async () => {
+    await request(app.getHttpServer())
+      .post('/encierros/salidas/anticipadas')
+      .send({
+        idRetencionVehiculo: 5,
+        folioLiberacionPresentado: 'FL-2026-55',
+        placasCotejadas: 'ABC-123-D',
+        datosVehiculoCotejados: { marca: 'Nissan', linea: 'Versa' },
+        autorizacionDocumentalVerificada: true,
+        referenciaDocumentoLiberacion: 'Oficio de liberacion con firma',
+        nombrePropietarioDeclarado: 'Propietario',
+        validadoPor: 'Responsable',
+        personaRecibeVehiculo: 'Persona receptora',
+      })
+      .expect(201);
+
+    expect(encierrosService.registrarSalidaAnticipada).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idRetencionVehiculo: 5,
+        idUsuarioValidaSalida: 25,
+      }),
+    );
+  });
+
+  it('rechaza salida anticipada sin referencia documental', async () => {
+    await request(app.getHttpServer())
+      .post('/encierros/salidas/anticipadas')
+      .send({
+        idRetencionVehiculo: 5,
+        folioLiberacionPresentado: 'FL-2026-55',
+        placasCotejadas: 'ABC-123-D',
+        datosVehiculoCotejados: { marca: 'Nissan', linea: 'Versa' },
+        autorizacionDocumentalVerificada: true,
+        nombrePropietarioDeclarado: 'Propietario',
+        validadoPor: 'Responsable',
+        personaRecibeVehiculo: 'Persona receptora',
+      })
+      .expect(400);
+    expect(encierrosService.registrarSalidaAnticipada).not.toHaveBeenCalled();
   });
 
   it('permite consultar el inventario sin modificar registros', async () => {

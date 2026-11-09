@@ -24,6 +24,7 @@ import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
 import { VehiculosEncierroQueryDto } from './dto/vehiculos-query.dto';
 import { RegistrarRetencionDto } from './dto/registrar-retencion.dto';
 import { RegistrarSalidaDto } from './dto/registrar-salida.dto';
+import { RegistrarSalidaAnticipadaDto } from './dto/registrar-salida-anticipada.dto';
 import { EncierrosService } from './encierros.service';
 
 @ApiTags('encierros')
@@ -70,6 +71,23 @@ export class EncierrosController {
   @ApiOperation({ summary: 'Registrar retención vehicular' })
   registrarRetencion(@Body() registrarRetencionDto: RegistrarRetencionDto) {
     return this.encierrosService.registrarRetencion(registrarRetencionDto);
+  }
+
+
+  @Roles(...YARD_ROLES)
+  @Post('salidas/anticipadas')
+  @InfraccionWriteLock('body.idRetencionVehiculo')
+  @ApiOperation({
+    summary: 'Registrar salida anticipada con expediente y retencion existentes',
+  })
+  registrarSalidaAnticipada(
+    @Body() dto: RegistrarSalidaAnticipadaDto,
+    @CurrentUser() currentUser: LoginResponseUsuarioDto,
+  ) {
+    return this.encierrosService.registrarSalidaAnticipada({
+      ...dto,
+      idUsuarioValidaSalida: currentUser.idUsuario,
+    });
   }
 
   @Roles(...YARD_ROLES)
