@@ -103,7 +103,7 @@ export class EncierrosController {
   }
 
 
-  @Roles(...YARD_ROLES)
+  @Roles(ROLES.ENCIERRO)
   @Post('salidas/anticipadas')
   @InfraccionWriteLock('body.idRetencionVehiculo')
   @ApiOperation({

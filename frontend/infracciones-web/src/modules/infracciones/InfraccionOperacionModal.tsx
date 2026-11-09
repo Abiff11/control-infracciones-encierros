@@ -132,8 +132,15 @@ function toMoney(value: string): string {
 
 function createInitialForm(
   type: InfraccionOperacionTipo | null,
+  item: InfraccionListItem | null,
 ): OperationFormState {
   const now = formatDateTimeLocalInput();
+  const vehiculoParaCotejo =
+    type === "salida" &&
+    Boolean(item?.retencion?.idRetencionVehiculo) &&
+    !item?.liberacion?.tieneLiberacion
+      ? item?.vehiculo
+      : null;
 
   return {
     idEncierro: "",
@@ -155,15 +162,17 @@ function createInitialForm(
     estadoSalida: type === "salida" ? "ENTREGADO" : "",
     observacionesSalida: "",
     folioLiberacionPresentado: "",
-    placasCotejadas: "",
-    marcaCotejada: "",
-    lineaCotejada: "",
-    claseCotejada: "",
-    colorCotejado: "",
-    anioModeloCotejado: "",
-    estadoPlacasCotejado: "",
-    serieCotejada: "",
-    motorCotejado: "",
+    placasCotejadas: vehiculoParaCotejo?.placas ?? "",
+    marcaCotejada: vehiculoParaCotejo?.marca ?? "",
+    lineaCotejada: vehiculoParaCotejo?.linea ?? "",
+    claseCotejada: vehiculoParaCotejo?.clase ?? "",
+    colorCotejado: vehiculoParaCotejo?.color ?? "",
+    anioModeloCotejado: vehiculoParaCotejo?.anioModelo == null
+      ? ""
+      : String(vehiculoParaCotejo.anioModelo),
+    estadoPlacasCotejado: vehiculoParaCotejo?.estadoPlacas ?? "",
+    serieCotejada: vehiculoParaCotejo?.serie ?? "",
+    motorCotejado: vehiculoParaCotejo?.motor ?? "",
     referenciaDocumentoLiberacion: "",
     nombrePropietarioDeclarado: "",
     autorizacionDocumentalVerificada: false,
@@ -403,7 +412,7 @@ export function InfraccionOperacionModal({
 }: InfraccionOperacionModalProps) {
   const copy = useMemo(() => getOperationCopy(type), [type]);
   const [form, setForm] = useState<OperationFormState>(() =>
-    createInitialForm(type),
+    createInitialForm(type, item),
   );
   const [pagoConceptos, setPagoConceptos] = useState<PagoConceptoFormRow[]>([
     createEmptyPagoConceptoRow(),
@@ -442,14 +451,14 @@ export function InfraccionOperacionModal({
   useEffect(() => {
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setForm(createInitialForm(type));
+      setForm(createInitialForm(type, item));
       setPagoConceptos([createEmptyPagoConceptoRow()]);
       setNoAplicaPago(false);
       setMotivoNoAplica("");
       setSaving(false);
       setError(null);
     }
-  }, [open, type]);
+  }, [open, type, item]);
 
   function updateField(field: keyof OperationFormState, value: string): void {
     setForm((current) => ({ ...current, [field]: value }));
@@ -484,6 +493,10 @@ export function InfraccionOperacionModal({
 
     if (!canPerformOperationForRole(roleName, type)) {
       return "El rol ENCIERRO solo puede registrar salidas vehiculares.";
+    }
+
+    if (isSalidaAnticipada && roleName?.toUpperCase() !== "ENCIERRO") {
+      return "Solo el rol ENCIERRO puede registrar salidas anticipadas.";
     }
 
     if (type === "retencion") {
@@ -855,6 +868,10 @@ export function InfraccionOperacionModal({
         : "No aplica pago"
       : undefined;
 
+  if (isSalidaAnticipada && roleName?.toUpperCase() !== "ENCIERRO") {
+    return null;
+  }
+
   return (
     <Modal
       open={open}
@@ -1102,7 +1119,7 @@ export function InfraccionOperacionModal({
           <div className="form-grid form-grid-2">
             <RequiredNote>
               {isSalidaAnticipada
-                ? "Salida anticipada: coteja las placas y los datos del vehiculo. Si el color o año modelo difiere, registra una observación para Infracciones con motivo y evidencia. Otras diferencias bloquean la salida."
+                ? "Los datos del vehículo están precargados desde el expediente. Verifícalos físicamente antes de confirmar. Si difiere el color o año modelo, modifica ese campo y registra una observación para Infracciones con evidencia. Las demás diferencias bloquean la salida."
                 : "Se usaran automaticamente la retencion y la liberacion vigentes del expediente."}
             </RequiredNote>
 
@@ -1120,7 +1137,6 @@ export function InfraccionOperacionModal({
                   <TextInput
                     id="operacion-ant-placasCotejadas"
                     value={form.placasCotejadas}
-                    placeholder={item?.vehiculo.placas ?? ""}
                     onChange={(event) => updateField("placasCotejadas", event.target.value)}
                   />
                 </Field>
@@ -1128,7 +1144,6 @@ export function InfraccionOperacionModal({
                   <TextInput
                     id="operacion-ant-marcaCotejada"
                     value={form.marcaCotejada}
-                    placeholder={item?.vehiculo.marca ?? ""}
                     onChange={(event) => updateField("marcaCotejada", event.target.value)}
                   />
                 </Field>
@@ -1136,7 +1151,6 @@ export function InfraccionOperacionModal({
                   <TextInput
                     id="operacion-ant-lineaCotejada"
                     value={form.lineaCotejada}
-                    placeholder={item?.vehiculo.linea ?? ""}
                     onChange={(event) => updateField("lineaCotejada", event.target.value)}
                   />
                 </Field>
@@ -1144,7 +1158,6 @@ export function InfraccionOperacionModal({
                   <TextInput
                     id="operacion-ant-claseCotejada"
                     value={form.claseCotejada}
-                    placeholder={item?.vehiculo.clase ?? ""}
                     onChange={(event) => updateField("claseCotejada", event.target.value)}
                   />
                 </Field>
@@ -1152,7 +1165,6 @@ export function InfraccionOperacionModal({
                   <TextInput
                     id="operacion-ant-colorCotejado"
                     value={form.colorCotejado}
-                    placeholder={item?.vehiculo.color ?? ""}
                     onChange={(event) => updateField("colorCotejado", event.target.value)}
                   />
                 </Field>
@@ -1168,7 +1180,6 @@ export function InfraccionOperacionModal({
                   <TextInput
                     id="operacion-ant-estadoPlacasCotejado"
                     value={form.estadoPlacasCotejado}
-                    placeholder={item?.vehiculo.estadoPlacas ?? ""}
                     onChange={(event) => updateField("estadoPlacasCotejado", event.target.value)}
                   />
                 </Field>
@@ -1176,7 +1187,6 @@ export function InfraccionOperacionModal({
                   <TextInput
                     id="operacion-ant-serieCotejada"
                     value={form.serieCotejada}
-                    placeholder={item?.vehiculo.serie ?? ""}
                     onChange={(event) => updateField("serieCotejada", event.target.value)}
                   />
                 </Field>
@@ -1184,7 +1194,6 @@ export function InfraccionOperacionModal({
                   <TextInput
                     id="operacion-ant-motorCotejado"
                     value={form.motorCotejado}
-                    placeholder={item?.vehiculo.motor ?? ""}
                     onChange={(event) => updateField("motorCotejado", event.target.value)}
                   />
                 </Field>
@@ -1266,7 +1275,7 @@ export function InfraccionOperacionModal({
                       checked={form.autorizacionDocumentalVerificada}
                       onChange={(event) => updateAutorizacionDocumental(event.target.checked)}
                     />
-                    {" "}Verifique fisicamente el vehiculo y el documento de liberacion presentado.
+                    {" "}Confirmo que verifiqué físicamente el vehículo contra los datos del expediente y revisé el documento de liberación presentado.
                   </label>
                 </div>
               </>

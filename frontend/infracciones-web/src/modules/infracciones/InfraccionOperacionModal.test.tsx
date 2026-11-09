@@ -332,6 +332,62 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
   });
 
 
+  it("precarga los datos del vehículo, no el folio, y deja sin marcar la verificación", () => {
+    renderModal("salida", expedienteRetenido({
+      anioModelo: 2022,
+      serie: "3N6AD33B4NK844448",
+      motor: "MTR-555",
+    }), "ENCIERRO");
+
+    const precargados = [
+      ["Placas verificadas fisicamente", "ABC123"],
+      ["Marca cotejada", "SUZUKI"],
+      ["Linea cotejada", "SWIFT"],
+      ["Clase cotejada", "AUTOMOVIL"],
+      ["Color cotejado", "BLANCO"],
+      ["Año modelo cotejado (opcional)", "2022"],
+      ["Estado de placas (opcional)", "OAXACA"],
+      ["Numero de serie (opcional)", "3N6AD33B4NK844448"],
+      ["Numero de motor (opcional)", "MTR-555"],
+    ] as const;
+    for (const [campo, valor] of precargados) {
+      expect(screen.getByLabelText(campo)).toHaveValue(valor);
+    }
+    expect(screen.getByLabelText("Folio de liberacion presentado")).toHaveValue("");
+    expect(screen.getByLabelText("Referencia del documento de liberacion")).toHaveValue("");
+    expect(screen.getByLabelText("Propietario declarado")).toHaveValue("");
+    expect(screen.getByLabelText(/Confirmo que verifiqué físicamente el vehículo/i)).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Registrar salida anticipada" })).toBeDisabled();
+  });
+
+  it("exige confirmación física aun cuando todos los valores estén precargados", () => {
+    renderModal("salida", expedienteRetenido({ anioModelo: 2022 }), "ENCIERRO");
+    const manuales = [
+      ["Folio de liberacion presentado", "FL-2026-55"],
+      ["Referencia del documento de liberacion", "Oficio firmado"],
+      ["Propietario declarado", "Persona propietaria"],
+      ["Validado por", "Encargado"],
+      ["Persona recibe vehiculo", "Persona receptora"],
+    ] as const;
+    for (const [campo, valor] of manuales) {
+      fireEvent.change(screen.getByLabelText(campo), { target: { value: valor } });
+    }
+    const guardar = screen.getByRole("button", { name: "Registrar salida anticipada" });
+    expect(guardar).toBeDisabled();
+    fireEvent.click(screen.getByLabelText(/Confirmo que verifiqué físicamente el vehículo/i));
+    expect(guardar).toBeEnabled();
+  });
+
+  it.each(["ADMIN", "OPERADOR", "INFRACCIONES"] as const)(
+    "no muestra el formulario de salida anticipada al rol %s",
+    (rol) => {
+      renderModal("salida", expedienteRetenido(), rol);
+      expect(screen.queryByRole("button", { name: "Registrar salida anticipada" })).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("Placas verificadas fisicamente")).not.toBeInTheDocument();
+      expect(apiMocks.createSalidaAnticipada).not.toHaveBeenCalled();
+    },
+  );
+
   it("permite salida anticipada con cotejo y autorizacion documental", async () => {
     const item = createItem({
       retencion: {
@@ -356,7 +412,7 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
     for (const [name, value] of fields) {
       fireEvent.change(screen.getByLabelText(name), { target: { value } });
     }
-    fireEvent.click(screen.getByLabelText(/Verifique fisicamente el vehiculo y el documento/i));
+    fireEvent.click(screen.getByLabelText(/Confirmo que verifiqué físicamente el vehículo/i));
     fireEvent.click(screen.getByRole("button", { name: "Registrar salida anticipada" }));
     await waitFor(() => {
       expect(apiMocks.createSalidaAnticipada).toHaveBeenCalledWith(
@@ -365,7 +421,13 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
           idRetencionVehiculo: 50,
           folioLiberacionPresentado: "FL-2026-55",
           placasCotejadas: "ABC123",
-          datosVehiculoCotejados: { marca: "SUZUKI", linea: "SWIFT" },
+          datosVehiculoCotejados: expect.objectContaining({
+            marca: "SUZUKI",
+            linea: "SWIFT",
+            clase: "AUTOMOVIL",
+            color: "BLANCO",
+            estadoPlacas: "OAXACA",
+          }),
           autorizacionDocumentalVerificada: true,
         }),
       );
@@ -406,7 +468,7 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
       fireEvent.change(screen.getByLabelText(label), { target: { value } });
     }
     fireEvent.click(
-      screen.getByLabelText(/Verifique fisicamente el vehiculo y el documento/i),
+      screen.getByLabelText(/Confirmo que verifiqué físicamente el vehículo/i),
     );
   }
 

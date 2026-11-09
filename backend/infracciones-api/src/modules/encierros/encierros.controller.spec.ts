@@ -49,8 +49,9 @@ describe('EncierrosController authorization', () => {
     expect(salidaRoles).not.toContain(ROLES.INFRACCIONES);
     expect(salidaRoles).toContain(ROLES.ENCIERRO);
     expect(salidaRoles).toContain(ROLES.ADMIN);
-    expect(anticipadaRoles).toContain(ROLES.ENCIERRO);
-    expect(anticipadaRoles).toContain(ROLES.ADMIN);
+    expect(anticipadaRoles).toEqual([ROLES.ENCIERRO]);
+    expect(anticipadaRoles).not.toContain(ROLES.ADMIN);
+    expect(anticipadaRoles).not.toContain(ROLES.OPERADOR);
     expect(anticipadaRoles).not.toContain(ROLES.INFRACCIONES);
     expect(observacionesRoles).toEqual([ROLES.ADMIN, ROLES.INFRACCIONES]);
     expect(observacionesRoles).not.toContain(ROLES.CONSULTA);
@@ -216,6 +217,91 @@ describe('EncierrosController accesos HTTP de ENCIERRO', () => {
     expect(encierrosService.findVehiculosEnEncierro).toHaveBeenCalledTimes(1);
     expect(encierrosService.registrarSalida).not.toHaveBeenCalled();
     expect(encierrosService.registrarRetencion).not.toHaveBeenCalled();
+  });
+});
+
+describe('EncierrosController salida anticipada exclusiva de ENCIERRO', () => {
+  let app: INestApplication;
+  let rolSimulado: string = ROLES.ADMIN;
+  const service = {
+    registrarSalidaAnticipada: jest.fn(),
+    registrarSalida: jest.fn(),
+  };
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [EncierrosController],
+      providers: [
+        { provide: EncierrosService, useValue: service },
+        RoleAuthGuard,
+      ],
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({
+        canActivate(context: ExecutionContext): boolean {
+          const httpRequest = context.switchToHttp().getRequest<{
+            user?: { idUsuario: number; rol: { nombreRol: string } };
+          }>();
+          httpRequest.user = {
+            idUsuario: 27,
+            rol: { nombreRol: rolSimulado },
+          };
+          return true;
+        },
+      })
+      .compile();
+
+    app = moduleRef.createNestApplication();
+    app.useGlobalPipes(new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }));
+    await app.init();
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service.registrarSalida.mockResolvedValue({ idSalidaVehiculo: 100 });
+  });
+
+  afterAll(async () => { await app.close(); });
+
+  it.each([ROLES.ADMIN, ROLES.OPERADOR, ROLES.INFRACCIONES])(
+    'deniega HTTP 403 al rol %s para salida anticipada',
+    async (rol) => {
+      rolSimulado = rol;
+      await request(app.getHttpServer())
+        .post('/encierros/salidas/anticipadas')
+        .send({
+          idRetencionVehiculo: 5,
+          folioLiberacionPresentado: 'FL-2026-55',
+          placasCotejadas: 'ABC123',
+          datosVehiculoCotejados: { marca: 'Nissan', linea: 'Versa' },
+          autorizacionDocumentalVerificada: true,
+          referenciaDocumentoLiberacion: 'Oficio firmado',
+          nombrePropietarioDeclarado: 'Propietario',
+          validadoPor: 'Encargado',
+          personaRecibeVehiculo: 'Persona receptora',
+        })
+        .expect(403);
+      expect(service.registrarSalidaAnticipada).not.toHaveBeenCalled();
+    },
+  );
+
+  it('conserva la salida ordinaria para ADMIN', async () => {
+    rolSimulado = ROLES.ADMIN;
+    await request(app.getHttpServer())
+      .post('/encierros/salidas')
+      .send({
+        idRetencionVehiculo: 5,
+        idLiberacionVehiculo: 7,
+        validadoPor: 'Encargado',
+        personaRecibeVehiculo: 'Persona receptora',
+        estadoSalida: 'ENTREGADO',
+      })
+      .expect(201);
+    expect(service.registrarSalida).toHaveBeenCalledTimes(1);
   });
 });
 

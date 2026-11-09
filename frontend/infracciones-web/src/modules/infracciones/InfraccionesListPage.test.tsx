@@ -510,6 +510,16 @@ describe("InfraccionesListPage rol ENCIERRO", () => {
     expect(screen.getByTestId("operation-open")).toHaveTextContent("salida");
   });
 
+  it.each(["ADMIN", "OPERADOR", "INFRACCIONES", "LIBERACIONES"] as const)(
+    "no ofrece el botón de salida anticipada al rol %s",
+    async (rol) => {
+      await renderWithItem(createItemEnEncierro("EN_ENCIERRO_SIN_PAGO"), rol);
+      expect(
+        screen.queryByRole("button", { name: "Registrar salida anticipada" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
   it("bloquea salida anticipada si la entrega ya fue registrada", async () => {
     const item = createItemEnEncierro("EN_ENCIERRO_SIN_PAGO");
     await renderWithItem({
