@@ -11,7 +11,7 @@ import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
 import { EncierrosController } from './encierros.controller';
 import { EncierrosService } from './encierros.service';
 
-type EncierrosHandlerName = 'registrarRetencion' | 'registrarSalida' | 'registrarSalidaAnticipada' | 'listarObservacionesPendientes';
+type EncierrosHandlerName = 'registrarRetencion' | 'registrarSalida' | 'registrarSalidaAnticipada' | 'listarObservacionesPendientes' | 'resolverObservacion';
 
 function getHandlerRoles(handlerName: EncierrosHandlerName): string[] {
   const prototype = EncierrosController.prototype as unknown as Record<
@@ -39,6 +39,7 @@ describe('EncierrosController authorization', () => {
     const salidaRoles = getHandlerRoles('registrarSalida');
     const anticipadaRoles = getHandlerRoles('registrarSalidaAnticipada');
     const observacionesRoles = getHandlerRoles('listarObservacionesPendientes');
+    const resolverRoles = getHandlerRoles('resolverObservacion');
 
     expect(retencionRoles).toContain(ROLES.INFRACCIONES);
     expect(retencionRoles).not.toContain(ROLES.ENCIERRO);
@@ -54,6 +55,8 @@ describe('EncierrosController authorization', () => {
     expect(observacionesRoles).toEqual([ROLES.ADMIN, ROLES.INFRACCIONES]);
     expect(observacionesRoles).not.toContain(ROLES.CONSULTA);
     expect(observacionesRoles).not.toContain(ROLES.ENCIERRO);
+    expect(resolverRoles).toEqual([ROLES.INFRACCIONES, ROLES.ADMIN]);
+    expect(resolverRoles).not.toContain(ROLES.ENCIERRO);
   });
 });
 
@@ -65,6 +68,7 @@ describe('EncierrosController accesos HTTP de ENCIERRO', () => {
     registrarSalida: jest.fn(),
     registrarSalidaAnticipada: jest.fn(),
     listarObservacionesPendientes: jest.fn(),
+    resolverObservacion: jest.fn(),
     findVehiculosEnEncierro: jest.fn(),
   };
 
@@ -198,11 +202,105 @@ describe('EncierrosController accesos HTTP de ENCIERRO', () => {
     expect(encierrosService.listarObservacionesPendientes).not.toHaveBeenCalled();
   });
 
+  it('prohibe a ENCIERRO resolver observaciones', async () => {
+    await request(app.getHttpServer())
+      .patch('/encierros/observaciones/21')
+      .send({ decision: 'CORREGIR', resolucion: 'Documento oficial cotejado.' })
+      .expect(403);
+    expect(encierrosService.resolverObservacion).not.toHaveBeenCalled();
+  });
+
   it('permite consultar el inventario sin modificar registros', async () => {
     await request(app.getHttpServer()).get('/encierros/vehiculos').expect(200);
 
     expect(encierrosService.findVehiculosEnEncierro).toHaveBeenCalledTimes(1);
     expect(encierrosService.registrarSalida).not.toHaveBeenCalled();
     expect(encierrosService.registrarRetencion).not.toHaveBeenCalled();
+  });
+});
+
+describe('EncierrosController atencion de observaciones por INFRACCIONES', () => {
+  let app: INestApplication;
+  const service = { resolverObservacion: jest.fn() };
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [EncierrosController],
+      providers: [
+        { provide: EncierrosService, useValue: service },
+        RoleAuthGuard,
+      ],
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({
+        canActivate(context: ExecutionContext): boolean {
+          const req = context.switchToHttp().getRequest<{
+            user?: { idUsuario: number; rol: { nombreRol: string } };
+          }>();
+          req.user = { idUsuario: 27, rol: { nombreRol: ROLES.INFRACCIONES } };
+          return true;
+        },
+      })
+      .compile();
+    app = moduleRef.createNestApplication();
+    app.useGlobalPipes(new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }));
+    await app.init();
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service.resolverObservacion.mockResolvedValue({ idObservacion: 21, estatus: 'CORREGIDA' });
+  });
+  afterAll(async () => { await app.close(); });
+
+  it('resuelve observacion con identidad del usuario autenticado', async () => {
+    await request(app.getHttpServer())
+      .patch('/encierros/observaciones/21')
+      .send({
+        decision: 'CORREGIR',
+        resolucion: 'El año modelo fue verificado en tarjeta de circulacion.',
+      })
+      .expect(200);
+    expect(service.resolverObservacion).toHaveBeenCalledWith({
+      idObservacion: 21,
+      idUsuarioResuelve: 27,
+      decision: 'CORREGIR',
+      resolucion: 'El año modelo fue verificado en tarjeta de circulacion.',
+    });
+  });
+
+  it('no admite cambios a placas desde esta operacion', async () => {
+    await request(app.getHttpServer())
+      .patch('/encierros/observaciones/21')
+      .send({
+        decision: 'CORREGIR',
+        resolucion: 'Documento oficial cotejado.',
+        placas: 'OTRA-PLACA',
+      })
+      .expect(400);
+    expect(service.resolverObservacion).not.toHaveBeenCalled();
+  });
+
+  it('no acepta rechazo sin justificacion', async () => {
+    await request(app.getHttpServer())
+      .patch('/encierros/observaciones/21')
+      .send({ decision: 'RECHAZAR', resolucion: 'No' })
+      .expect(400);
+    expect(service.resolverObservacion).not.toHaveBeenCalled();
+  });
+
+  it('no acepta decisiones fuera de CORREGIR y RECHAZAR', async () => {
+    await request(app.getHttpServer())
+      .patch('/encierros/observaciones/21')
+      .send({
+        decision: 'EDITAR_SERIE',
+        resolucion: 'Cambio no permitido desde la bandeja.',
+      })
+      .expect(400);
+    expect(service.resolverObservacion).not.toHaveBeenCalled();
   });
 });

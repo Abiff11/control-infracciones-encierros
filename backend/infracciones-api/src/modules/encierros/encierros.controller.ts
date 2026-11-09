@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -27,6 +28,7 @@ import { VehiculosEncierroQueryDto } from './dto/vehiculos-query.dto';
 import { RegistrarRetencionDto } from './dto/registrar-retencion.dto';
 import { RegistrarSalidaDto } from './dto/registrar-salida.dto';
 import { RegistrarSalidaAnticipadaDto } from './dto/registrar-salida-anticipada.dto';
+import { ResolverObservacionDto } from './dto/resolver-observacion.dto';
 import { EncierrosService } from './encierros.service';
 
 @ApiTags('encierros')
@@ -69,6 +71,21 @@ export class EncierrosController {
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {
     return this.encierrosService.listarObservacionesPendientes({ page, limit });
+  }
+
+  @Roles(ROLES.INFRACCIONES, ROLES.ADMIN)
+  @Patch('observaciones/:idObservacion')
+  @ApiOperation({ summary: 'Corregir color/año modelo o rechazar una observacion con auditoria' })
+  resolverObservacion(
+    @Param('idObservacion', ParseIntPipe) idObservacion: number,
+    @Body() dto: ResolverObservacionDto,
+    @CurrentUser() currentUser: LoginResponseUsuarioDto,
+  ) {
+    return this.encierrosService.resolverObservacion({
+      ...dto,
+      idObservacion,
+      idUsuarioResuelve: currentUser.idUsuario,
+    });
   }
 
   @Get(':idEncierro')

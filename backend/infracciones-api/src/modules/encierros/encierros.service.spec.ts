@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 
 import { Auditoria } from '../auditoria/entities/auditoria.entity';
 import { EstatusInfraccion } from '../catalogos/entities/estatus-infraccion.entity';
@@ -402,5 +402,155 @@ describe('EncierrosService registrarSalidaAnticipada', () => {
       referenciaDocumentoLiberacion: ' ',
     })).rejects.toBeInstanceOf(BadRequestException);
     expect(f.dataSource.transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('EncierrosService resolverObservacion', () => {
+  function fixture(options?: {
+    campo?: 'COLOR' | 'ANIO_MODELO';
+    estatus?: string;
+    valorOriginal?: string;
+    valorReportado?: string;
+    colorActual?: string;
+    anioActual?: number;
+    referencias?: number;
+  }) {
+    const observacion = {
+      idObservacion: 21,
+      idInfraccion: 15,
+      idInfraccionRetencion: 15,
+      idVehiculo: 47,
+      modalidadSalida: 'ANTICIPADA',
+      estatus: options?.estatus ?? 'PENDIENTE',
+      campoObservado: options?.campo ?? 'ANIO_MODELO',
+      valorOriginal: options?.valorOriginal ?? '2022',
+      valorReportado: options?.valorReportado ?? '2023',
+    };
+    const auditoria = {
+      create: jest.fn((value: Record<string, unknown>) => value),
+      save: jest.fn((value: Record<string, unknown>) => Promise.resolve(value)),
+    };
+    const query = jest.fn((sql: string) => {
+      if (sql.includes('FROM observacion_expediente o')) return Promise.resolve([observacion]);
+      if (sql.includes('FROM vehiculo')) return Promise.resolve([{
+        color: options?.colorActual ?? 'BLANCO',
+        anioModelo: options?.anioActual ?? 2022,
+      }]);
+      if (sql.includes('COUNT(*)::int AS total')) return Promise.resolve([{
+        total: options?.referencias ?? 1,
+      }]);
+      if (sql.includes('UPDATE vehiculo')) return Promise.resolve([]);
+      if (sql.includes('UPDATE observacion_expediente')) {
+        return Promise.resolve([{ idObservacion: 21 }]);
+      }
+      throw new Error('SQL inesperado: ' + sql);
+    });
+    const manager = {
+      query,
+      getRepository: jest.fn((entity: unknown) => {
+        if (entity === Auditoria) return auditoria;
+        throw new Error('Repositorio inesperado');
+      }),
+    };
+    const dataSource = {
+      transaction: jest.fn((fn: (manager: typeof manager) => Promise<unknown>) => fn(manager)),
+    };
+    const service = new EncierrosService(
+      dataSource as never, {} as never, {} as never, {} as never,
+      { registrar: jest.fn() } as never, {} as never,
+    );
+    const params = {
+      idObservacion: 21, idUsuarioResuelve: 9,
+      decision: 'CORREGIR' as const,
+      resolucion: 'Tarjeta de circulacion cotejada y verificada.',
+    };
+    return { service, params, query, auditoria, dataSource };
+  }
+
+  it('corrige solo el año modelo con auditoria y mantiene la salida intacta', async () => {
+    const f = fixture();
+    const r = await f.service.resolverObservacion(f.params);
+    expect(r).toEqual(expect.objectContaining({
+      campoObservado: 'ANIO_MODELO',
+      estatus: 'CORREGIDA',
+      valorAnterior: '2022',
+      valorPosterior: '2023',
+    }));
+    expect(f.query).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE vehiculo SET anio_modelo'),
+      [2023, 47],
+    );
+    expect(f.auditoria.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accion: 'OBSERVACION_EXPEDIENTE_CORREGIDA', idUsuario: 9,
+      }),
+    );
+    expect(f.dataSource.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('solo actualiza color y no toca placas, serie ni motor', async () => {
+    const f = fixture({
+      campo: 'COLOR', valorOriginal: 'BLANCO', valorReportado: 'PLATA',
+    });
+    const r = await f.service.resolverObservacion(f.params);
+    expect(r.valorPosterior).toBe('PLATA');
+    const changed = f.query.mock.calls
+      .map(([sql]) => String(sql))
+      .filter((sql) => sql.includes('UPDATE vehiculo'));
+    expect(changed).toHaveLength(1);
+    expect(changed[0]).toContain('SET color');
+    expect(changed[0]).not.toMatch(/placas|serie|motor/u);
+  });
+
+  it('rechaza una observacion con motivo sin cambiar datos del vehiculo', async () => {
+    const f = fixture();
+    const r = await f.service.resolverObservacion({
+      ...f.params,
+      decision: 'RECHAZAR',
+    });
+    expect(r.estatus).toBe('RECHAZADA');
+    expect(f.query.mock.calls.some(([sql]) => String(sql).includes('UPDATE vehiculo')))
+      .toBe(false);
+    expect(f.auditoria.create).toHaveBeenCalledWith(
+      expect.objectContaining({ accion: 'OBSERVACION_EXPEDIENTE_RECHAZADA' }),
+    );
+  });
+
+  it('impide volver a resolver una observacion atendida', async () => {
+    const f = fixture({ estatus: 'CORREGIDA' });
+    await expect(f.service.resolverObservacion(f.params))
+      .rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('bloquea sobrescribir un dato que cambio posteriormente', async () => {
+    const f = fixture({ anioActual: 2024 });
+    await expect(f.service.resolverObservacion(f.params))
+      .rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('protege otros expedientes cuando comparten el mismo vehiculo', async () => {
+    const f = fixture({ referencias: 2 });
+    await expect(f.service.resolverObservacion(f.params))
+      .rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rechaza años reportados fuera del intervalo permitido', async () => {
+    const f = fixture({ valorReportado: '2200' });
+    await expect(f.service.resolverObservacion(f.params))
+      .rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('exige justificacion de la decision', async () => {
+    const f = fixture();
+    await expect(f.service.resolverObservacion({ ...f.params, resolucion: ' ' }))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(f.dataSource.transaction).not.toHaveBeenCalled();
+  });
+
+  it('no da por exitosa la operacion cuando falla la auditoria', async () => {
+    const f = fixture();
+    f.auditoria.save.mockRejectedValue(new Error('Auditoria no disponible'));
+    await expect(f.service.resolverObservacion(f.params))
+      .rejects.toThrow('Auditoria no disponible');
   });
 });
