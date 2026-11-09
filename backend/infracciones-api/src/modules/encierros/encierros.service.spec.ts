@@ -7,6 +7,7 @@ import { Infraccion } from '../infracciones/entities/infraccion.entity';
 import { LiberacionVehiculo } from '../liberaciones/entities/liberacion-vehiculo.entity';
 import { RetencionVehiculo } from './entities/retencion-vehiculo.entity';
 import { SalidaVehiculo } from './entities/salida-vehiculo.entity';
+import { ObservacionExpediente } from './entities/observacion-expediente.entity';
 import { EncierrosService } from './encierros.service';
 
 function createRepositoryMock() {
@@ -174,6 +175,10 @@ describe('EncierrosService registrarSalidaAnticipada', () => {
     const infracciones = { update: jest.fn().mockResolvedValue({ affected: 1 }) };
     const movimientos = { create: jest.fn((value: Record<string, unknown>) => value), save: jest.fn().mockResolvedValue({}) };
     const auditoria = { create: jest.fn((value: Record<string, unknown>) => value), save: jest.fn().mockResolvedValue({}) };
+    const observaciones = {
+      create: jest.fn((value: Record<string, unknown>) => value),
+      save: jest.fn().mockResolvedValue([]),
+    };
     const manager = {
       getRepository: jest.fn((entity: unknown) => {
         if (entity === RetencionVehiculo) return retenciones;
@@ -183,6 +188,7 @@ describe('EncierrosService registrarSalidaAnticipada', () => {
         if (entity === Infraccion) return infracciones;
         if (entity === InfraccionMovimiento) return movimientos;
         if (entity === Auditoria) return auditoria;
+        if (entity === ObservacionExpediente) return observaciones;
         throw new Error('Repositorio no esperado');
       }),
       query: jest.fn().mockResolvedValue([]),
@@ -208,7 +214,7 @@ describe('EncierrosService registrarSalidaAnticipada', () => {
       personaRecibeVehiculo: 'Persona receptora',
       idUsuarioValidaSalida: 3,
     };
-    return { service, params, dataSource, retenciones, queryBuilder, salidas, liberaciones, estatus, infracciones, movimientos, auditoria, manager };
+    return { service, params, dataSource, retenciones, queryBuilder, salidas, liberaciones, estatus, infracciones, movimientos, auditoria, observaciones, manager };
   }
 
   it('registra salida, estatus, movimiento y auditoria en una sola transaccion', async () => {
@@ -237,13 +243,140 @@ describe('EncierrosService registrarSalidaAnticipada', () => {
     expect(f.salidas.save).not.toHaveBeenCalled();
   });
 
-  it('bloquea un dato general divergente hasta habilitar observaciones', async () => {
+  it('bloquea una discrepancia menor sin motivo y evidencia', async () => {
     const f = fixture();
     await expect(f.service.registrarSalidaAnticipada({
       ...f.params,
       datosVehiculoCotejados: { marca: 'NISSAN', linea: 'VERSA', color: 'negro' },
     })).rejects.toBeInstanceOf(BadRequestException);
     expect(f.salidas.save).not.toHaveBeenCalled();
+  });
+
+
+  it('registra la entrega y una observacion pendiente cuando el año modelo es distinto', async () => {
+    const f = fixture();
+    const salida = await f.service.registrarSalidaAnticipada({
+      ...f.params,
+      datosVehiculoCotejados: {
+        marca: 'NISSAN',
+        linea: 'VERSA',
+        anioModelo: 2022,
+      },
+      discrepanciaMenor: {
+        motivo: 'El documento indica año 2022, mientras que el sistema dice 2023.',
+        referenciaEvidencia: 'Tarjeta de circulacion presentada y cotejada',
+      },
+    });
+
+    expect(salida.modalidadSalida).toBe('ANTICIPADA');
+    expect(f.observaciones.save).toHaveBeenCalledTimes(1);
+    expect(f.observaciones.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        campoObservado: 'ANIO_MODELO',
+        valorOriginal: '2023',
+        valorReportado: '2022',
+        estatus: 'PENDIENTE',
+        infraccion: { idInfraccion: 11 },
+        salidaVehiculo: { idSalidaVehiculo: 100 },
+        usuarioReporta: { idUsuario: 3 },
+      }),
+    );
+    expect(f.salidas.save).toHaveBeenCalledTimes(1);
+    expect(f.auditoria.save).toHaveBeenCalledTimes(1);
+    expect(f.dataSource.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('permite una diferencia de color con dos caracteristicas adicionales coincidentes', async () => {
+    const f = fixture();
+    await f.service.registrarSalidaAnticipada({
+      ...f.params,
+      datosVehiculoCotejados: {
+        marca: 'NISSAN',
+        linea: 'VERSA',
+        color: 'PLATA',
+      },
+      discrepanciaMenor: {
+        motivo: 'Color registrado distinto al inspeccionado.',
+        referenciaEvidencia: 'Constancia de inspeccion visual',
+      },
+    });
+    expect(f.observaciones.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        campoObservado: 'COLOR',
+        valorOriginal: 'Blanco',
+        valorReportado: 'PLATA',
+      }),
+    );
+  });
+
+  it('bloquea diferencias criticas aunque se adjunte una observacion menor', async () => {
+    const f = fixture();
+    await expect(f.service.registrarSalidaAnticipada({
+      ...f.params,
+      datosVehiculoCotejados: {
+        marca: 'OTRA MARCA',
+        linea: 'VERSA',
+        anioModelo: 2022,
+      },
+      discrepanciaMenor: {
+        motivo: 'Verificar datos vehiculares',
+        referenciaEvidencia: 'Documento mostrado',
+      },
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(f.salidas.save).not.toHaveBeenCalled();
+    expect(f.observaciones.save).not.toHaveBeenCalled();
+  });
+
+  it('bloquea varias discrepancias menores en un mismo cotejo', async () => {
+    const f = fixture();
+    await expect(f.service.registrarSalidaAnticipada({
+      ...f.params,
+      datosVehiculoCotejados: {
+        marca: 'NISSAN', linea: 'VERSA',
+        color: 'ROJO', anioModelo: 2022,
+      },
+      discrepanciaMenor: {
+        motivo: 'Ambos datos requieren revision',
+        referenciaEvidencia: 'Informe de cotejo',
+      },
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(f.salidas.save).not.toHaveBeenCalled();
+  });
+
+  it('rechaza enviar un reporte cuando no se detecto ninguna diferencia', async () => {
+    const f = fixture();
+    await expect(f.service.registrarSalidaAnticipada({
+      ...f.params,
+      discrepanciaMenor: {
+        motivo: 'Observacion sin diferencias',
+        referenciaEvidencia: 'Sin evidencia de diferencia',
+      },
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(f.observaciones.save).not.toHaveBeenCalled();
+  });
+
+  it('no necesita observacion cuando todos los datos cotejados coinciden', async () => {
+    const f = fixture();
+    await f.service.registrarSalidaAnticipada(f.params);
+    expect(f.observaciones.create).not.toHaveBeenCalled();
+  });
+
+  it('revierte la entrega si falla guardar la observacion en la misma transaccion', async () => {
+    const f = fixture();
+    f.observaciones.save.mockRejectedValue(new Error('Error de escritura de observacion'));
+    await expect(f.service.registrarSalidaAnticipada({
+      ...f.params,
+      datosVehiculoCotejados: {
+        marca: 'NISSAN', linea: 'VERSA', anioModelo: 2022,
+      },
+      discrepanciaMenor: {
+        motivo: 'Modelo real distinto',
+        referenciaEvidencia: 'Tarjeta de circulacion',
+      },
+    })).rejects.toThrow('Error de escritura de observacion');
+    expect(f.infracciones.update).not.toHaveBeenCalled();
+    expect(f.movimientos.save).not.toHaveBeenCalled();
+    expect(f.auditoria.save).not.toHaveBeenCalled();
   });
 
   it('exige placas y al menos dos datos generales cotejados', async () => {

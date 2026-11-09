@@ -26,6 +26,10 @@ import { Usuario } from '../usuarios/entities/usuario.entity';
 import { Encierro } from './entities/encierro.entity';
 import { RetencionVehiculo } from './entities/retencion-vehiculo.entity';
 import { SalidaVehiculo } from './entities/salida-vehiculo.entity';
+import {
+  type CampoObservado,
+  ObservacionExpediente,
+} from './entities/observacion-expediente.entity';
 import { VehiculosEncierroQueryDto } from './dto/vehiculos-query.dto';
 import {
   type VehiculosEncierroResponseDto,
@@ -40,6 +44,12 @@ interface RegistrarRetencionParams {
   folioResguardo?: string | null;
   observacionesIngreso?: string | null;
   estadoIngreso?: string | null;
+}
+
+interface DiscrepanciaVehiculo {
+  campo: CampoObservado;
+  valorOriginal: string;
+  valorReportado: string;
 }
 
 interface RegistrarSalidaParams {
@@ -455,7 +465,10 @@ export class EncierrosService {
         throw new BadRequestException('El folio de liberacion presentado ya corresponde a una liberacion electronica.');
       }
 
-      this.validarCotejoSalidaAnticipada(params, retencion.infraccion);
+      const discrepancias = this.validarCotejoSalidaAnticipada(
+        params,
+        retencion.infraccion,
+      );
 
       const estatus = await manager.getRepository(EstatusInfraccion).findOne({
         where: { nombreEstatus: ESTATUS_INFRACCION.VEHICULO_ENTREGADO },
@@ -494,6 +507,30 @@ export class EncierrosService {
         referenciaDocumentoLiberacion: referencia,
       }));
 
+      if (discrepancias.length > 0) {
+        const observacionesRepository = manager.getRepository(ObservacionExpediente);
+        const soporte = params.discrepanciaMenor!;
+        await observacionesRepository.save(
+          discrepancias.map((discrepancia) =>
+            observacionesRepository.create({
+              infraccion: { idInfraccion } as Infraccion,
+              salidaVehiculo: {
+                idSalidaVehiculo: savedSalida.idSalidaVehiculo,
+              } as SalidaVehiculo,
+              usuarioReporta: {
+                idUsuario: params.idUsuarioValidaSalida,
+              } as Usuario,
+              campoObservado: discrepancia.campo,
+              valorOriginal: discrepancia.valorOriginal,
+              valorReportado: discrepancia.valorReportado,
+              motivoReporte: soporte.motivo.trim(),
+              referenciaEvidencia: soporte.referenciaEvidencia.trim(),
+              estatus: 'PENDIENTE',
+            }),
+          ),
+        );
+      }
+
       await manager.getRepository(Infraccion).update(
         { idInfraccion },
         { estatusInfraccion: estatus },
@@ -504,7 +541,10 @@ export class EncierrosService {
         estatusInfraccion: estatus,
         usuario: { idUsuario: params.idUsuarioValidaSalida } as Usuario,
         accion: ACCION_MOVIMIENTO.VEHICULO_ENTREGADO,
-        observaciones: 'Salida anticipada con autorizacion documental; pago/liberacion electronica pendientes.',
+        observaciones:
+          discrepancias.length > 0
+            ? 'Salida anticipada con discrepancia menor pendiente; pago/liberacion electronica pendientes.'
+            : 'Salida anticipada con autorizacion documental; pago/liberacion electronica pendientes.',
         fechaMovimiento: fechaSalida,
       }));
 
@@ -522,6 +562,8 @@ export class EncierrosService {
           modalidadSalida: 'ANTICIPADA',
           folioLiberacionPresentado: folio,
           documentoVerificado: true,
+          totalObservaciones: discrepancias.length,
+          camposObservados: discrepancias.map((item) => item.campo),
         }),
       }));
 
@@ -530,21 +572,24 @@ export class EncierrosService {
   }
 
   /**
-   * El cotejo no corrige datos del expediente. Cualquier diferencia se
-   * bloquea hasta que exista el flujo auditado de observaciones.
+   * Mantiene placas e identificadores como bloqueantes. Permite una unica
+   * discrepancia menor (COLOR o ANIO_MODELO) si al menos otros dos datos
+   * generales coinciden. La discrepancia no modifica al vehiculo.
    */
   private validarCotejoSalidaAnticipada(
     params: RegistrarSalidaAnticipadaDto,
     infraccion: Infraccion,
-  ): void {
+  ): DiscrepanciaVehiculo[] {
     const vehiculo = infraccion.vehiculo;
     const normalize = (value: string | number) =>
       String(value).normalize('NFKC').trim().replace(/\s+/gu, ' ').toUpperCase();
     const normalizePlacas = (value: string) =>
       normalize(value).replace(/[\s-]/gu, '');
 
-    if (!vehiculo.placas || normalizePlacas(vehiculo.placas) !==
-        normalizePlacas(params.placasCotejadas)) {
+    if (
+      !vehiculo.placas ||
+      normalizePlacas(vehiculo.placas) !== normalizePlacas(params.placasCotejadas)
+    ) {
       throw new BadRequestException(
         'Las placas cotejadas no coinciden con el expediente. Requiere revision.',
       );
@@ -554,29 +599,85 @@ export class EncierrosService {
     if (!datos) {
       throw new BadRequestException('Captura los datos generales cotejados.');
     }
-    const generales: Array<[string, string | number | null | undefined, string | number | null | undefined]> = [
-      ['marca', datos.marca, vehiculo.lineaVehiculo?.marcaVehiculo?.nombreMarcaVehiculo],
-      ['linea', datos.linea, vehiculo.lineaVehiculo?.nombreLineaVehiculo],
-      ['clase', datos.clase, vehiculo.claseVehiculo?.nombreClaseVehiculo],
-      ['color', datos.color, vehiculo.color],
-      ['anio modelo', datos.anioModelo, vehiculo.anioModelo],
+
+    const generales: Array<{
+      campo: string;
+      reportado: string | number | null | undefined;
+      registrado: string | number | null | undefined;
+      campoMenor?: CampoObservado;
+    }> = [
+      {
+        campo: 'marca',
+        reportado: datos.marca,
+        registrado: vehiculo.lineaVehiculo?.marcaVehiculo?.nombreMarcaVehiculo,
+      },
+      {
+        campo: 'linea',
+        reportado: datos.linea,
+        registrado: vehiculo.lineaVehiculo?.nombreLineaVehiculo,
+      },
+      {
+        campo: 'clase',
+        reportado: datos.clase,
+        registrado: vehiculo.claseVehiculo?.nombreClaseVehiculo,
+      },
+      {
+        campo: 'color',
+        reportado: datos.color,
+        registrado: vehiculo.color,
+        campoMenor: 'COLOR',
+      },
+      {
+        campo: 'anio modelo',
+        reportado: datos.anioModelo,
+        registrado: vehiculo.anioModelo,
+        campoMenor: 'ANIO_MODELO',
+      },
     ];
+
     let coincidencias = 0;
-    for (const [campo, reportado, registrado] of generales) {
-      if (reportado === null || reportado === undefined || String(reportado).trim() === '') {
+    const discrepancias: DiscrepanciaVehiculo[] = [];
+
+    for (const { campo, reportado, registrado, campoMenor } of generales) {
+      if (
+        reportado === null ||
+        reportado === undefined ||
+        String(reportado).trim() === ''
+      ) {
         continue;
       }
-      if (registrado === null || registrado === undefined ||
-          normalize(reportado) !== normalize(registrado)) {
+
+      if (registrado === null || registrado === undefined || String(registrado).trim() === '') {
         throw new BadRequestException(
-          `El campo ${campo} del vehiculo no coincide con el expediente. Solicita revision.`,
+          `El campo ${campo} no tiene dato registrado para cotejar. Requiere revision.`,
         );
       }
-      coincidencias += 1;
+
+      if (normalize(reportado) === normalize(registrado)) {
+        coincidencias += 1;
+        continue;
+      }
+
+      if (!campoMenor) {
+        throw new BadRequestException(
+          `El campo ${campo} del vehiculo no coincide con el expediente. Requiere revision.`,
+        );
+      }
+      discrepancias.push({
+        campo: campoMenor,
+        valorOriginal: String(registrado),
+        valorReportado: String(reportado),
+      });
     }
+
     if (coincidencias < 2) {
       throw new BadRequestException(
         'Debes cotejar placas y al menos dos datos generales coincidentes.',
+      );
+    }
+    if (discrepancias.length > 1) {
+      throw new BadRequestException(
+        'Se detectaron varias diferencias. Requiere revision antes de entregar el vehiculo.',
       );
     }
 
@@ -595,6 +696,23 @@ export class EncierrosService {
         );
       }
     }
+
+    if (discrepancias.length > 0) {
+      if (
+        !params.discrepanciaMenor?.motivo?.trim() ||
+        !params.discrepanciaMenor.referenciaEvidencia?.trim()
+      ) {
+        throw new BadRequestException(
+          'La discrepancia menor requiere motivo y referencia de evidencia para Infracciones.',
+        );
+      }
+    } else if (params.discrepanciaMenor) {
+      throw new BadRequestException(
+        'No existen diferencias en el cotejo para crear una observacion.',
+      );
+    }
+
+    return discrepancias;
   }
 
   private buildVehiculosEnEncierroBaseQuery(

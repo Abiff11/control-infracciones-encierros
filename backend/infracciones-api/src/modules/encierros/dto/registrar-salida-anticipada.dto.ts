@@ -57,6 +57,18 @@ export class DatosVehiculoCotejadosDto {
   motor?: string;
 }
 
+export class DiscrepanciaMenorDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(1000)
+  motivo!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  referenciaEvidencia!: string;
+}
+
 export class RegistrarSalidaAnticipadaDto {
   @Type(() => Number)
   @IsInt()
@@ -106,4 +118,13 @@ export class RegistrarSalidaAnticipadaDto {
   @IsString()
   @MaxLength(2000)
   observacionesSalida?: string;
+
+  /**
+   * Obligatorio si el cotejo reporta una diferencia menor en color o año.
+   * No concede acceso para editar directamente el vehiculo del expediente.
+   */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DiscrepanciaMenorDto)
+  discrepanciaMenor?: DiscrepanciaMenorDto;
 }
