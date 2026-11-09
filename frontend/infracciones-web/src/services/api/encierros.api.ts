@@ -49,6 +49,43 @@ export function createSalidaAnticipada(
   );
 }
 
+export interface ObservacionPendienteItem {
+  idObservacion: number;
+  idInfraccion: number;
+  folioInfraccion: string;
+  placas: string | null;
+  campoObservado: 'COLOR' | 'ANIO_MODELO';
+  valorOriginal: string;
+  valorReportado: string;
+  motivoReporte: string;
+  referenciaEvidencia: string;
+  nombreUsuarioReporta: string;
+  fechaReporte: string;
+  estatus: 'PENDIENTE';
+}
+
+export interface ObservacionesPendientesResponse {
+  data: ObservacionPendienteItem[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export function getObservacionesPendientes(
+  token: string,
+  page = 1,
+  limit = 20,
+): Promise<ObservacionesPendientesResponse> {
+  return request<ObservacionesPendientesResponse>(
+    `/encierros/observaciones/pendientes${buildQuery({ page, limit })}`,
+    {},
+    token,
+  );
+}
+
 export function getVehiculosEnEncierro(
   token: string,
   query?: VehiculosEncierroQuery,

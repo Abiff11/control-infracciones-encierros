@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Get,
   Param,
   ParseIntPipe,
@@ -13,6 +14,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InfraccionWriteLock } from '../../common/concurrency/infraccion-write-lock.interceptor';
 import {
   READ_ROLES,
+  ROLES,
   YARD_ENTRY_ROLES,
   YARD_ROLES,
 } from '../auth/constants/roles.constants';
@@ -57,6 +59,16 @@ export class EncierrosController {
   })
   findVehiculosEnEncierro(@Query() query: VehiculosEncierroQueryDto) {
     return this.encierrosService.findVehiculosEnEncierro(query);
+  }
+
+  @Roles(ROLES.ADMIN, ROLES.INFRACCIONES)
+  @Get('observaciones/pendientes')
+  @ApiOperation({ summary: 'Consultar observaciones pendientes para Infracciones' })
+  listarObservacionesPendientes(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+  ) {
+    return this.encierrosService.listarObservacionesPendientes({ page, limit });
   }
 
   @Get(':idEncierro')

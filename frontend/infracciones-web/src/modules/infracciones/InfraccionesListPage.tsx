@@ -11,6 +11,10 @@ import { SelectField } from "../../components/ui/SelectField";
 import { StatusBadge } from "../../components/ui/StatusBadge";
 import { getErrorMessage } from "../../services/api/apiClient";
 import {
+  getObservacionesPendientes,
+  type ObservacionesPendientesResponse,
+} from "../../services/api/encierros.api";
+import {
   getInfraccionDetalle,
   getInfracciones,
 } from "../../services/api/infracciones.api";
@@ -424,6 +428,13 @@ function InfraccionesListPage({
   >([]);
   const [conceptSearchLoading, setConceptSearchLoading] = useState(false);
   const [conceptSearchError, setConceptSearchError] = useState(false);
+  const puedeConsultarObservaciones =
+    roleName?.toUpperCase() === "INFRACCIONES" ||
+    roleName?.toUpperCase() === "ADMIN";
+  const [bandejaAbierta, setBandejaAbierta] = useState(false);
+  const [paginaObservaciones, setPaginaObservaciones] = useState(1);
+  const [observacionesState, setObservacionesState] =
+    useState<LoadState<ObservacionesPendientesResponse>>(createIdleState());
 
   const query = useMemo(() => buildQuery(activeFilters), [activeFilters]);
   const meta: PaginationMeta | null = state.data?.meta ?? null;
@@ -477,6 +488,40 @@ function InfraccionesListPage({
       mounted = false;
     };
   }, [query, refreshKey, localRefreshKey, token]);
+
+  useEffect(() => {
+    if (!puedeConsultarObservaciones) {
+      return;
+    }
+    let vigente = true;
+    async function cargarObservaciones(): Promise<void> {
+      setObservacionesState((current) => ({
+        ...current,
+        status: "loading",
+        error: null,
+      }));
+      try {
+        const data = await getObservacionesPendientes(token, paginaObservaciones, 20);
+        if (vigente) {
+          setObservacionesState({ status: "ready", data, error: null });
+        }
+      } catch (error) {
+        if (vigente) {
+          setObservacionesState({
+            status: "error", data: null, error: getErrorMessage(error),
+          });
+        }
+      }
+    }
+    void cargarObservaciones();
+    return () => { vigente = false; };
+  }, [
+    puedeConsultarObservaciones,
+    token,
+    paginaObservaciones,
+    refreshKey,
+    localRefreshKey,
+  ]);
 
   useEffect(() => {
     const conceptQuery = draftFilters.claveConcepto.trim();
@@ -710,6 +755,105 @@ function InfraccionesListPage({
           </div>
         ) : null}
       </header>
+
+      {puedeConsultarObservaciones ? (
+        <Card>
+          <div className="page-stack">
+            <div className="panel-header">
+              <div>
+                <p className="section-label">Seguimiento entre áreas</p>
+                <h2>Observaciones pendientes</h2>
+                <p className="page-description">
+                  Discrepancias menores reportadas por Encierros. Consulta de
+                  evidencia y valores; las correcciones aún no están habilitadas.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setBandejaAbierta((abierta) => !abierta)}
+              >
+                {bandejaAbierta ? "Ocultar observaciones" :
+                  `Ver observaciones (${observacionesState.data?.meta.total ?? 0})`}
+              </Button>
+            </div>
+            {bandejaAbierta ? (
+              <>
+                {observacionesState.status === "loading" ? (
+                  <LoadingMessage message="Consultando observaciones pendientes..." />
+                ) : null}
+                <ErrorMessage message={observacionesState.error} />
+                <div className="table-wrap table-wrap-expanded">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Expediente / vehículo</th>
+                        <th>Campo observado</th>
+                        <th>Comparación</th>
+                        <th>Motivo y evidencia</th>
+                        <th>Reportó / Fecha</th>
+                        <th>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(observacionesState.data?.data ?? []).length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="empty-state">
+                            {observacionesState.status === "loading"
+                              ? "Cargando observaciones..."
+                              : "No hay observaciones pendientes para mostrar."}
+                          </td>
+                        </tr>
+                      ) : (
+                        observacionesState.data?.data.map((observacion) => (
+                          <tr key={observacion.idObservacion}>
+                            <td>
+                              <div className="table-cell-stack">
+                                <strong>{observacion.folioInfraccion}</strong>
+                                <span>Placas: {formatEmptyValue(observacion.placas)}</span>
+                              </div>
+                            </td>
+                            <td>{observacion.campoObservado === "ANIO_MODELO"
+                              ? "Año modelo" : "Color"}</td>
+                            <td>
+                              <div className="table-cell-stack">
+                                <span>Registrado: {observacion.valorOriginal}</span>
+                                <strong>Reportado: {observacion.valorReportado}</strong>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="table-cell-stack">
+                                <span>{observacion.motivoReporte}</span>
+                                <strong>Evidencia: {observacion.referenciaEvidencia}</strong>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="table-cell-stack">
+                                <span>{observacion.nombreUsuarioReporta}</span>
+                                <span>{formatDateTime(observacion.fechaReporte)}</span>
+                              </div>
+                            </td>
+                            <td><StatusBadge value={observacion.estatus} /></td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {observacionesState.data ? (
+                  <PaginationControls
+                    page={observacionesState.data.meta.page}
+                    limit={observacionesState.data.meta.limit}
+                    total={observacionesState.data.meta.total}
+                    totalPages={observacionesState.data.meta.totalPages}
+                    onPageChange={setPaginaObservaciones}
+                  />
+                ) : null}
+              </>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
 
       <Card>
         <form className="page-stack" onSubmit={applyFilters}>

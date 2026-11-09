@@ -11,7 +11,7 @@ import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
 import { EncierrosController } from './encierros.controller';
 import { EncierrosService } from './encierros.service';
 
-type EncierrosHandlerName = 'registrarRetencion' | 'registrarSalida' | 'registrarSalidaAnticipada';
+type EncierrosHandlerName = 'registrarRetencion' | 'registrarSalida' | 'registrarSalidaAnticipada' | 'listarObservacionesPendientes';
 
 function getHandlerRoles(handlerName: EncierrosHandlerName): string[] {
   const prototype = EncierrosController.prototype as unknown as Record<
@@ -38,6 +38,7 @@ describe('EncierrosController authorization', () => {
     const retencionRoles = getHandlerRoles('registrarRetencion');
     const salidaRoles = getHandlerRoles('registrarSalida');
     const anticipadaRoles = getHandlerRoles('registrarSalidaAnticipada');
+    const observacionesRoles = getHandlerRoles('listarObservacionesPendientes');
 
     expect(retencionRoles).toContain(ROLES.INFRACCIONES);
     expect(retencionRoles).not.toContain(ROLES.ENCIERRO);
@@ -50,6 +51,9 @@ describe('EncierrosController authorization', () => {
     expect(anticipadaRoles).toContain(ROLES.ENCIERRO);
     expect(anticipadaRoles).toContain(ROLES.ADMIN);
     expect(anticipadaRoles).not.toContain(ROLES.INFRACCIONES);
+    expect(observacionesRoles).toEqual([ROLES.ADMIN, ROLES.INFRACCIONES]);
+    expect(observacionesRoles).not.toContain(ROLES.CONSULTA);
+    expect(observacionesRoles).not.toContain(ROLES.ENCIERRO);
   });
 });
 
@@ -60,6 +64,7 @@ describe('EncierrosController accesos HTTP de ENCIERRO', () => {
     registrarRetencion: jest.fn(),
     registrarSalida: jest.fn(),
     registrarSalidaAnticipada: jest.fn(),
+    listarObservacionesPendientes: jest.fn(),
     findVehiculosEnEncierro: jest.fn(),
   };
 
@@ -184,6 +189,13 @@ describe('EncierrosController accesos HTTP de ENCIERRO', () => {
       })
       .expect(400);
     expect(encierrosService.registrarSalidaAnticipada).not.toHaveBeenCalled();
+  });
+
+  it('prohibe a ENCIERRO abrir la bandeja reservada para INFRACCIONES', async () => {
+    await request(app.getHttpServer())
+      .get('/encierros/observaciones/pendientes')
+      .expect(403);
+    expect(encierrosService.listarObservacionesPendientes).not.toHaveBeenCalled();
   });
 
   it('permite consultar el inventario sin modificar registros', async () => {

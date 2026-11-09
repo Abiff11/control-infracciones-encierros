@@ -36,6 +36,20 @@ import {
   type VehiculosEncierroResumenDto,
 } from './dto/vehiculos-response.dto';
 
+interface ObservacionPendienteRow {
+  idObservacion: number | string;
+  idInfraccion: number | string;
+  folioInfraccion: string;
+  placas: string | null;
+  campoObservado: string;
+  valorOriginal: string;
+  valorReportado: string;
+  motivoReporte: string;
+  referenciaEvidencia: string;
+  fechaReporte: Date | string;
+  nombreUsuarioReporta: string;
+}
+
 interface RegistrarRetencionParams {
   idInfraccion: number;
   idEncierro: number;
@@ -713,6 +727,70 @@ export class EncierrosService {
     }
 
     return discrepancias;
+  }
+
+  /**
+   * Bandeja paginada de solo lectura para Infracciones.
+   * La API devuelve una proyección explícita: no expone contraseñas,
+   * información del propietario ni documentos ajenos a la observación.
+   */
+  async listarObservacionesPendientes(params: { page: number; limit: number }) {
+    const { page, limit } = params;
+    if (!Number.isInteger(page) || page < 1 ||
+        !Number.isInteger(limit) || limit < 1 || limit > 50) {
+      throw new BadRequestException('Pagina o limite de observaciones invalido (1 a 50).');
+    }
+
+    const query = this.dataSource.getRepository(ObservacionExpediente)
+      .createQueryBuilder('observacion')
+      .innerJoin('observacion.infraccion', 'infraccion')
+      .innerJoin('infraccion.vehiculo', 'vehiculo')
+      .innerJoin('observacion.usuarioReporta', 'usuarioReporta')
+      .where('observacion.estatus = :estatus', { estatus: 'PENDIENTE' });
+
+    const total = await query.getCount();
+    const rows = await query
+      .select('observacion.idObservacion', 'idObservacion')
+      .addSelect('infraccion.idInfraccion', 'idInfraccion')
+      .addSelect('infraccion.folioInfraccion', 'folioInfraccion')
+      .addSelect('vehiculo.placas', 'placas')
+      .addSelect('observacion.campoObservado', 'campoObservado')
+      .addSelect('observacion.valorOriginal', 'valorOriginal')
+      .addSelect('observacion.valorReportado', 'valorReportado')
+      .addSelect('observacion.motivoReporte', 'motivoReporte')
+      .addSelect('observacion.referenciaEvidencia', 'referenciaEvidencia')
+      .addSelect('observacion.fechaReporte', 'fechaReporte')
+      .addSelect('usuarioReporta.nombreUsuario', 'nombreUsuarioReporta')
+      .orderBy('observacion.fechaReporte', 'DESC')
+      .addOrderBy('observacion.idObservacion', 'DESC')
+      .offset((page - 1) * limit)
+      .limit(limit)
+      .getRawMany<ObservacionPendienteRow>();
+
+    return {
+      data: rows.map((row) => ({
+        idObservacion: Number(row.idObservacion),
+        idInfraccion: Number(row.idInfraccion),
+        folioInfraccion: row.folioInfraccion,
+        placas: row.placas,
+        campoObservado: row.campoObservado,
+        valorOriginal: row.valorOriginal,
+        valorReportado: row.valorReportado,
+        motivoReporte: row.motivoReporte,
+        referenciaEvidencia: row.referenciaEvidencia,
+        nombreUsuarioReporta: row.nombreUsuarioReporta,
+        fechaReporte: row.fechaReporte instanceof Date
+          ? row.fechaReporte.toISOString()
+          : row.fechaReporte,
+        estatus: 'PENDIENTE' as const,
+      })),
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   private buildVehiculosEnEncierroBaseQuery(

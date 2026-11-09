@@ -6,6 +6,10 @@ import InfraccionesListPage from "./InfraccionesListPage";
 
 const apiMocks = vi.hoisted(() => ({
   findConceptosPago: vi.fn(),
+  getObservacionesPendientes: vi.fn().mockResolvedValue({
+    data: [],
+    meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
+  }),
   getInfraccionDetalle: vi.fn(),
   getInfracciones: vi.fn(),
 }));
@@ -13,6 +17,10 @@ const apiMocks = vi.hoisted(() => ({
 vi.mock("../../services/api/infracciones.api", () => ({
   getInfraccionDetalle: apiMocks.getInfraccionDetalle,
   getInfracciones: apiMocks.getInfracciones,
+}));
+
+vi.mock("../../services/api/encierros.api", () => ({
+  getObservacionesPendientes: apiMocks.getObservacionesPendientes,
 }));
 
 vi.mock("../../services/api/pagos.api", () => ({
@@ -129,6 +137,61 @@ async function renderWithItem(item: InfraccionListItem, roleName?: string) {
 
   expect(await screen.findByText("INF-10")).toBeInTheDocument();
 }
+
+describe("InfraccionesListPage bandeja de observaciones", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    apiMocks.findConceptosPago.mockResolvedValue([]);
+    apiMocks.getObservacionesPendientes.mockResolvedValue({
+      data: [{
+        idObservacion: 12,
+        idInfraccion: 10,
+        folioInfraccion: "INF-2026-0125",
+        placas: "ABC123",
+        campoObservado: "ANIO_MODELO",
+        valorOriginal: "2022",
+        valorReportado: "2023",
+        motivoReporte: "La tarjeta indica un modelo distinto.",
+        referenciaEvidencia: "Tarjeta de circulación revisada",
+        nombreUsuarioReporta: "Encierros Central",
+        fechaReporte: "2026-11-09T17:00:00.000Z",
+        estatus: "PENDIENTE",
+      }],
+      meta: { page: 1, limit: 20, total: 1, totalPages: 1 },
+    });
+  });
+
+  it("permite a INFRACCIONES consultar la observacion con evidencia y comparación", async () => {
+    await renderWithItem(createItem(), "INFRACCIONES");
+    const abrir = await screen.findByRole("button", { name: "Ver observaciones (1)" });
+    fireEvent.click(abrir);
+    expect(screen.getByRole("heading", { name: "Observaciones pendientes" })).toBeInTheDocument();
+    expect(screen.getByText("INF-2026-0125")).toBeInTheDocument();
+    expect(screen.getByText("Registrado: 2022")).toBeInTheDocument();
+    expect(screen.getByText("Reportado: 2023")).toBeInTheDocument();
+    expect(screen.getByText("Evidencia: Tarjeta de circulación revisada")).toBeInTheDocument();
+    expect(screen.getByText("Encierros Central")).toBeInTheDocument();
+    expect(apiMocks.getObservacionesPendientes).toHaveBeenCalledWith(
+      "token-test", 1, 20,
+    );
+  });
+
+  it("no muestra ni consulta la bandeja con el rol ENCIERRO", async () => {
+    await renderWithItem(createItem(), "ENCIERRO");
+    expect(screen.queryByRole("heading", { name: "Observaciones pendientes" })).not.toBeInTheDocument();
+    expect(apiMocks.getObservacionesPendientes).not.toHaveBeenCalled();
+  });
+
+  it("mantiene el listado principal cuando falla la consulta de observaciones", async () => {
+    apiMocks.getObservacionesPendientes.mockRejectedValueOnce(
+      new Error("No se pudo consultar la bandeja"),
+    );
+    await renderWithItem(createItem(), "INFRACCIONES");
+    fireEvent.click(screen.getByRole("button", { name: "Ver observaciones (0)" }));
+    expect(await screen.findByText("No se pudo consultar la bandeja")).toBeInTheDocument();
+    expect(screen.getByText("INF-10")).toBeInTheDocument();
+  });
+});
 
 describe("InfraccionesListPage solventacion sin pago", () => {
   beforeEach(() => {
