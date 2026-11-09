@@ -180,6 +180,10 @@ function getVehicleLabel(item: InfraccionListItem): string {
 function getEstadoOperativoEfectivo(
   item: InfraccionListItem,
 ): EstadoOperativoVehiculo {
+  // Una entrega fisica confirmada tiene prioridad sobre cualquier estado administrativo.
+  if (item.salida?.tieneSalida) {
+    return "VEHICULO_ENTREGADO";
+  }
   if (item.estatusInfraccion.nombreEstatus === "SOLVENTADA_SIN_PAGO") {
     if (!item.tipoProcedimiento.permiteRetencion) {
       return "PAGADA_SIN_RETENCION";
@@ -226,8 +230,48 @@ function getOperationalDetail(item: InfraccionListItem): string {
 }
 
 function getNextOperation(item: InfraccionListItem, roleName?: string): NextOperation {
+  const role = roleName?.toUpperCase();
+  const tieneSalida = item.salida?.tieneSalida === true;
+  const tieneLiberacion = item.liberacion?.tieneLiberacion === true;
+  const tieneRespaldoAdministrativo =
+    item.pago?.tienePago === true ||
+    item.pago?.tieneSolventacionSinPago === true ||
+    item.estatusInfraccion.nombreEstatus === "SOLVENTADA_SIN_PAGO";
+
+  // El vehículo ya salió: solo se permite completar lo administrativo.
+  // No ofrece una segunda entrega ni reabre el estado físico.
   if (
-    roleName?.toUpperCase() === "ENCIERRO" &&
+    tieneSalida &&
+    !tieneLiberacion &&
+    ["INFRACCIONES", "ADMIN", "OPERADOR", "LIBERACIONES"].includes(role ?? "")
+  ) {
+    if (!tieneRespaldoAdministrativo) {
+      return role === "LIBERACIONES"
+        ? {
+            type: null,
+            label: "Pago pendiente",
+            helper: "Infracciones debe registrar el pago; vehículo ya entregado",
+            disabled: true,
+          }
+        : {
+            type: "pago",
+            label: "Registrar pago pendiente",
+            helper: "Regularización administrativa; vehículo ya entregado",
+          };
+    }
+
+    const folio = item.salida?.folioLiberacionPresentado?.trim();
+    return {
+      type: "liberacion",
+      label: "Autorizar liberacion pendiente",
+      helper: folio
+        ? `Vehículo entregado · Folio documental: ${folio}`
+        : "Vehículo entregado · Verificar el folio documental presentado",
+    };
+  }
+
+  if (
+    role === "ENCIERRO" &&
     item.retencion?.idRetencionVehiculo &&
     !item.salida?.tieneSalida &&
     !item.liberacion?.tieneLiberacion &&

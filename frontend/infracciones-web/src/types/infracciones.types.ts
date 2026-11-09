@@ -42,6 +42,7 @@ export interface InfraccionListRetencionSummary {
 
 export interface InfraccionListPagoSummary {
   tienePago: boolean;
+  tieneSolventacionSinPago?: boolean;
   idPagoInfraccion: number | null;
   fechaUltimoPago: string | null;
   montoPagado: string | null;
@@ -58,6 +59,7 @@ export interface InfraccionListLiberacionSummary {
 export interface InfraccionListSalidaSummary {
   tieneSalida: boolean;
   fechaSalida: string | null;
+  folioLiberacionPresentado?: string | null;
 }
 
 export interface InfraccionListItem {

@@ -278,6 +278,99 @@ function createItemEnEncierro(
   });
 }
 
+describe("InfraccionesListPage regularizacion de entregas anticipadas", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    apiMocks.findConceptosPago.mockResolvedValue([]);
+  });
+
+  function delivered(overrides: Partial<InfraccionListItem> = {}): InfraccionListItem {
+    const item = createItemEnEncierro("EN_ENCIERRO_SIN_PAGO");
+    return {
+      ...item,
+      salida: {
+        tieneSalida: true,
+        fechaSalida: "2026-08-26T10:00:00.000Z",
+        folioLiberacionPresentado: "FL-2026-01",
+      },
+      estatusInfraccion: {
+        idEstatusInfraccion: 8,
+        nombreEstatus: "VEHICULO_ENTREGADO",
+      },
+      estadoOperativoCalculado: "VEHICULO_ENTREGADO",
+      ...overrides,
+    };
+  }
+
+  it("ofrece registrar pago pendiente a INFRACCIONES sin duplicar salida", async () => {
+    await renderWithItem(delivered(), "INFRACCIONES");
+
+    fireEvent.click(screen.getByRole("button", { name: "Registrar pago pendiente" }));
+    expect(screen.getByTestId("operation-open")).toHaveTextContent("pago");
+    expect(screen.getByText("Regularización administrativa; vehículo ya entregado")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Registrar salida" })).not.toBeInTheDocument();
+  });
+
+  it("ofrece liberar tras pago y muestra el folio documental", async () => {
+    await renderWithItem(
+      delivered({ pago: { tienePago: true, idPagoInfraccion: 11,
+        fechaUltimoPago: "2026-08-26T12:00:00.000Z",
+        montoPagado: "1200", clavesConcepto: null } }),
+      "INFRACCIONES",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Autorizar liberacion pendiente" }));
+    expect(screen.getByTestId("operation-open")).toHaveTextContent("liberacion");
+    expect(screen.getByText(/Folio documental: FL-2026-01/)).toBeInTheDocument();
+  });
+
+  it("permite la liberacion posterior cuando se registro No aplica pago", async () => {
+    await renderWithItem(
+      delivered({ pago: { tienePago: false, tieneSolventacionSinPago: true,
+        idPagoInfraccion: null, fechaUltimoPago: null,
+        montoPagado: null, clavesConcepto: null } }),
+      "INFRACCIONES",
+    );
+    expect(screen.getByRole("button", { name: "Autorizar liberacion pendiente" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Registrar pago pendiente" })).not.toBeInTheDocument();
+  });
+
+  it("no muestra una segunda salida ni operaciones pendientes tras regularizar", async () => {
+    await renderWithItem(
+      delivered({ liberacion: { tieneLiberacion: true,
+        idLiberacionVehiculo: 12, folioLiberacion: "FL-2026-01",
+        fechaLiberacion: "2026-08-26T13:00:00.000Z" } }),
+      "INFRACCIONES",
+    );
+    expect(screen.getByRole("button", { name: "Completado" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Registrar salida/i })).not.toBeInTheDocument();
+  });
+
+  it("conserva el estado fisico entregado aunque exista un estatus No aplica pago", async () => {
+    await renderWithItem(
+      delivered({ estatusInfraccion: { idEstatusInfraccion: 7,
+        nombreEstatus: "SOLVENTADA_SIN_PAGO" },
+        pago: { tienePago: false, idPagoInfraccion: null,
+          fechaUltimoPago: null, montoPagado: null, clavesConcepto: null } }),
+      "INFRACCIONES",
+    );
+    expect(screen.getByText("INF-10").closest("tr")).toHaveTextContent("Vehiculo entregado");
+    expect(screen.getByRole("button", { name: "Autorizar liberacion pendiente" })).toBeEnabled();
+  });
+
+  it("impide que LIBERACIONES registre el pago pendiente de una salida anticipada", async () => {
+    await renderWithItem(delivered(), "LIBERACIONES");
+    expect(screen.getByRole("button", { name: "Pago pendiente" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Registrar pago pendiente" })).not.toBeInTheDocument();
+  });
+
+  it("no habilita otra salida a ENCIERRO si falta pago y liberacion", async () => {
+    await renderWithItem(delivered(), "ENCIERRO");
+    expect(screen.getByRole("button", { name: "Completado" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Registrar salida/i })).not.toBeInTheDocument();
+  });
+});
+
 describe("InfraccionesListPage rol ENCIERRO", () => {
   beforeEach(() => {
     vi.clearAllMocks();
