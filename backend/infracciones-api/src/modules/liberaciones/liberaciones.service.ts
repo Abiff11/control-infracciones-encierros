@@ -226,7 +226,11 @@ export class LiberacionesService {
         const saved = await manager.getRepository(LiberacionVehiculo).save(liberacion);
 
         if (salidaAnticipada) {
-          const vinculadas = await manager.query<Array<{ idSalidaVehiculo: number }>>(
+          // TypeORM en PostgreSQL devuelve [filas, cantidad] para UPDATE,
+          // incluso cuando se usa RETURNING. No debe validarse la longitud del tuplo.
+          const [vinculadas, totalActualizadas] = await manager.query<
+            [Array<{ idSalidaVehiculo: number }>, number]
+          >(
             `UPDATE salida_vehiculo
              SET id_liberacion_vehiculo = $1
              WHERE id_salida_vehiculo = $2
@@ -234,7 +238,12 @@ export class LiberacionesService {
              RETURNING id_salida_vehiculo AS "idSalidaVehiculo"`,
             [saved.idLiberacionVehiculo, salidaAnticipada.idSalidaVehiculo],
           );
-          if (vinculadas.length !== 1) {
+          if (
+            totalActualizadas !== 1 ||
+            vinculadas.length !== 1 ||
+            Number(vinculadas[0].idSalidaVehiculo) !==
+              Number(salidaAnticipada.idSalidaVehiculo)
+          ) {
             throw new BadRequestException(
               'No se pudo conciliar la liberacion con la salida anticipada.',
             );

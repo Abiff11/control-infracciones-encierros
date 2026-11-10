@@ -193,7 +193,8 @@ describe('LiberacionesService conciliacion de salida anticipada', () => {
         idLiberacionVehiculo: null,
         folioLiberacionPresentado: ' lib-ant-1 ',
       }])
-      .mockResolvedValueOnce([{ idSalidaVehiculo: 80 }]);
+      // PostgreSQL/TypeORM entrega [filas RETURNING, numero de filas actualizadas].
+      .mockResolvedValueOnce([[{ idSalidaVehiculo: 80 }], 1]);
 
     await f.service.generarLiberacion(params);
 
@@ -207,6 +208,41 @@ describe('LiberacionesService conciliacion de salida anticipada', () => {
         nombreEstatus: 'LIBERACION_GENERADA',
         accion: 'LIBERACION_GENERADA',
       }));
+  });
+
+  it('rechaza una conciliacion sin filas actualizadas y no registra movimiento', async () => {
+    const f = createServiceFixture();
+    f.pagosRepository.findOne.mockResolvedValue({ idPagoInfraccion: 99 });
+    f.managerQuery
+      .mockResolvedValueOnce([{
+        idSalidaVehiculo: 80,
+        idLiberacionVehiculo: null,
+        folioLiberacionPresentado: 'LIB-ANT-1',
+      }])
+      .mockResolvedValueOnce([[], 0]);
+
+    await expect(f.service.generarLiberacion(params))
+      .rejects.toThrow('No se pudo conciliar la liberacion con la salida anticipada.');
+    expect(f.infraccionesService.actualizarEstatusYRegistrarMovimiento)
+      .not.toHaveBeenCalled();
+    expect(f.auditoriaService.registrar).not.toHaveBeenCalled();
+  });
+
+  it('rechaza una respuesta inconsistente aunque reporte una fila afectada', async () => {
+    const f = createServiceFixture();
+    f.pagosRepository.findOne.mockResolvedValue({ idPagoInfraccion: 99 });
+    f.managerQuery
+      .mockResolvedValueOnce([{
+        idSalidaVehiculo: 80,
+        idLiberacionVehiculo: null,
+        folioLiberacionPresentado: 'LIB-ANT-1',
+      }])
+      .mockResolvedValueOnce([[{ idSalidaVehiculo: 81 }], 1]);
+
+    await expect(f.service.generarLiberacion(params))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(f.infraccionesService.actualizarEstatusYRegistrarMovimiento)
+      .not.toHaveBeenCalled();
   });
 
   it('rechaza el folio discordante antes de guardar una liberacion', async () => {
