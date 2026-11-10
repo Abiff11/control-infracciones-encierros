@@ -208,7 +208,6 @@ describe('EncierrosService registrarSalidaAnticipada', () => {
       placasCotejadas: 'ABC123D',
       datosVehiculoCotejados: { marca: 'NISSAN', linea: 'VERSA', color: 'blanco' },
       autorizacionDocumentalVerificada: true as const,
-      referenciaDocumentoLiberacion: 'Documento oficial cotejado',
       nombrePropietarioDeclarado: 'Persona propietaria',
       validadoPor: 'Responsable',
       personaRecibeVehiculo: 'Persona receptora',
@@ -224,6 +223,10 @@ describe('EncierrosService registrarSalidaAnticipada', () => {
     expect(f.salidas.save).toHaveBeenCalledTimes(1);
     expect(salida.liberacionVehiculo).toBeNull();
     expect(salida.modalidadSalida).toBe('ANTICIPADA');
+    expect(salida.referenciaDocumentoLiberacion).toBe('FL-2026-55');
+    expect(salida.folioLiberacionPresentado).toBe('FL-2026-55');
+    expect(salida.nombrePropietarioDeclarado).toBe('Persona propietaria');
+    expect(salida.personaRecibeVehiculo).toBe('Persona receptora');
     expect(f.infracciones.update).toHaveBeenCalledTimes(1);
     expect(f.movimientos.save).toHaveBeenCalledTimes(1);
     expect(f.auditoria.save).toHaveBeenCalledTimes(1);
@@ -395,11 +398,11 @@ describe('EncierrosService registrarSalidaAnticipada', () => {
     expect(f.salidas.save).not.toHaveBeenCalled();
   });
 
-  it('exige soporte documental verificable', async () => {
+  it('exige un folio de liberación presentado aunque derive la referencia automáticamente', async () => {
     const f = fixture();
     await expect(f.service.registrarSalidaAnticipada({
       ...f.params,
-      referenciaDocumentoLiberacion: ' ',
+      folioLiberacionPresentado: ' ',
     })).rejects.toBeInstanceOf(BadRequestException);
     expect(f.dataSource.transaction).not.toHaveBeenCalled();
   });

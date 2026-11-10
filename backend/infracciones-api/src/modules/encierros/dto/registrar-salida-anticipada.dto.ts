@@ -96,11 +96,6 @@ export class RegistrarSalidaAnticipadaDto {
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(255)
-  referenciaDocumentoLiberacion!: string;
-
-  @IsString()
-  @IsNotEmpty()
   @MaxLength(150)
   nombrePropietarioDeclarado!: string;
 

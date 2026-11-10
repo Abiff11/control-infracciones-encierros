@@ -100,7 +100,6 @@ export interface RegistrarSalidaAnticipadaPayload {
     motor?: string;
   };
   autorizacionDocumentalVerificada: true;
-  referenciaDocumentoLiberacion: string;
   nombrePropietarioDeclarado: string;
   validadoPor: string;
   personaRecibeVehiculo: string;

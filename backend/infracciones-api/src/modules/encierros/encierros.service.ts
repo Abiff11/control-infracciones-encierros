@@ -445,9 +445,8 @@ export class EncierrosService {
   ): Promise<SalidaVehiculo> {
     const folio = params.folioLiberacionPresentado?.trim();
     const placas = params.placasCotejadas?.trim();
-    const referencia = params.referenciaDocumentoLiberacion?.trim();
     const propietario = params.nombrePropietarioDeclarado?.trim();
-    if (!folio || !placas || !referencia || !propietario ||
+    if (!folio || !placas || !propietario ||
         params.autorizacionDocumentalVerificada !== true) {
       throw new BadRequestException(
         'La salida anticipada requiere placas, folio, propietario y autorizacion documental verificada.',
@@ -537,7 +536,7 @@ export class EncierrosService {
         },
         nombrePropietarioDeclarado: propietario,
         autorizacionDocumentalVerificada: true,
-        referenciaDocumentoLiberacion: referencia,
+        referenciaDocumentoLiberacion: folio,
       }));
 
       if (discrepancias.length > 0) {

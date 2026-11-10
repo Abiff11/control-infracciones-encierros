@@ -354,8 +354,8 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
       expect(screen.getByLabelText(campo)).toHaveValue(valor);
     }
     expect(screen.getByLabelText("Folio de liberacion presentado")).toHaveValue("");
-    expect(screen.getByLabelText("Referencia del documento de liberacion")).toHaveValue("");
-    expect(screen.getByLabelText("Propietario declarado")).toHaveValue("");
+    expect(screen.queryByLabelText("Referencia del documento de liberacion")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Propietario del vehículo")).toHaveValue("");
     expect(screen.getByLabelText(/Confirmo que verifiqué físicamente el vehículo/i)).not.toBeChecked();
     expect(screen.getByRole("button", { name: "Registrar salida anticipada" })).toBeDisabled();
   });
@@ -364,8 +364,7 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
     renderModal("salida", expedienteRetenido({ anioModelo: 2022 }), "ENCIERRO");
     const manuales = [
       ["Folio de liberacion presentado", "FL-2026-55"],
-      ["Referencia del documento de liberacion", "Oficio firmado"],
-      ["Propietario declarado", "Persona propietaria"],
+      ["Propietario del vehículo", "Persona propietaria"],
       ["Validado por", "Encargado"],
       ["Persona recibe vehiculo", "Persona receptora"],
     ] as const;
@@ -404,8 +403,7 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
       ["Placas verificadas fisicamente", "ABC123"],
       ["Marca cotejada", "SUZUKI"],
       ["Linea cotejada", "SWIFT"],
-      ["Propietario declarado", "Persona propietaria"],
-      ["Referencia del documento de liberacion", "Oficio firmado"],
+      ["Propietario del vehículo", "Persona propietaria"],
       ["Validado por", "Encargado"],
       ["Persona recibe vehiculo", "Persona receptora"],
     ] as const;
@@ -429,9 +427,13 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
             estadoPlacas: "OAXACA",
           }),
           autorizacionDocumentalVerificada: true,
+          nombrePropietarioDeclarado: "Persona propietaria",
+          personaRecibeVehiculo: "Persona receptora",
         }),
       );
     });
+    const payload = apiMocks.createSalidaAnticipada.mock.calls[0]?.[1];
+    expect(payload).not.toHaveProperty("referenciaDocumentoLiberacion");
     expect(apiMocks.createSalida).not.toHaveBeenCalled();
     expect(onCompleted).toHaveBeenCalledTimes(1);
   });
@@ -459,8 +461,7 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
       ["Placas verificadas fisicamente", "ABC123"],
       ["Marca cotejada", "SUZUKI"],
       ["Linea cotejada", "SWIFT"],
-      ["Propietario declarado", "Persona propietaria"],
-      ["Referencia del documento de liberacion", "Oficio firmado"],
+      ["Propietario del vehículo", "Persona propietaria"],
       ["Validado por", "Encargado"],
       ["Persona recibe vehiculo", "Persona receptora"],
     ] as const;

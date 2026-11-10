@@ -164,7 +164,6 @@ describe('EncierrosController accesos HTTP de ENCIERRO', () => {
         placasCotejadas: 'ABC-123-D',
         datosVehiculoCotejados: { marca: 'Nissan', linea: 'Versa' },
         autorizacionDocumentalVerificada: true,
-        referenciaDocumentoLiberacion: 'Oficio de liberacion con firma',
         nombrePropietarioDeclarado: 'Propietario',
         validadoPor: 'Responsable',
         personaRecibeVehiculo: 'Persona receptora',
@@ -179,7 +178,7 @@ describe('EncierrosController accesos HTTP de ENCIERRO', () => {
     );
   });
 
-  it('rechaza salida anticipada sin referencia documental', async () => {
+  it('rechaza un intento de enviar referencia documental adicional al folio', async () => {
     await request(app.getHttpServer())
       .post('/encierros/salidas/anticipadas')
       .send({
@@ -188,6 +187,7 @@ describe('EncierrosController accesos HTTP de ENCIERRO', () => {
         placasCotejadas: 'ABC-123-D',
         datosVehiculoCotejados: { marca: 'Nissan', linea: 'Versa' },
         autorizacionDocumentalVerificada: true,
+        referenciaDocumentoLiberacion: 'Referencia ajena al folio',
         nombrePropietarioDeclarado: 'Propietario',
         validadoPor: 'Responsable',
         personaRecibeVehiculo: 'Persona receptora',

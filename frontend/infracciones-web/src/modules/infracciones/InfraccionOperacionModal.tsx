@@ -103,7 +103,6 @@ interface OperationFormState {
   estadoPlacasCotejado: string;
   serieCotejada: string;
   motorCotejado: string;
-  referenciaDocumentoLiberacion: string;
   nombrePropietarioDeclarado: string;
   autorizacionDocumentalVerificada: boolean;
   reportarDiferencia: boolean;
@@ -173,7 +172,6 @@ function createInitialForm(
     estadoPlacasCotejado: vehiculoParaCotejo?.estadoPlacas ?? "",
     serieCotejada: vehiculoParaCotejo?.serie ?? "",
     motorCotejado: vehiculoParaCotejo?.motor ?? "",
-    referenciaDocumentoLiberacion: "",
     nombrePropietarioDeclarado: "",
     autorizacionDocumentalVerificada: false,
     reportarDiferencia: false,
@@ -579,9 +577,8 @@ export function InfraccionOperacionModal({
       }
       if (isSalidaAnticipada) {
         if (!form.folioLiberacionPresentado.trim() ||
-            !form.referenciaDocumentoLiberacion.trim() ||
             !form.nombrePropietarioDeclarado.trim()) {
-          return "Captura folio, referencia documental y propietario.";
+          return "Captura el folio de liberación presentado y el propietario del vehículo.";
         }
         if (!form.placasCotejadas.trim()) {
           return "Escribe las placas verificadas fisicamente.";
@@ -792,7 +789,6 @@ export function InfraccionOperacionModal({
             ...(datos.motorCotejado.trim() && { motor: datos.motorCotejado.trim() }),
           },
           autorizacionDocumentalVerificada: true,
-          referenciaDocumentoLiberacion: datos.referenciaDocumentoLiberacion.trim(),
           nombrePropietarioDeclarado: datos.nombrePropietarioDeclarado.trim(),
           validadoPor: datos.validadoPor.trim(),
           personaRecibeVehiculo: datos.personaRecibeVehiculo.trim(),
@@ -1197,21 +1193,14 @@ export function InfraccionOperacionModal({
                     onChange={(event) => updateField("motorCotejado", event.target.value)}
                   />
                 </Field>
-                <Field htmlFor="operacion-ant-referenciaDocumentoLiberacion" label="Referencia del documento de liberacion">
-                  <TextInput
-                    id="operacion-ant-referenciaDocumentoLiberacion"
-                    value={form.referenciaDocumentoLiberacion}
-                    
-                    onChange={(event) => updateField("referenciaDocumentoLiberacion", event.target.value)}
-                  />
-                </Field>
-                <Field htmlFor="operacion-ant-nombrePropietarioDeclarado" label="Propietario declarado">
+                <Field htmlFor="operacion-ant-nombrePropietarioDeclarado" label="Propietario del vehículo">
                   <TextInput
                     id="operacion-ant-nombrePropietarioDeclarado"
                     value={form.nombrePropietarioDeclarado}
                     
                     onChange={(event) => updateField("nombrePropietarioDeclarado", event.target.value)}
                   />
+                  <small>Captura al propietario, aunque otra persona retire físicamente el vehículo.</small>
                 </Field>
                 {cotejo && cotejo.problemas.length > 0 ? (
                   <div className="notice notice-error field-span-2" role="alert">
