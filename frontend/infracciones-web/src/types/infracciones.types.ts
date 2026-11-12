@@ -69,6 +69,7 @@ export interface InfraccionListItem {
   fechaInfraccion: string;
   horaInfraccion: string;
   observaciones: string | null;
+  cantidadObservacionesPendientes?: number;
   clavePolicia: string | null;
   numParteInformativo: string | null;
   infractor: InfractorSummary;

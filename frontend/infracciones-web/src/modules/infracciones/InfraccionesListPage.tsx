@@ -12,7 +12,6 @@ import { StatusBadge } from "../../components/ui/StatusBadge";
 import { getErrorMessage } from "../../services/api/apiClient";
 import {
   getObservacionesPendientes,
-  type ObservacionesPendientesResponse,
   type ObservacionPendienteItem,
   type ResolverObservacionResponse,
 } from "../../services/api/encierros.api";
@@ -434,10 +433,8 @@ function InfraccionesListPage({
   const puedeConsultarObservaciones =
     roleName?.toUpperCase() === "INFRACCIONES" ||
     roleName?.toUpperCase() === "ADMIN";
-  const [bandejaAbierta, setBandejaAbierta] = useState(false);
-  const [paginaObservaciones, setPaginaObservaciones] = useState(1);
-  const [observacionesState, setObservacionesState] =
-    useState<LoadState<ObservacionesPendientesResponse>>(createIdleState());
+  const [consultandoObservacionId, setConsultandoObservacionId] = useState<number | null>(null);
+  const [observacionesError, setObservacionesError] = useState<string | null>(null);
   const [observacionSeleccionada, setObservacionSeleccionada] =
     useState<ObservacionPendienteItem | null>(null);
   const [resultadoObservacion, setResultadoObservacion] = useState<string | null>(null);
@@ -494,40 +491,6 @@ function InfraccionesListPage({
       mounted = false;
     };
   }, [query, refreshKey, localRefreshKey, token]);
-
-  useEffect(() => {
-    if (!puedeConsultarObservaciones) {
-      return;
-    }
-    let vigente = true;
-    async function cargarObservaciones(): Promise<void> {
-      setObservacionesState((current) => ({
-        ...current,
-        status: "loading",
-        error: null,
-      }));
-      try {
-        const data = await getObservacionesPendientes(token, paginaObservaciones, 20);
-        if (vigente) {
-          setObservacionesState({ status: "ready", data, error: null });
-        }
-      } catch (error) {
-        if (vigente) {
-          setObservacionesState({
-            status: "error", data: null, error: getErrorMessage(error),
-          });
-        }
-      }
-    }
-    void cargarObservaciones();
-    return () => { vigente = false; };
-  }, [
-    puedeConsultarObservaciones,
-    token,
-    paginaObservaciones,
-    refreshKey,
-    localRefreshKey,
-  ]);
 
   useEffect(() => {
     const conceptQuery = draftFilters.claveConcepto.trim();
@@ -699,12 +662,28 @@ function InfraccionesListPage({
     setLocalRefreshKey((current) => current + 1);
   }
 
-  function abrirAtencionObservacion(observacion: ObservacionPendienteItem): void {
-    if (!puedeConsultarObservaciones) {
+  async function abrirAtencionObservacion(item: InfraccionListItem): Promise<void> {
+    if (!puedeConsultarObservaciones || !item.cantidadObservacionesPendientes) {
       return;
     }
-    setObservacionSeleccionada(observacion);
-    setResultadoObservacion(null);
+    setObservacionesError(null);
+    setConsultandoObservacionId(item.idInfraccion);
+    try {
+      // La consulta filtrada evita perder observaciones por paginacion global.
+      const respuesta = await getObservacionesPendientes(token, 1, 1, item.idInfraccion);
+      const observacion = respuesta.data[0];
+      if (!observacion) {
+        setObservacionesError('La observación ya fue atendida. Se actualizará el listado.');
+        setLocalRefreshKey((actual) => actual + 1);
+        return;
+      }
+      setObservacionSeleccionada(observacion);
+      setResultadoObservacion(null);
+    } catch (cause) {
+      setObservacionesError(getErrorMessage(cause));
+    } finally {
+      setConsultandoObservacionId(null);
+    }
   }
 
   function cerrarAtencionObservacion(): void {
@@ -719,10 +698,6 @@ function InfraccionesListPage({
         ? 'corregida correctamente.'
         : 'rechazada con justificación.'),
     );
-    if (paginaObservaciones > 1 &&
-        observacionesState.data?.data.length === 1) {
-      setPaginaObservaciones((actual) => Math.max(1, actual - 1));
-    }
     setLocalRefreshKey((actual) => actual + 1);
   }
 
@@ -789,117 +764,10 @@ function InfraccionesListPage({
         ) : null}
       </header>
 
-      {puedeConsultarObservaciones ? (
-        <Card>
-          <div className="page-stack">
-            <div className="panel-header">
-              <div>
-                <p className="section-label">Seguimiento entre áreas</p>
-                <h2>Observaciones pendientes</h2>
-                <p className="page-description">
-                  Revisa las diferencias reportadas por Encierros y decide si
-                  corresponde corregir el dato o rechazar la observación.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setBandejaAbierta((abierta) => !abierta)}
-              >
-                {bandejaAbierta ? "Ocultar observaciones" :
-                  `Ver observaciones (${observacionesState.data?.meta.total ?? 0})`}
-              </Button>
-            </div>
-            {resultadoObservacion ? (
-              <div className="notice" role="status">{resultadoObservacion}</div>
-            ) : null}
-            {bandejaAbierta ? (
-              <>
-                {observacionesState.status === "loading" ? (
-                  <LoadingMessage message="Consultando observaciones pendientes..." />
-                ) : null}
-                <ErrorMessage message={observacionesState.error} />
-                <div className="table-wrap table-wrap-expanded">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Expediente / vehículo</th>
-                        <th>Campo observado</th>
-                        <th>Comparación</th>
-                        <th>Motivo y evidencia</th>
-                        <th>Reportó / Fecha</th>
-                        <th>Estado</th>
-                        <th>Atención</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(observacionesState.data?.data ?? []).length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="empty-state">
-                            {observacionesState.status === "loading"
-                              ? "Cargando observaciones..."
-                              : "No hay observaciones pendientes para mostrar."}
-                          </td>
-                        </tr>
-                      ) : (
-                        observacionesState.data?.data.map((observacion) => (
-                          <tr key={observacion.idObservacion}>
-                            <td>
-                              <div className="table-cell-stack">
-                                <strong>{observacion.folioInfraccion}</strong>
-                                <span>Placas: {formatEmptyValue(observacion.placas)}</span>
-                              </div>
-                            </td>
-                            <td>{observacion.campoObservado === "ANIO_MODELO"
-                              ? "Año modelo" : "Color"}</td>
-                            <td>
-                              <div className="table-cell-stack">
-                                <span>Registrado: {observacion.valorOriginal}</span>
-                                <strong>Reportado: {observacion.valorReportado}</strong>
-                              </div>
-                            </td>
-                            <td>
-                              <div className="table-cell-stack">
-                                <span>{observacion.motivoReporte}</span>
-                                <strong>Evidencia: {observacion.referenciaEvidencia}</strong>
-                              </div>
-                            </td>
-                            <td>
-                              <div className="table-cell-stack">
-                                <span>{observacion.nombreUsuarioReporta}</span>
-                                <span>{formatDateTime(observacion.fechaReporte)}</span>
-                              </div>
-                            </td>
-                            <td><StatusBadge value={observacion.estatus} /></td>
-                            <td>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                onClick={() => abrirAtencionObservacion(observacion)}
-                              >
-                                Atender observación
-                              </Button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                {observacionesState.data ? (
-                  <PaginationControls
-                    page={observacionesState.data.meta.page}
-                    limit={observacionesState.data.meta.limit}
-                    total={observacionesState.data.meta.total}
-                    totalPages={observacionesState.data.meta.totalPages}
-                    onPageChange={setPaginaObservaciones}
-                  />
-                ) : null}
-              </>
-            ) : null}
-          </div>
-        </Card>
+      {resultadoObservacion ? (
+        <div className="notice" role="status">{resultadoObservacion}</div>
       ) : null}
+      <ErrorMessage message={observacionesError} />
 
       <Card>
         <form className="page-stack" onSubmit={applyFilters}>
@@ -1198,7 +1066,23 @@ function InfraccionesListPage({
                     <tr key={item.idInfraccion}>
                       <td>
                         <div className="table-cell-stack">
-                          <strong>{item.folioInfraccion}</strong>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                            <strong>{item.folioInfraccion}</strong>
+                            {puedeConsultarObservaciones &&
+                              (item.cantidadObservacionesPendientes ?? 0) > 0 ? (
+                                <Button
+                                  type="button"
+                                  variant="link"
+                                  title="Revisar observaciones pendientes"
+                                  aria-label={`Revisar ${item.cantidadObservacionesPendientes} observaciones pendientes del expediente ${item.folioInfraccion}`}
+                                  disabled={consultandoObservacionId === item.idInfraccion}
+                                  onClick={() => { void abrirAtencionObservacion(item); }}
+                                >
+                                  <span aria-hidden="true">🔔</span>
+                                  <span>{item.cantidadObservacionesPendientes}</span>
+                                </Button>
+                              ) : null}
+                          </div>
                           <span>{formatDate(item.fechaInfraccion)}</span>
                           <span>{formatTimeOfDay(item.horaInfraccion)}</span>
                         </div>

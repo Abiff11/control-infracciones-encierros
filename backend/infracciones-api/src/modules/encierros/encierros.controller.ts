@@ -69,8 +69,11 @@ export class EncierrosController {
   listarObservacionesPendientes(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Query('idInfraccion', new ParseIntPipe({ optional: true })) idInfraccion?: number,
   ) {
-    return this.encierrosService.listarObservacionesPendientes({ page, limit });
+    return this.encierrosService.listarObservacionesPendientes({
+      page, limit, idInfraccion,
+    });
   }
 
   @Roles(ROLES.INFRACCIONES, ROLES.ADMIN)

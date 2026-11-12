@@ -78,9 +78,10 @@ export function getObservacionesPendientes(
   token: string,
   page = 1,
   limit = 20,
+  idInfraccion?: number,
 ): Promise<ObservacionesPendientesResponse> {
   return request<ObservacionesPendientesResponse>(
-    `/encierros/observaciones/pendientes${buildQuery({ page, limit })}`,
+    `/encierros/observaciones/pendientes${buildQuery({ page, limit, idInfraccion })}`,
     {},
     token,
   );

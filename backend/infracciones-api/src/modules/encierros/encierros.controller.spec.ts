@@ -61,6 +61,17 @@ describe('EncierrosController authorization', () => {
   });
 });
 
+describe('EncierrosController filtro de observaciones', () => {
+  it('envia el id del expediente al servicio sin alterar paginacion', () => {
+    const service = { listarObservacionesPendientes: jest.fn() };
+    const controller = new EncierrosController(service as never);
+    controller.listarObservacionesPendientes(1, 20, 11434);
+    expect(service.listarObservacionesPendientes).toHaveBeenCalledWith({
+      page: 1, limit: 20, idInfraccion: 11434,
+    });
+  });
+});
+
 describe('EncierrosController accesos HTTP de ENCIERRO', () => {
   let app: INestApplication;
 

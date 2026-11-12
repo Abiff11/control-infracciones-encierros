@@ -752,11 +752,18 @@ export class EncierrosService {
    * La API devuelve una proyección explícita: no expone contraseñas,
    * información del propietario ni documentos ajenos a la observación.
    */
-  async listarObservacionesPendientes(params: { page: number; limit: number }) {
-    const { page, limit } = params;
+  async listarObservacionesPendientes(params: {
+    page: number;
+    limit: number;
+    idInfraccion?: number;
+  }) {
+    const { page, limit, idInfraccion } = params;
     if (!Number.isInteger(page) || page < 1 ||
         !Number.isInteger(limit) || limit < 1 || limit > 50) {
       throw new BadRequestException('Pagina o limite de observaciones invalido (1 a 50).');
+    }
+    if (idInfraccion !== undefined && (!Number.isInteger(idInfraccion) || idInfraccion < 1)) {
+      throw new BadRequestException('El identificador de infraccion es invalido.');
     }
 
     const query = this.dataSource.getRepository(ObservacionExpediente)
@@ -765,6 +772,10 @@ export class EncierrosService {
       .innerJoin('infraccion.vehiculo', 'vehiculo')
       .innerJoin('observacion.usuarioReporta', 'usuarioReporta')
       .where('observacion.estatus = :estatus', { estatus: 'PENDIENTE' });
+
+    if (idInfraccion !== undefined) {
+      query.andWhere('infraccion.idInfraccion = :idInfraccion', { idInfraccion });
+    }
 
     const total = await query.getCount();
     const rows = await query

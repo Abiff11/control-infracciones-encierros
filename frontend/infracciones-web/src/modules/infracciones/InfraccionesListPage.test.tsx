@@ -161,89 +161,105 @@ async function renderWithItem(item: InfraccionListItem, roleName?: string) {
   expect(await screen.findByText("INF-10")).toBeInTheDocument();
 }
 
-describe("InfraccionesListPage bandeja de observaciones", () => {
+describe("InfraccionesListPage notificaciones por expediente", () => {
+  const observacion = {
+    idObservacion: 12,
+    idInfraccion: 10,
+    folioInfraccion: "INF-10",
+    placas: "ABC123",
+    campoObservado: "ANIO_MODELO",
+    valorOriginal: "2022",
+    valorReportado: "2023",
+    motivoReporte: "La tarjeta indica un modelo distinto.",
+    referenciaEvidencia: "Tarjeta de circulación revisada",
+    nombreUsuarioReporta: "Encierros Central",
+    fechaReporte: "2026-11-09T17:00:00.000Z",
+    estatus: "PENDIENTE",
+  };
   beforeEach(() => {
     vi.clearAllMocks();
     apiMocks.findConceptosPago.mockResolvedValue([]);
     apiMocks.getObservacionesPendientes.mockResolvedValue({
-      data: [{
-        idObservacion: 12,
-        idInfraccion: 10,
-        folioInfraccion: "INF-2026-0125",
-        placas: "ABC123",
-        campoObservado: "ANIO_MODELO",
-        valorOriginal: "2022",
-        valorReportado: "2023",
-        motivoReporte: "La tarjeta indica un modelo distinto.",
-        referenciaEvidencia: "Tarjeta de circulación revisada",
-        nombreUsuarioReporta: "Encierros Central",
-        fechaReporte: "2026-11-09T17:00:00.000Z",
-        estatus: "PENDIENTE",
-      }],
-      meta: { page: 1, limit: 20, total: 1, totalPages: 1 },
+      data: [observacion],
+      meta: { page: 1, limit: 1, total: 1, totalPages: 1 },
     });
   });
 
-  it("permite a INFRACCIONES consultar la observacion con evidencia y comparación", async () => {
-    await renderWithItem(createItem(), "INFRACCIONES");
-    const abrir = await screen.findByRole("button", { name: "Ver observaciones (1)" });
-    fireEvent.click(abrir);
-    expect(screen.getByRole("heading", { name: "Observaciones pendientes" })).toBeInTheDocument();
-    expect(screen.getByText("INF-2026-0125")).toBeInTheDocument();
-    expect(screen.getByText("Registrado: 2022")).toBeInTheDocument();
-    expect(screen.getByText("Reportado: 2023")).toBeInTheDocument();
-    expect(screen.getByText("Evidencia: Tarjeta de circulación revisada")).toBeInTheDocument();
-    expect(screen.getByText("Encierros Central")).toBeInTheDocument();
-    expect(apiMocks.getObservacionesPendientes).toHaveBeenCalledWith(
-      "token-test", 1, 20,
-    );
+  it("muestra campana exclusivamente en la infracción con pendientes", async () => {
+    await renderWithItem(createItem({ cantidadObservacionesPendientes: 2 }), "INFRACCIONES");
+    expect(screen.getByRole("button", {
+      name: "Revisar 2 observaciones pendientes del expediente INF-10",
+    })).toBeEnabled();
+    expect(apiMocks.getObservacionesPendientes).not.toHaveBeenCalled();
   });
 
-  it("abre la atención de la observación seleccionada sin modificar otras operaciones", async () => {
-    await renderWithItem(createItem(), "INFRACCIONES");
-    fireEvent.click(await screen.findByRole("button", { name: "Ver observaciones (1)" }));
-    fireEvent.click(screen.getByRole("button", { name: "Atender observación" }));
-
-    expect(screen.getByTestId("observacion-atencion")).toHaveTextContent(
+  it("consulta la infracción exacta al pulsar la campana y abre su atención", async () => {
+    await renderWithItem(createItem({ cantidadObservacionesPendientes: 1 }), "INFRACCIONES");
+    fireEvent.click(screen.getByRole("button", {
+      name: "Revisar 1 observaciones pendientes del expediente INF-10",
+    }));
+    await waitFor(() => expect(apiMocks.getObservacionesPendientes).toHaveBeenCalledWith(
+      "token-test", 1, 1, 10,
+    ));
+    expect(await screen.findByTestId("observacion-atencion")).toHaveTextContent(
       "Atendiendo observación 12",
     );
     fireEvent.click(screen.getByRole("button", { name: "Cerrar atención" }));
     expect(screen.queryByTestId("observacion-atencion")).not.toBeInTheDocument();
   });
 
-  it("actualiza bandeja y listado al terminar una corrección", async () => {
-    await renderWithItem(createItem(), "INFRACCIONES");
-    fireEvent.click(await screen.findByRole("button", { name: "Ver observaciones (1)" }));
-    fireEvent.click(screen.getByRole("button", { name: "Atender observación" }));
-    apiMocks.getObservacionesPendientes.mockResolvedValue({
-      data: [],
-      meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
+  it("actualiza el listado después de resolver una observación", async () => {
+    await renderWithItem(createItem({ cantidadObservacionesPendientes: 1 }), "INFRACCIONES");
+    fireEvent.click(screen.getByRole("button", {
+      name: "Revisar 1 observaciones pendientes del expediente INF-10",
+    }));
+    await screen.findByTestId("observacion-atencion");
+    apiMocks.getInfracciones.mockResolvedValue({
+      data: [createItem({ cantidadObservacionesPendientes: 0 })],
+      meta: { page: 1, limit: 30, total: 1, totalPages: 1 },
     });
     fireEvent.click(screen.getByRole("button", { name: "Simular resolución" }));
-
     expect(screen.getByRole("status")).toHaveTextContent("Observación 12 corregida correctamente.");
-    expect(screen.queryByTestId("observacion-atencion")).not.toBeInTheDocument();
-    await waitFor(() => {
-      expect(apiMocks.getObservacionesPendientes).toHaveBeenCalledTimes(2);
-      expect(apiMocks.getInfracciones).toHaveBeenCalledTimes(2);
-    });
-    expect(await screen.findByText("No hay observaciones pendientes para mostrar.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("button", {
+      name: /Revisar 1 observaciones pendientes del expediente INF-10/,
+    })).not.toBeInTheDocument());
   });
 
-  it("no muestra ni consulta la bandeja con el rol ENCIERRO", async () => {
-    await renderWithItem(createItem(), "ENCIERRO");
-    expect(screen.queryByRole("heading", { name: "Observaciones pendientes" })).not.toBeInTheDocument();
-    expect(apiMocks.getObservacionesPendientes).not.toHaveBeenCalled();
+  it.each(["ENCIERRO", "CONSULTA", "LIBERACIONES", "OPERADOR"] as const)(
+    "no expone la atención de observaciones al rol %s",
+    async (rol) => {
+      await renderWithItem(createItem({ cantidadObservacionesPendientes: 1 }), rol);
+      expect(screen.queryByRole("button", { name: /observaciones pendientes del expediente/i }))
+        .not.toBeInTheDocument();
+      expect(apiMocks.getObservacionesPendientes).not.toHaveBeenCalled();
+    },
+  );
+
+  it("mantiene visible y habilitado Registrar pago cuando hay observación", async () => {
+    await renderWithItem({
+      ...createItemEnEncierro("EN_ENCIERRO_SIN_PAGO"),
+      cantidadObservacionesPendientes: 1,
+    }, "INFRACCIONES");
+    expect(screen.getByRole("button", { name: "Registrar pago" })).toBeEnabled();
+    expect(screen.getByRole("button", {
+      name: "Revisar 1 observaciones pendientes del expediente INF-10",
+    })).toBeEnabled();
   });
 
-  it("mantiene el listado principal cuando falla la consulta de observaciones", async () => {
-    apiMocks.getObservacionesPendientes.mockRejectedValueOnce(
-      new Error("No se pudo consultar la bandeja"),
-    );
-    await renderWithItem(createItem(), "INFRACCIONES");
-    fireEvent.click(screen.getByRole("button", { name: "Ver observaciones (0)" }));
-    expect(await screen.findByText("No se pudo consultar la bandeja")).toBeInTheDocument();
+  it("muestra fallo de consulta sin impedir acciones del listado", async () => {
+    apiMocks.getObservacionesPendientes.mockRejectedValueOnce(new Error("Consulta no disponible"));
+    await renderWithItem(createItem({ cantidadObservacionesPendientes: 1 }), "ADMIN");
+    fireEvent.click(screen.getByRole("button", {
+      name: "Revisar 1 observaciones pendientes del expediente INF-10",
+    }));
+    expect(await screen.findByText("Consulta no disponible")).toBeInTheDocument();
     expect(screen.getByText("INF-10")).toBeInTheDocument();
+  });
+
+  it("no muestra campana cuando el expediente no tiene observaciones pendientes", async () => {
+    await renderWithItem(createItem({ cantidadObservacionesPendientes: 0 }), "INFRACCIONES");
+    expect(screen.queryByRole("button", { name: /observaciones pendientes del expediente/i }))
+      .not.toBeInTheDocument();
   });
 });
 

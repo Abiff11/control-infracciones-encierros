@@ -119,5 +119,11 @@ describe('InfraccionesListService regularizacion posterior', () => {
     expect(selected.get('folioLiberacionPresentado')).toContain(
       'salida_anticipada.id_retencion_vehiculo = retencion.id_retencion_vehiculo',
     );
+    expect(selected.get('cantidadObservacionesPendientes')).toContain(
+      'observacion_pendiente.id_infraccion = infraccion.id_infraccion',
+    );
+    expect(selected.get('cantidadObservacionesPendientes')).toContain(
+      "observacion_pendiente.estatus = 'PENDIENTE'",
+    );
   });
 });

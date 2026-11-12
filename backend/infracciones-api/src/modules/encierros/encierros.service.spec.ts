@@ -579,3 +579,52 @@ describe('EncierrosService resolverObservacion', () => {
       .rejects.toThrow('Auditoria no disponible');
   });
 });
+
+describe('EncierrosService consultar observaciones filtradas', () => {
+  it('consulta únicamente pendientes de la infracción solicitada', async () => {
+    const builder: Record<string, jest.Mock> = {};
+    for (const name of [
+      'innerJoin', 'select', 'addSelect', 'orderBy', 'addOrderBy',
+      'offset', 'limit', 'where', 'andWhere',
+    ]) {
+      builder[name] = jest.fn().mockReturnValue(builder);
+    }
+    builder.getCount = jest.fn().mockResolvedValue(1);
+    builder.getRawMany = jest.fn().mockResolvedValue([{
+      idObservacion: 32, idInfraccion: 11434, folioInfraccion: '117225',
+      placas: 'RY5471A', campoObservado: 'COLOR',
+      valorOriginal: 'BLANCO', valorReportado: 'GRIS',
+      motivoReporte: 'Diferencia constatada', referenciaEvidencia: 'Tarjeta',
+      nombreUsuarioReporta: 'Encierros', fechaReporte: '2026-11-11T12:00:00.000Z',
+    }]);
+    const dataSource = { getRepository: jest.fn(() => ({
+      createQueryBuilder: jest.fn(() => builder),
+    })) };
+    const service = new EncierrosService(
+      dataSource as never, {} as never, {} as never, {} as never,
+      {} as never, {} as never,
+    );
+
+    const result = await service.listarObservacionesPendientes({
+      page: 1, limit: 20, idInfraccion: 11434,
+    });
+    expect(builder.andWhere).toHaveBeenCalledWith(
+      'infraccion.idInfraccion = :idInfraccion',
+      { idInfraccion: 11434 },
+    );
+    expect(result.meta.total).toBe(1);
+    expect(result.data[0]).toEqual(expect.objectContaining({
+      idInfraccion: 11434, idObservacion: 32, estatus: 'PENDIENTE',
+    }));
+  });
+
+  it('rechaza un id de infracción no válido antes de consultar', async () => {
+    const service = new EncierrosService(
+      { getRepository: jest.fn() } as never, {} as never, {} as never,
+      {} as never, {} as never, {} as never,
+    );
+    await expect(service.listarObservacionesPendientes({
+      page: 1, limit: 20, idInfraccion: -1,
+    })).rejects.toBeInstanceOf(BadRequestException);
+  });
+});

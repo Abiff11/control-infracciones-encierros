@@ -61,6 +61,7 @@ interface InfraccionListRow {
   fechaSalida: string | Date | null;
   folioLiberacionPresentado: string | null;
   clavesPago: string | null;
+  cantidadObservacionesPendientes: string | number | null;
 }
 
 interface MotivoRow {
@@ -312,6 +313,15 @@ export class InfraccionesListService {
           LIMIT 1
         )`,
         'fechaLiberacion',
+      )
+      .addSelect(
+        `(
+          SELECT COUNT(*)::int
+          FROM observacion_expediente observacion_pendiente
+          WHERE observacion_pendiente.id_infraccion = infraccion.id_infraccion
+            AND observacion_pendiente.estatus = 'PENDIENTE'
+        )`,
+        'cantidadObservacionesPendientes',
       )
       .addSelect(this.hasSalidaExpression(), 'tieneSalida')
       .addSelect(
@@ -711,6 +721,7 @@ export class InfraccionesListService {
       fechaInfraccion: this.toStringValue(row.fechaInfraccion),
       horaInfraccion: this.toStringValue(row.horaInfraccion),
       observaciones: this.toNullableString(row.observaciones),
+      cantidadObservacionesPendientes: this.toNumber(row.cantidadObservacionesPendientes ?? 0),
       clavePolicia: this.toNullableString(row.clavePolicia),
       numParteInformativo: this.toNullableString(row.numParteInformativo),
       infractor: {
