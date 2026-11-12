@@ -916,7 +916,10 @@ export class EncierrosService {
 
       const estatus = params.decision === 'CORREGIR' ? 'CORREGIDA' : 'RECHAZADA';
       const fechaResolucion = new Date();
-      const updated = await manager.query<Array<{ idObservacion: number }>>(
+      // TypeORM/PostgreSQL devuelve [filas RETURNING, total afectadas] en UPDATE.
+      const [filasActualizadas, totalActualizadas] = await manager.query<
+        [Array<{ idObservacion: number }>, number]
+      >(
         [
           'UPDATE observacion_expediente SET estatus = $1,',
           'id_usuario_resuelve = $2, resolucion = $3, fecha_resolucion = $4',
@@ -925,7 +928,11 @@ export class EncierrosService {
         ].join(' '),
         [estatus, params.idUsuarioResuelve, resolucion, fechaResolucion, params.idObservacion],
       );
-      if (updated.length !== 1) {
+      if (
+        totalActualizadas !== 1 ||
+        filasActualizadas.length !== 1 ||
+        Number(filasActualizadas[0].idObservacion) !== params.idObservacion
+      ) {
         throw new ConflictException('No fue posible completar la resolucion.');
       }
 

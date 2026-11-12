@@ -417,6 +417,8 @@ describe('EncierrosService resolverObservacion', () => {
     colorActual?: string;
     anioActual?: number;
     referencias?: number;
+    filasActualizadas?: number;
+    idObservacionActualizada?: number;
   }) {
     const observacion = {
       idObservacion: 21,
@@ -444,7 +446,11 @@ describe('EncierrosService resolverObservacion', () => {
       }]);
       if (sql.includes('UPDATE vehiculo')) return Promise.resolve([]);
       if (sql.includes('UPDATE observacion_expediente')) {
-        return Promise.resolve([{ idObservacion: 21 }]);
+        const cantidad = options?.filasActualizadas ?? 1;
+        const filas = cantidad === 1
+          ? [{ idObservacion: options?.idObservacionActualizada ?? 21 }]
+          : [];
+        return Promise.resolve([filas, cantidad]);
       }
       throw new Error('SQL inesperado: ' + sql);
     });
@@ -517,6 +523,22 @@ describe('EncierrosService resolverObservacion', () => {
     expect(f.auditoria.create).toHaveBeenCalledWith(
       expect.objectContaining({ accion: 'OBSERVACION_EXPEDIENTE_RECHAZADA' }),
     );
+  });
+
+  it('rechaza la resolucion si PostgreSQL no actualiza ninguna fila', async () => {
+    const f = fixture({ filasActualizadas: 0 });
+    await expect(f.service.resolverObservacion(f.params))
+      .rejects.toThrow('No fue posible completar la resolucion.');
+    expect(f.auditoria.save).not.toHaveBeenCalled();
+  });
+
+  it('rechaza la resolucion si PostgreSQL devuelve otro ID de observacion', async () => {
+    const f = fixture({ idObservacionActualizada: 22 });
+    await expect(f.service.resolverObservacion({
+      ...f.params,
+      decision: 'RECHAZAR',
+    })).rejects.toBeInstanceOf(ConflictException);
+    expect(f.auditoria.save).not.toHaveBeenCalled();
   });
 
   it('impide volver a resolver una observacion atendida', async () => {
