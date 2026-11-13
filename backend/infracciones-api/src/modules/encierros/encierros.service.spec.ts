@@ -8,6 +8,7 @@ import { LiberacionVehiculo } from '../liberaciones/entities/liberacion-vehiculo
 import { RetencionVehiculo } from './entities/retencion-vehiculo.entity';
 import { SalidaVehiculo } from './entities/salida-vehiculo.entity';
 import { ObservacionExpediente } from './entities/observacion-expediente.entity';
+import type { CampoObservado } from './entities/observacion-expediente.entity';
 import { EncierrosService } from './encierros.service';
 
 function createRepositoryMock() {
@@ -239,11 +240,21 @@ describe('EncierrosService registrarSalidaAnticipada', () => {
     expect(f.salidas.save).not.toHaveBeenCalled();
   });
 
-  it('bloquea placas diferentes aunque coincidan los demas datos', async () => {
+  it('registra placas diferentes con evidencia sin alterar el vehiculo original', async () => {
     const f = fixture();
-    await expect(f.service.registrarSalidaAnticipada({ ...f.params, placasCotejadas: 'OTRAS' }))
-      .rejects.toBeInstanceOf(BadRequestException);
-    expect(f.salidas.save).not.toHaveBeenCalled();
+    await f.service.registrarSalidaAnticipada({
+      ...f.params,
+      placasCotejadas: 'OTRAS',
+      discrepanciaMenor: {
+        motivo: 'Placas cotejadas diferentes; se verifico el documento',
+        referenciaEvidencia: 'Tarjeta presentada',
+      },
+    });
+    expect(f.observaciones.create).toHaveBeenCalledWith(
+      expect.objectContaining({ campoObservado: 'PLACAS',
+        valorOriginal: 'ABC-123-D', valorReportado: 'OTRAS' }),
+    );
+    expect(f.infracciones.update).toHaveBeenCalledTimes(1);
   });
 
   it('bloquea una discrepancia menor sin motivo y evidencia', async () => {
@@ -312,27 +323,33 @@ describe('EncierrosService registrarSalidaAnticipada', () => {
     );
   });
 
-  it('bloquea diferencias criticas aunque se adjunte una observacion menor', async () => {
+  it('registra diferencias de marca, serie y motor junto con año modelo', async () => {
     const f = fixture();
-    await expect(f.service.registrarSalidaAnticipada({
+    await f.service.registrarSalidaAnticipada({
       ...f.params,
       datosVehiculoCotejados: {
-        marca: 'OTRA MARCA',
-        linea: 'VERSA',
-        anioModelo: 2022,
+        marca: 'OTRA MARCA', linea: 'VERSA', anioModelo: 2022,
+        serie: 'OTRO VIN', motor: 'OTRO MOTOR',
       },
       discrepanciaMenor: {
-        motivo: 'Verificar datos vehiculares',
-        referenciaEvidencia: 'Documento mostrado',
+        motivo: 'Se cotejaron todos los datos vehiculares y requieren revision',
+        referenciaEvidencia: 'Documento y fotografia inspeccionados',
       },
-    })).rejects.toBeInstanceOf(BadRequestException);
-    expect(f.salidas.save).not.toHaveBeenCalled();
-    expect(f.observaciones.save).not.toHaveBeenCalled();
+    });
+    expect(f.observaciones.create.mock.calls.map(([arg]) => arg.campoObservado))
+      .toEqual(['MARCA', 'ANIO_MODELO', 'SERIE', 'MOTOR']);
+    expect(f.observaciones.save).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ campoObservado: 'MARCA' }),
+        expect.objectContaining({ campoObservado: 'SERIE' }),
+      ]),
+    );
+    expect(f.salidas.save).toHaveBeenCalledTimes(1);
   });
 
-  it('bloquea varias discrepancias menores en un mismo cotejo', async () => {
+  it('crea una observacion independiente por cada diferencia encontrada', async () => {
     const f = fixture();
-    await expect(f.service.registrarSalidaAnticipada({
+    await f.service.registrarSalidaAnticipada({
       ...f.params,
       datosVehiculoCotejados: {
         marca: 'NISSAN', linea: 'VERSA',
@@ -342,8 +359,11 @@ describe('EncierrosService registrarSalidaAnticipada', () => {
         motivo: 'Ambos datos requieren revision',
         referenciaEvidencia: 'Informe de cotejo',
       },
-    })).rejects.toBeInstanceOf(BadRequestException);
-    expect(f.salidas.save).not.toHaveBeenCalled();
+    });
+    expect(f.observaciones.create).toHaveBeenCalledTimes(2);
+    expect(f.observaciones.create.mock.calls.map(([arg]) => arg.campoObservado))
+      .toEqual(['COLOR', 'ANIO_MODELO']);
+    expect(f.salidas.save).toHaveBeenCalledTimes(1);
   });
 
   it('rechaza enviar un reporte cuando no se detecto ninguna diferencia', async () => {
@@ -382,13 +402,14 @@ describe('EncierrosService registrarSalidaAnticipada', () => {
     expect(f.auditoria.save).not.toHaveBeenCalled();
   });
 
-  it('exige placas y al menos dos datos generales cotejados', async () => {
+  it('permite una sola caracteristica cotejada si se confirma la documentacion', async () => {
     const f = fixture();
-    await expect(f.service.registrarSalidaAnticipada({
+    await f.service.registrarSalidaAnticipada({
       ...f.params,
       datosVehiculoCotejados: { marca: 'Nissan' },
-    })).rejects.toBeInstanceOf(BadRequestException);
-    expect(f.salidas.save).not.toHaveBeenCalled();
+    });
+    expect(f.salidas.save).toHaveBeenCalledTimes(1);
+    expect(f.observaciones.create).not.toHaveBeenCalled();
   });
 
   it('impide salida anticipada cuando ya existe liberacion electronica', async () => {
@@ -410,7 +431,7 @@ describe('EncierrosService registrarSalidaAnticipada', () => {
 
 describe('EncierrosService resolverObservacion', () => {
   function fixture(options?: {
-    campo?: 'COLOR' | 'ANIO_MODELO';
+    campo?: CampoObservado;
     estatus?: string;
     valorOriginal?: string;
     valorReportado?: string;
@@ -538,6 +559,23 @@ describe('EncierrosService resolverObservacion', () => {
       ...f.params,
       decision: 'RECHAZAR',
     })).rejects.toBeInstanceOf(ConflictException);
+    expect(f.auditoria.save).not.toHaveBeenCalled();
+  });
+
+  it('permite atender placas distintas sin modificar el vehiculo', async () => {
+    const f = fixture({ campo: 'PLACAS' });
+    const resultado = await f.service.resolverObservacion({
+      ...f.params, decision: 'RECHAZAR',
+    });
+    expect(resultado.estatus).toBe('RECHAZADA');
+    expect(f.query.mock.calls.some(([sql]) => String(sql).includes('UPDATE vehiculo')))
+      .toBe(false);
+  });
+
+  it('impide corregir placas directamente desde el formulario de observaciones', async () => {
+    const f = fixture({ campo: 'PLACAS' });
+    await expect(f.service.resolverObservacion(f.params))
+      .rejects.toBeInstanceOf(BadRequestException);
     expect(f.auditoria.save).not.toHaveBeenCalled();
   });
 

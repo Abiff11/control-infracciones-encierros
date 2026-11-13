@@ -11,7 +11,16 @@ import { Infraccion } from '../../infracciones/entities/infraccion.entity';
 import { Usuario } from '../../usuarios/entities/usuario.entity';
 import { SalidaVehiculo } from './salida-vehiculo.entity';
 
-export type CampoObservado = 'COLOR' | 'ANIO_MODELO';
+export type CampoObservado =
+  | 'PLACAS'
+  | 'MARCA'
+  | 'LINEA'
+  | 'CLASE'
+  | 'COLOR'
+  | 'ANIO_MODELO'
+  | 'ESTADO_PLACAS'
+  | 'SERIE'
+  | 'MOTOR';
 export type EstadoObservacion =
   | 'PENDIENTE'
   | 'EN_REVISION'

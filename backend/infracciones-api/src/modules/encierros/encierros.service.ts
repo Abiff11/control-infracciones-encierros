@@ -575,7 +575,7 @@ export class EncierrosService {
         accion: ACCION_MOVIMIENTO.VEHICULO_ENTREGADO,
         observaciones:
           discrepancias.length > 0
-            ? 'Salida anticipada con discrepancia menor pendiente; pago/liberacion electronica pendientes.'
+            ? 'Salida anticipada con diferencias de cotejo pendientes; pago/liberacion electronica pendientes.'
             : 'Salida anticipada con autorizacion documental; pago/liberacion electronica pendientes.',
         fechaMovimiento: fechaSalida,
       }));
@@ -604,138 +604,67 @@ export class EncierrosService {
   }
 
   /**
-   * Mantiene placas e identificadores como bloqueantes. Permite una unica
-   * discrepancia menor (COLOR o ANIO_MODELO) si al menos otros dos datos
-   * generales coinciden. La discrepancia no modifica al vehiculo.
+   * Coteja cada dato capturado sin impedir la entrega por discrepancias.
+   * Toda diferencia exige motivo y evidencia para revision de Infracciones.
+   * El vehiculo del expediente no se actualiza durante la salida fisica.
    */
   private validarCotejoSalidaAnticipada(
     params: RegistrarSalidaAnticipadaDto,
     infraccion: Infraccion,
   ): DiscrepanciaVehiculo[] {
     const vehiculo = infraccion.vehiculo;
-    const normalize = (value: string | number) =>
-      String(value).normalize('NFKC').trim().replace(/\s+/gu, ' ').toUpperCase();
-    const normalizePlacas = (value: string) =>
-      normalize(value).replace(/[\s-]/gu, '');
-
-    if (
-      !vehiculo.placas ||
-      normalizePlacas(vehiculo.placas) !== normalizePlacas(params.placasCotejadas)
-    ) {
-      throw new BadRequestException(
-        'Las placas cotejadas no coinciden con el expediente. Requiere revision.',
-      );
-    }
-
     const datos = params.datosVehiculoCotejados;
     if (!datos) {
       throw new BadRequestException('Captura los datos generales cotejados.');
     }
+    const normalize = (value: string | number) =>
+      String(value).normalize('NFKC').trim().replace(/\s+/gu, ' ').toUpperCase();
+    const normalizePlacas = (value: string | number) =>
+      normalize(value).replace(/[\s-]/gu, '');
 
-    const generales: Array<{
-      campo: string;
+    const campos: Array<{
+      campo: CampoObservado;
       reportado: string | number | null | undefined;
       registrado: string | number | null | undefined;
-      campoMenor?: CampoObservado;
     }> = [
-      {
-        campo: 'marca',
-        reportado: datos.marca,
-        registrado: vehiculo.lineaVehiculo?.marcaVehiculo?.nombreMarcaVehiculo,
-      },
-      {
-        campo: 'linea',
-        reportado: datos.linea,
-        registrado: vehiculo.lineaVehiculo?.nombreLineaVehiculo,
-      },
-      {
-        campo: 'clase',
-        reportado: datos.clase,
-        registrado: vehiculo.claseVehiculo?.nombreClaseVehiculo,
-      },
-      {
-        campo: 'color',
-        reportado: datos.color,
-        registrado: vehiculo.color,
-        campoMenor: 'COLOR',
-      },
-      {
-        campo: 'anio modelo',
-        reportado: datos.anioModelo,
-        registrado: vehiculo.anioModelo,
-        campoMenor: 'ANIO_MODELO',
-      },
+      { campo: 'PLACAS', reportado: params.placasCotejadas, registrado: vehiculo.placas },
+      { campo: 'MARCA', reportado: datos.marca, registrado: vehiculo.lineaVehiculo?.marcaVehiculo?.nombreMarcaVehiculo },
+      { campo: 'LINEA', reportado: datos.linea, registrado: vehiculo.lineaVehiculo?.nombreLineaVehiculo },
+      { campo: 'CLASE', reportado: datos.clase, registrado: vehiculo.claseVehiculo?.nombreClaseVehiculo },
+      { campo: 'COLOR', reportado: datos.color, registrado: vehiculo.color },
+      { campo: 'ANIO_MODELO', reportado: datos.anioModelo, registrado: vehiculo.anioModelo },
+      { campo: 'ESTADO_PLACAS', reportado: datos.estadoPlacas, registrado: vehiculo.estadoPlacas },
+      { campo: 'SERIE', reportado: datos.serie, registrado: vehiculo.serie },
+      { campo: 'MOTOR', reportado: datos.motor, registrado: vehiculo.motor },
     ];
 
-    let coincidencias = 0;
     const discrepancias: DiscrepanciaVehiculo[] = [];
-
-    for (const { campo, reportado, registrado, campoMenor } of generales) {
-      if (
-        reportado === null ||
-        reportado === undefined ||
-        String(reportado).trim() === ''
-      ) {
+    for (const { campo, reportado, registrado } of campos) {
+      if (reportado === null || reportado === undefined || String(reportado).trim() === '') {
         continue;
       }
-
-      if (registrado === null || registrado === undefined || String(registrado).trim() === '') {
-        throw new BadRequestException(
-          `El campo ${campo} no tiene dato registrado para cotejar. Requiere revision.`,
-        );
-      }
-
-      if (normalize(reportado) === normalize(registrado)) {
-        coincidencias += 1;
-        continue;
-      }
-
-      if (!campoMenor) {
-        throw new BadRequestException(
-          `El campo ${campo} del vehiculo no coincide con el expediente. Requiere revision.`,
-        );
-      }
-      discrepancias.push({
-        campo: campoMenor,
-        valorOriginal: String(registrado),
-        valorReportado: String(reportado),
-      });
-    }
-
-    if (coincidencias < 2) {
-      throw new BadRequestException(
-        'Debes cotejar placas y al menos dos datos generales coincidentes.',
+      const valorReportado = String(reportado).trim();
+      const valorRegistrado = registrado === null || registrado === undefined
+        ? '' : String(registrado).trim();
+      const coinciden = valorRegistrado !== '' && (
+        campo === 'PLACAS'
+          ? normalizePlacas(valorReportado) === normalizePlacas(valorRegistrado)
+          : normalize(valorReportado) === normalize(valorRegistrado)
       );
-    }
-    if (discrepancias.length > 1) {
-      throw new BadRequestException(
-        'Se detectaron varias diferencias. Requiere revision antes de entregar el vehiculo.',
-      );
-    }
-
-    const criticos: Array<[string, string | undefined, string | null]> = [
-      ['numero de serie', datos.serie, vehiculo.serie],
-      ['numero de motor', datos.motor, vehiculo.motor],
-      ['estado de placas', datos.estadoPlacas, vehiculo.estadoPlacas],
-    ];
-    for (const [campo, reportado, registrado] of criticos) {
-      if (reportado === undefined || reportado.trim() === '') {
-        continue;
-      }
-      if (!registrado || normalize(reportado) !== normalize(registrado)) {
-        throw new BadRequestException(
-          `El ${campo} no coincide con el expediente. Requiere revision.`,
-        );
+      if (!coinciden) {
+        discrepancias.push({
+          campo,
+          valorOriginal: valorRegistrado || 'SIN DATO',
+          valorReportado,
+        });
       }
     }
 
     if (discrepancias.length > 0) {
-      if (
-        !params.discrepanciaMenor?.motivo?.trim() ||
-        !params.discrepanciaMenor.referenciaEvidencia?.trim()
-      ) {
+      if (!params.discrepanciaMenor?.motivo?.trim() ||
+          !params.discrepanciaMenor.referenciaEvidencia?.trim()) {
         throw new BadRequestException(
-          'La discrepancia menor requiere motivo y referencia de evidencia para Infracciones.',
+          'Las diferencias requieren motivo y referencia de evidencia para Infracciones.',
         );
       }
     } else if (params.discrepanciaMenor) {
@@ -866,8 +795,13 @@ export class EncierrosService {
           Number(observacion.idInfraccion) !== Number(observacion.idInfraccionRetencion)) {
         throw new ConflictException('La salida no pertenece al expediente reportado.');
       }
-      if (observacion.campoObservado !== 'COLOR' && observacion.campoObservado !== 'ANIO_MODELO') {
-        throw new BadRequestException('Solamente se pueden corregir color y año modelo.');
+      if (params.decision === 'CORREGIR' &&
+          observacion.campoObservado !== 'COLOR' &&
+          observacion.campoObservado !== 'ANIO_MODELO') {
+        throw new BadRequestException(
+          'La correccion automatica solo permite color y año modelo. ' +
+          'Las demas diferencias requieren atencion administrativa sin editar el vehiculo.',
+        );
       }
 
       let valorAnterior: string | null = null;
