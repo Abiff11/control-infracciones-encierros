@@ -27,6 +27,7 @@ export interface VehiculoSummary {
   serie: string | null;
   motor: string | null;
   color: string | null;
+  anioModelo?: number | null;
   marca?: string | null;
   linea?: string | null;
   clase?: string | null;
@@ -42,6 +43,7 @@ export interface InfraccionListRetencionSummary {
 
 export interface InfraccionListPagoSummary {
   tienePago: boolean;
+  tieneSolventacionSinPago?: boolean;
   idPagoInfraccion: number | null;
   fechaUltimoPago: string | null;
   montoPagado: string | null;
@@ -58,6 +60,7 @@ export interface InfraccionListLiberacionSummary {
 export interface InfraccionListSalidaSummary {
   tieneSalida: boolean;
   fechaSalida: string | null;
+  folioLiberacionPresentado?: string | null;
 }
 
 export interface InfraccionListItem {
@@ -66,6 +69,7 @@ export interface InfraccionListItem {
   fechaInfraccion: string;
   horaInfraccion: string;
   observaciones: string | null;
+  cantidadObservacionesPendientes?: number;
   clavePolicia: string | null;
   numParteInformativo: string | null;
   infractor: InfractorSummary;

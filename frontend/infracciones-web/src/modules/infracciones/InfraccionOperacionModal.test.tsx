@@ -11,6 +11,7 @@ const apiMocks = vi.hoisted(() => ({
   createPago: vi.fn(),
   createRetencion: vi.fn(),
   createSalida: vi.fn(),
+  createSalidaAnticipada: vi.fn(),
   findConceptosPago: vi.fn(),
 }));
 
@@ -31,6 +32,7 @@ vi.mock("../../services/api/liberaciones.api", () => ({
 vi.mock("../../services/api/encierros.api", () => ({
   createRetencion: apiMocks.createRetencion,
   createSalida: apiMocks.createSalida,
+  createSalidaAnticipada: apiMocks.createSalidaAnticipada,
 }));
 
 function createItem(
@@ -260,6 +262,7 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
     vi.clearAllMocks();
     apiMocks.confirmAction.mockResolvedValue(true);
     apiMocks.createSalida.mockResolvedValue({ idSalidaVehiculo: 99 });
+    apiMocks.createSalidaAnticipada.mockResolvedValue({ idSalidaVehiculo: 100 });
   });
 
   it.each(["retencion", "pago", "liberacion"] as const)(
@@ -326,6 +329,269 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
       }),
     );
     expect(onCompleted).toHaveBeenCalledTimes(1);
+  });
+
+
+  it("precarga los datos del vehículo, no el folio, y deja sin marcar la verificación", () => {
+    renderModal("salida", expedienteRetenido({
+      anioModelo: 2022,
+      serie: "3N6AD33B4NK844448",
+      motor: "MTR-555",
+    }), "ENCIERRO");
+
+    const precargados = [
+      ["Placas verificadas fisicamente", "ABC123"],
+      ["Marca cotejada", "SUZUKI"],
+      ["Linea cotejada", "SWIFT"],
+      ["Clase cotejada", "AUTOMOVIL"],
+      ["Color cotejado", "BLANCO"],
+      ["Año modelo cotejado (opcional)", "2022"],
+      ["Estado de placas (opcional)", "OAXACA"],
+      ["Numero de serie (opcional)", "3N6AD33B4NK844448"],
+      ["Numero de motor (opcional)", "MTR-555"],
+    ] as const;
+    for (const [campo, valor] of precargados) {
+      expect(screen.getByLabelText(campo)).toHaveValue(valor);
+    }
+    expect(screen.getByLabelText("Folio de liberacion presentado")).toHaveValue("");
+    expect(screen.queryByLabelText("Referencia del documento de liberacion")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Propietario del vehículo")).toHaveValue("");
+    expect(screen.getByLabelText(/Confirmo que verifiqué físicamente el vehículo/i)).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Registrar salida anticipada" })).toBeDisabled();
+  });
+
+  it("exige confirmación física aun cuando todos los valores estén precargados", () => {
+    renderModal("salida", expedienteRetenido({ anioModelo: 2022 }), "ENCIERRO");
+    const manuales = [
+      ["Folio de liberacion presentado", "FL-2026-55"],
+      ["Propietario del vehículo", "Persona propietaria"],
+      ["Validado por", "Encargado"],
+      ["Persona recibe vehiculo", "Persona receptora"],
+    ] as const;
+    for (const [campo, valor] of manuales) {
+      fireEvent.change(screen.getByLabelText(campo), { target: { value: valor } });
+    }
+    const guardar = screen.getByRole("button", { name: "Registrar salida anticipada" });
+    expect(guardar).toBeDisabled();
+    fireEvent.click(screen.getByLabelText(/Confirmo que verifiqué físicamente el vehículo/i));
+    expect(guardar).toBeEnabled();
+  });
+
+  it.each(["ADMIN", "OPERADOR", "INFRACCIONES"] as const)(
+    "no muestra el formulario de salida anticipada al rol %s",
+    (rol) => {
+      renderModal("salida", expedienteRetenido(), rol);
+      expect(screen.queryByRole("button", { name: "Registrar salida anticipada" })).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("Placas verificadas fisicamente")).not.toBeInTheDocument();
+      expect(apiMocks.createSalidaAnticipada).not.toHaveBeenCalled();
+    },
+  );
+
+  it("permite salida anticipada con cotejo y autorizacion documental", async () => {
+    const item = createItem({
+      retencion: {
+        idRetencionVehiculo: 50,
+        encierro: "Encierro Central",
+        fechaIngreso: "2026-08-26T08:00:00.000Z",
+        folioResguardo: "RES-1",
+        estadoIngreso: "CAPTURADO",
+      },
+    });
+    const { onCompleted } = renderModal("salida", item, "ENCIERRO");
+    const fields = [
+      ["Folio de liberacion presentado", "FL-2026-55"],
+      ["Placas verificadas fisicamente", "ABC123"],
+      ["Marca cotejada", "SUZUKI"],
+      ["Linea cotejada", "SWIFT"],
+      ["Propietario del vehículo", "Persona propietaria"],
+      ["Validado por", "Encargado"],
+      ["Persona recibe vehiculo", "Persona receptora"],
+    ] as const;
+    for (const [name, value] of fields) {
+      fireEvent.change(screen.getByLabelText(name), { target: { value } });
+    }
+    fireEvent.click(screen.getByLabelText(/Confirmo que verifiqué físicamente el vehículo/i));
+    fireEvent.click(screen.getByRole("button", { name: "Registrar salida anticipada" }));
+    await waitFor(() => {
+      expect(apiMocks.createSalidaAnticipada).toHaveBeenCalledWith(
+        "token-test",
+        expect.objectContaining({
+          idRetencionVehiculo: 50,
+          folioLiberacionPresentado: "FL-2026-55",
+          placasCotejadas: "ABC123",
+          datosVehiculoCotejados: expect.objectContaining({
+            marca: "SUZUKI",
+            linea: "SWIFT",
+            clase: "AUTOMOVIL",
+            color: "BLANCO",
+            estadoPlacas: "OAXACA",
+          }),
+          autorizacionDocumentalVerificada: true,
+          nombrePropietarioDeclarado: "Persona propietaria",
+          personaRecibeVehiculo: "Persona receptora",
+        }),
+      );
+    });
+    const payload = apiMocks.createSalidaAnticipada.mock.calls[0]?.[1];
+    expect(payload).not.toHaveProperty("referenciaDocumentoLiberacion");
+    expect(apiMocks.createSalida).not.toHaveBeenCalled();
+    expect(onCompleted).toHaveBeenCalledTimes(1);
+  });
+
+
+  function expedienteRetenido(
+    vehiculo?: Partial<InfraccionListItem["vehiculo"]>,
+  ): InfraccionListItem {
+    const item = createItem();
+    return createItem({
+      vehiculo: { ...item.vehiculo, ...vehiculo },
+      retencion: {
+        idRetencionVehiculo: 50,
+        encierro: "Encierro Central",
+        fechaIngreso: "2026-08-26T08:00:00.000Z",
+        folioResguardo: "RES-1",
+        estadoIngreso: "CAPTURADO",
+      },
+    });
+  }
+
+  function completarSalida(): void {
+    const fields = [
+      ["Folio de liberacion presentado", "FL-2026-55"],
+      ["Placas verificadas fisicamente", "ABC123"],
+      ["Marca cotejada", "SUZUKI"],
+      ["Linea cotejada", "SWIFT"],
+      ["Propietario del vehículo", "Persona propietaria"],
+      ["Validado por", "Encargado"],
+      ["Persona recibe vehiculo", "Persona receptora"],
+    ] as const;
+    for (const [label, value] of fields) {
+      fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    }
+    fireEvent.click(
+      screen.getByLabelText(/Confirmo que verifiqué físicamente el vehículo/i),
+    );
+  }
+
+  it.each([
+    { campo: "Placas verificadas fisicamente", observado: "OTRAS99", registrado: "ABC123" },
+    { campo: "Marca cotejada", observado: "OTRA MARCA", registrado: "SUZUKI" },
+    { campo: "Linea cotejada", observado: "OTRA LINEA", registrado: "SWIFT" },
+    { campo: "Clase cotejada", observado: "CAMIONETA", registrado: "AUTOMOVIL" },
+    { campo: "Color cotejado", observado: "PLATA", registrado: "BLANCO" },
+    { campo: "Año modelo cotejado (opcional)", observado: "2023", registrado: "2022" },
+    { campo: "Estado de placas (opcional)", observado: "PUEBLA", registrado: "OAXACA" },
+    { campo: "Numero de serie (opcional)", observado: "VIN-555", registrado: "SIN DATO" },
+    { campo: "Numero de motor (opcional)", observado: "MTR-999", registrado: "SIN DATO" },
+  ])("permite reportar diferencias de $campo sin bloquear la entrega", async ({ campo, observado, registrado }) => {
+    const { onCompleted } = renderModal("salida", expedienteRetenido({ anioModelo: 2022 }), "ENCIERRO");
+    completarSalida();
+    fireEvent.change(screen.getByLabelText(campo), { target: { value: observado } });
+    expect(screen.getByRole("region", { name: "Diferencias detectadas en el cotejo" })).toBeInTheDocument();
+    expect(screen.getByText("Registrado: " + registrado)).toBeInTheDocument();
+    expect(screen.getByText("Cotejado por Encierros: " + observado)).toBeInTheDocument();
+
+    const submit = screen.getByRole("button", { name: "Registrar salida anticipada" });
+    expect(submit).toBeDisabled();
+    fireEvent.click(screen.getByLabelText("Reportar diferencias a Infracciones"));
+    expect(submit).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Motivo de las diferencias"), {
+      target: { value: "Dato revisado en el documento oficial" },
+    });
+    fireEvent.change(screen.getByLabelText("Referencia de evidencia"), {
+      target: { value: "Tarjeta de circulación cotejada" },
+    });
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+
+    await waitFor(() => {
+      expect(apiMocks.createSalidaAnticipada).toHaveBeenCalledWith(
+        "token-test",
+        expect.objectContaining({
+          discrepanciaMenor: {
+            motivo: "Dato revisado en el documento oficial",
+            referenciaEvidencia: "Tarjeta de circulación cotejada",
+          },
+        }),
+      );
+    });
+    expect(onCompleted).toHaveBeenCalledTimes(1);
+  });
+
+  it("permite reportar varias diferencias en una sola salida con evidencia obligatoria", async () => {
+    renderModal("salida", expedienteRetenido({ anioModelo: 2022 }), "ENCIERRO");
+    completarSalida();
+    fireEvent.change(screen.getByLabelText("Placas verificadas fisicamente"), {
+      target: { value: "OTRAS99" },
+    });
+    fireEvent.change(screen.getByLabelText("Color cotejado"), {
+      target: { value: "ROJO" },
+    });
+    fireEvent.change(screen.getByLabelText("Año modelo cotejado (opcional)"), {
+      target: { value: "2023" },
+    });
+    expect(screen.getByText(/3 diferencias detectadas/)).toBeInTheDocument();
+    expect(screen.getByText("Registrado: ABC123")).toBeInTheDocument();
+    expect(screen.getByText("Registrado: BLANCO")).toBeInTheDocument();
+    expect(screen.getByText("Registrado: 2022")).toBeInTheDocument();
+    const submit = screen.getByRole("button", { name: "Registrar salida anticipada" });
+    fireEvent.click(screen.getByLabelText("Reportar diferencias a Infracciones"));
+    fireEvent.change(screen.getByLabelText("Motivo de las diferencias"), {
+      target: { value: "Diferencias constatadas en el documento oficial" },
+    });
+    fireEvent.change(screen.getByLabelText("Referencia de evidencia"), {
+      target: { value: "Informe de cotejo" },
+    });
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+    await waitFor(() => expect(apiMocks.createSalidaAnticipada).toHaveBeenCalledWith(
+      "token-test",
+      expect.objectContaining({
+        placasCotejadas: "OTRAS99",
+        datosVehiculoCotejados: expect.objectContaining({
+          color: "ROJO",
+          anioModelo: 2023,
+        }),
+        discrepanciaMenor: {
+          motivo: "Diferencias constatadas en el documento oficial",
+          referenciaEvidencia: "Informe de cotejo",
+        },
+      }),
+    ));
+    expect(apiMocks.confirmAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining("3 observaciones pendientes"),
+      }),
+    );
+  });
+
+  it("no envía observación si todos los datos coinciden", async () => {
+    renderModal("salida", expedienteRetenido({ anioModelo: 2022 }), "ENCIERRO");
+    completarSalida();
+    fireEvent.change(screen.getByLabelText("Color cotejado"), {
+      target: { value: "BLANCO" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Registrar salida anticipada" }));
+    await waitFor(() => {
+      expect(apiMocks.createSalidaAnticipada).toHaveBeenCalledTimes(1);
+    });
+    const payload = apiMocks.createSalidaAnticipada.mock.calls[0]?.[1];
+    expect(payload).not.toHaveProperty("discrepanciaMenor");
+  });
+
+  it("bloquea salida anticipada sin verificar la autorizacion y el cotejo", () => {
+    const item = createItem({
+      retencion: {
+        idRetencionVehiculo: 50,
+        encierro: "Encierro Central",
+        fechaIngreso: "2026-08-26T08:00:00.000Z",
+        folioResguardo: "RES-1",
+        estadoIngreso: "CAPTURADO",
+      },
+    });
+    renderModal("salida", item, "ENCIERRO");
+    expect(screen.getByRole("button", { name: "Registrar salida anticipada" })).toBeDisabled();
+    expect(apiMocks.createSalidaAnticipada).not.toHaveBeenCalled();
   });
 
   it("bloquea la salida cuando el listado no incluye el folio de liberacion", () => {

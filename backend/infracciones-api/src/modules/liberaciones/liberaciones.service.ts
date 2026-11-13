@@ -158,6 +158,11 @@ export class LiberacionesService {
       }
     }
 
+    const folioLiberacion = params.folioLiberacion.trim();
+    if (!folioLiberacion) {
+      throw new BadRequestException('El folio de liberacion es obligatorio');
+    }
+
     const liberacion = this.liberacionesRepository.create({
       infraccion: { idInfraccion: params.idInfraccion } as Infraccion,
       pagoInfraccion: pagoInfraccion
@@ -170,21 +175,91 @@ export class LiberacionesService {
           }
         : null,
       usuarioLibera: { idUsuario: params.idUsuarioLibera } as Usuario,
-      folioLiberacion: params.folioLiberacion,
+      folioLiberacion,
       fechaLiberacion: normalizeDate(params.fechaLiberacion),
       liberadoPor: params.liberadoPor,
       nombreRecibeLiberacion: params.nombreRecibeLiberacion ?? null,
       observacion: params.observacion ?? null,
     });
 
-    const savedLiberacion = await this.liberacionesRepository.save(liberacion);
+    const savedLiberacion = await this.liberacionesRepository.manager.transaction(
+      async (manager) => {
+        // Bloquea la salida fisica anticipada durante el cotejo de folios.
+        // Un folio discordante no puede quedar ligado a otro expediente.
+        const salidas = await manager.query<
+          Array<{
+            idSalidaVehiculo: number;
+            idLiberacionVehiculo: number | null;
+            folioLiberacionPresentado: string;
+          }>
+        >(
+          `SELECT s.id_salida_vehiculo AS "idSalidaVehiculo",
+                  s.id_liberacion_vehiculo AS "idLiberacionVehiculo",
+                  s.folio_liberacion_presentado AS "folioLiberacionPresentado"
+           FROM salida_vehiculo s
+           INNER JOIN retencion_vehiculo r
+             ON r.id_retencion_vehiculo = s.id_retencion_vehiculo
+           WHERE r.id_infraccion = $1
+             AND s.modalidad_salida = 'ANTICIPADA'
+           FOR UPDATE OF s`,
+          [params.idInfraccion],
+        );
+        const salidaAnticipada = salidas[0];
+
+        if (salidaAnticipada) {
+          if (
+            salidaAnticipada.folioLiberacionPresentado.trim().toUpperCase() !==
+            folioLiberacion.toUpperCase()
+          ) {
+            throw new BadRequestException(
+              'El folio de liberacion no coincide con el presentado en la salida anticipada. ' +
+                'Requiere conciliacion documental antes de registrar la liberacion.',
+            );
+          }
+          if (salidaAnticipada.idLiberacionVehiculo !== null) {
+            throw new BadRequestException(
+              'La salida anticipada ya fue vinculada a una liberacion electronica.',
+            );
+          }
+        }
+
+        const saved = await manager.getRepository(LiberacionVehiculo).save(liberacion);
+
+        if (salidaAnticipada) {
+          // TypeORM en PostgreSQL devuelve [filas, cantidad] para UPDATE,
+          // incluso cuando se usa RETURNING. No debe validarse la longitud del tuplo.
+          const [vinculadas, totalActualizadas] = await manager.query<
+            [Array<{ idSalidaVehiculo: number }>, number]
+          >(
+            `UPDATE salida_vehiculo
+             SET id_liberacion_vehiculo = $1
+             WHERE id_salida_vehiculo = $2
+               AND id_liberacion_vehiculo IS NULL
+             RETURNING id_salida_vehiculo AS "idSalidaVehiculo"`,
+            [saved.idLiberacionVehiculo, salidaAnticipada.idSalidaVehiculo],
+          );
+          if (
+            totalActualizadas !== 1 ||
+            vinculadas.length !== 1 ||
+            Number(vinculadas[0].idSalidaVehiculo) !==
+              Number(salidaAnticipada.idSalidaVehiculo)
+          ) {
+            throw new BadRequestException(
+              'No se pudo conciliar la liberacion con la salida anticipada.',
+            );
+          }
+        }
+
+        return saved;
+      },
+    );
 
     await this.infraccionesService.actualizarEstatusYRegistrarMovimiento({
       idInfraccion: params.idInfraccion,
       nombreEstatus: ESTATUS_INFRACCION.LIBERACION_GENERADA,
       idUsuario: params.idUsuarioLibera,
       accion: ACCION_MOVIMIENTO.LIBERACION_GENERADA,
-      observaciones: `Liberacion generada con folio ${params.folioLiberacion}`,
+      observaciones: `Liberacion generada con folio ${folioLiberacion}`,
       fechaMovimiento: params.fechaLiberacion,
     });
 
@@ -199,7 +274,7 @@ export class LiberacionesService {
         idPagoInfraccion: pagoInfraccion?.idPagoInfraccion ?? null,
         idSolventacionSinPago:
           solventacionSinPago?.idSolventacionSinPago ?? null,
-        folioLiberacion: params.folioLiberacion,
+        folioLiberacion,
         responsableLibera: params.liberadoPor,
         fechaLiberacion: params.fechaLiberacion,
       },

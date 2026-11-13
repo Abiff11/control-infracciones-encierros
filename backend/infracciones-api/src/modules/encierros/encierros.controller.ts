@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -13,6 +15,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InfraccionWriteLock } from '../../common/concurrency/infraccion-write-lock.interceptor';
 import {
   READ_ROLES,
+  ROLES,
   YARD_ENTRY_ROLES,
   YARD_ROLES,
 } from '../auth/constants/roles.constants';
@@ -24,6 +27,8 @@ import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
 import { VehiculosEncierroQueryDto } from './dto/vehiculos-query.dto';
 import { RegistrarRetencionDto } from './dto/registrar-retencion.dto';
 import { RegistrarSalidaDto } from './dto/registrar-salida.dto';
+import { RegistrarSalidaAnticipadaDto } from './dto/registrar-salida-anticipada.dto';
+import { ResolverObservacionDto } from './dto/resolver-observacion.dto';
 import { EncierrosService } from './encierros.service';
 
 @ApiTags('encierros')
@@ -58,6 +63,34 @@ export class EncierrosController {
     return this.encierrosService.findVehiculosEnEncierro(query);
   }
 
+  @Roles(ROLES.ADMIN, ROLES.INFRACCIONES)
+  @Get('observaciones/pendientes')
+  @ApiOperation({ summary: 'Consultar observaciones pendientes para Infracciones' })
+  listarObservacionesPendientes(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Query('idInfraccion', new ParseIntPipe({ optional: true })) idInfraccion?: number,
+  ) {
+    return this.encierrosService.listarObservacionesPendientes({
+      page, limit, idInfraccion,
+    });
+  }
+
+  @Roles(ROLES.INFRACCIONES, ROLES.ADMIN)
+  @Patch('observaciones/:idObservacion')
+  @ApiOperation({ summary: 'Corregir color/año modelo o rechazar una observacion con auditoria' })
+  resolverObservacion(
+    @Param('idObservacion', ParseIntPipe) idObservacion: number,
+    @Body() dto: ResolverObservacionDto,
+    @CurrentUser() currentUser: LoginResponseUsuarioDto,
+  ) {
+    return this.encierrosService.resolverObservacion({
+      ...dto,
+      idObservacion,
+      idUsuarioResuelve: currentUser.idUsuario,
+    });
+  }
+
   @Get(':idEncierro')
   @ApiOperation({ summary: 'Obtener encierro por id' })
   findEncierroById(@Param('idEncierro', ParseIntPipe) idEncierro: number) {
@@ -70,6 +103,23 @@ export class EncierrosController {
   @ApiOperation({ summary: 'Registrar retención vehicular' })
   registrarRetencion(@Body() registrarRetencionDto: RegistrarRetencionDto) {
     return this.encierrosService.registrarRetencion(registrarRetencionDto);
+  }
+
+
+  @Roles(ROLES.ENCIERRO)
+  @Post('salidas/anticipadas')
+  @InfraccionWriteLock('body.idRetencionVehiculo')
+  @ApiOperation({
+    summary: 'Registrar salida anticipada con expediente y retencion existentes',
+  })
+  registrarSalidaAnticipada(
+    @Body() dto: RegistrarSalidaAnticipadaDto,
+    @CurrentUser() currentUser: LoginResponseUsuarioDto,
+  ) {
+    return this.encierrosService.registrarSalidaAnticipada({
+      ...dto,
+      idUsuarioValidaSalida: currentUser.idUsuario,
+    });
   }
 
   @Roles(...YARD_ROLES)

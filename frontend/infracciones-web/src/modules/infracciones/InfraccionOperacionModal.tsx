@@ -16,6 +16,7 @@ import { getErrorMessage } from "../../services/api/apiClient";
 import {
   createRetencion,
   createSalida,
+  createSalidaAnticipada,
 } from "../../services/api/encierros.api";
 import { createLiberacion } from "../../services/api/liberaciones.api";
 import {
@@ -41,6 +42,7 @@ import type {
   RegistrarPagoPayload,
   RegistrarRetencionPayload,
   RegistrarSalidaPayload,
+  RegistrarSalidaAnticipadaPayload,
 } from "../../types/operaciones.types";
 import {
   createEmptyPagoConceptoRow,
@@ -91,6 +93,21 @@ interface OperationFormState {
   fechaSalida: string;
   estadoSalida: string;
   observacionesSalida: string;
+  folioLiberacionPresentado: string;
+  placasCotejadas: string;
+  marcaCotejada: string;
+  lineaCotejada: string;
+  claseCotejada: string;
+  colorCotejado: string;
+  anioModeloCotejado: string;
+  estadoPlacasCotejado: string;
+  serieCotejada: string;
+  motorCotejado: string;
+  nombrePropietarioDeclarado: string;
+  autorizacionDocumentalVerificada: boolean;
+  reportarDiferencia: boolean;
+  motivoDiferencia: string;
+  evidenciaDiferencia: string;
 }
 
 function toNullableString(value: string): string | null {
@@ -114,8 +131,15 @@ function toMoney(value: string): string {
 
 function createInitialForm(
   type: InfraccionOperacionTipo | null,
+  item: InfraccionListItem | null,
 ): OperationFormState {
   const now = formatDateTimeLocalInput();
+  const vehiculoParaCotejo =
+    type === "salida" &&
+    Boolean(item?.retencion?.idRetencionVehiculo) &&
+    !item?.liberacion?.tieneLiberacion
+      ? item?.vehiculo
+      : null;
 
   return {
     idEncierro: "",
@@ -136,7 +160,82 @@ function createInitialForm(
     fechaSalida: now,
     estadoSalida: type === "salida" ? "ENTREGADO" : "",
     observacionesSalida: "",
+    folioLiberacionPresentado: "",
+    placasCotejadas: vehiculoParaCotejo?.placas ?? "",
+    marcaCotejada: vehiculoParaCotejo?.marca ?? "",
+    lineaCotejada: vehiculoParaCotejo?.linea ?? "",
+    claseCotejada: vehiculoParaCotejo?.clase ?? "",
+    colorCotejado: vehiculoParaCotejo?.color ?? "",
+    anioModeloCotejado: vehiculoParaCotejo?.anioModelo == null
+      ? ""
+      : String(vehiculoParaCotejo.anioModelo),
+    estadoPlacasCotejado: vehiculoParaCotejo?.estadoPlacas ?? "",
+    serieCotejada: vehiculoParaCotejo?.serie ?? "",
+    motorCotejado: vehiculoParaCotejo?.motor ?? "",
+    nombrePropietarioDeclarado: "",
+    autorizacionDocumentalVerificada: false,
+    reportarDiferencia: false,
+    motivoDiferencia: "",
+    evidenciaDiferencia: "",
   };
+}
+
+
+interface DiferenciaCotejo {
+  campo: "PLACAS" | "MARCA" | "LINEA" | "CLASE" | "COLOR" | "ANIO_MODELO" |
+    "ESTADO_PLACAS" | "SERIE" | "MOTOR";
+  etiqueta: string;
+  registrado: string;
+  reportado: string;
+}
+
+function normalizarCotejo(value: string | number): string {
+  return String(value).normalize("NFKC").trim().replace(/\s+/gu, " ").toUpperCase();
+}
+
+function normalizarPlacas(value: string | number): string {
+  return normalizarCotejo(value).replace(/[\s-]/gu, "");
+}
+
+/** Compara los nueve campos con las mismas reglas del servicio NestJS. */
+function analizarCotejo(
+  item: InfraccionListItem,
+  form: OperationFormState,
+): DiferenciaCotejo[] {
+  const campos: Array<{
+    campo: DiferenciaCotejo["campo"];
+    etiqueta: string;
+    valor: string;
+    registrado: string | number | null | undefined;
+  }> = [
+    { campo: "PLACAS", etiqueta: "Placas", valor: form.placasCotejadas, registrado: item.vehiculo.placas },
+    { campo: "MARCA", etiqueta: "Marca", valor: form.marcaCotejada, registrado: item.vehiculo.marca },
+    { campo: "LINEA", etiqueta: "Línea", valor: form.lineaCotejada, registrado: item.vehiculo.linea },
+    { campo: "CLASE", etiqueta: "Clase", valor: form.claseCotejada, registrado: item.vehiculo.clase },
+    { campo: "COLOR", etiqueta: "Color", valor: form.colorCotejado, registrado: item.vehiculo.color },
+    { campo: "ANIO_MODELO", etiqueta: "Año modelo", valor: form.anioModeloCotejado, registrado: item.vehiculo.anioModelo },
+    { campo: "ESTADO_PLACAS", etiqueta: "Estado de placas", valor: form.estadoPlacasCotejado, registrado: item.vehiculo.estadoPlacas },
+    { campo: "SERIE", etiqueta: "Número de serie", valor: form.serieCotejada, registrado: item.vehiculo.serie },
+    { campo: "MOTOR", etiqueta: "Número de motor", valor: form.motorCotejado, registrado: item.vehiculo.motor },
+  ];
+
+  return campos.flatMap(({ campo, etiqueta, valor, registrado }) => {
+    if (!valor.trim()) {
+      return [];
+    }
+    const valorRegistrado = registrado == null ? "" : String(registrado).trim();
+    const coinciden = valorRegistrado !== "" && (
+      campo === "PLACAS"
+        ? normalizarPlacas(valor) === normalizarPlacas(valorRegistrado)
+        : normalizarCotejo(valor) === normalizarCotejo(valorRegistrado)
+    );
+    return coinciden ? [] : [{
+      campo,
+      etiqueta,
+      registrado: valorRegistrado || "SIN DATO",
+      reportado: valor.trim(),
+    }];
+  });
 }
 
 function getOperationCopy(type: InfraccionOperacionTipo | null): OperationCopy {
@@ -204,6 +303,8 @@ function OperationSummary({ item }: { item: InfraccionListItem }) {
         <span>{formatTimeOfDay(item.horaInfraccion)}</span>
         <span>Placas: {formatEmptyValue(item.vehiculo.placas)}</span>
         <span>{getVehicleLabel(item)}</span>
+        <span>Color: {formatEmptyValue(item.vehiculo.color)}</span>
+        <span>Año modelo: {formatEmptyValue(item.vehiculo.anioModelo == null ? null : String(item.vehiculo.anioModelo))}</span>
       </div>
 
       <StatusBadge value={item.estadoOperativoCalculado} />
@@ -268,7 +369,7 @@ export function InfraccionOperacionModal({
 }: InfraccionOperacionModalProps) {
   const copy = useMemo(() => getOperationCopy(type), [type]);
   const [form, setForm] = useState<OperationFormState>(() =>
-    createInitialForm(type),
+    createInitialForm(type, item),
   );
   const [pagoConceptos, setPagoConceptos] = useState<PagoConceptoFormRow[]>([
     createEmptyPagoConceptoRow(),
@@ -291,21 +392,38 @@ export function InfraccionOperacionModal({
     [pagoConceptos],
   );
   const permiteRetencion = item?.tipoProcedimiento.permiteRetencion ?? true;
+  const isSalidaAnticipada =
+    type === "salida" &&
+    Boolean(item?.retencion?.idRetencionVehiculo) &&
+    !item?.liberacion?.tieneLiberacion;
+  const diferenciasCotejo = isSalidaAnticipada && item
+    ? analizarCotejo(item, form)
+    : [];
 
   useEffect(() => {
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setForm(createInitialForm(type));
+      setForm(createInitialForm(type, item));
       setPagoConceptos([createEmptyPagoConceptoRow()]);
       setNoAplicaPago(false);
       setMotivoNoAplica("");
       setSaving(false);
       setError(null);
     }
-  }, [open, type]);
+  }, [open, type, item]);
 
   function updateField(field: keyof OperationFormState, value: string): void {
     setForm((current) => ({ ...current, [field]: value }));
+    setError(null);
+  }
+
+  function updateReporteDiferencia(checked: boolean): void {
+    setForm((current) => ({ ...current, reportarDiferencia: checked }));
+    setError(null);
+  }
+
+  function updateAutorizacionDocumental(checked: boolean): void {
+    setForm((current) => ({ ...current, autorizacionDocumentalVerificada: checked }));
     setError(null);
   }
 
@@ -327,6 +445,10 @@ export function InfraccionOperacionModal({
 
     if (!canPerformOperationForRole(roleName, type)) {
       return "El rol ENCIERRO solo puede registrar salidas vehiculares.";
+    }
+
+    if (isSalidaAnticipada && roleName?.toUpperCase() !== "ENCIERRO") {
+      return "Solo el rol ENCIERRO puede registrar salidas anticipadas.";
     }
 
     if (type === "retencion") {
@@ -401,23 +523,45 @@ export function InfraccionOperacionModal({
     }
 
     if (type === "salida") {
-      if (
-        !item.retencion?.idRetencionVehiculo ||
-        !item.liberacion?.idLiberacionVehiculo
-      ) {
-        return "No se encontraron los datos tecnicos de retencion/liberacion. Actualiza el listado.";
+      if (!item.retencion?.idRetencionVehiculo || item.salida?.tieneSalida) {
+        return "No existe una retencion disponible para registrar salida.";
       }
-
-      if (!item.liberacion.folioLiberacion?.trim()) {
-        return "No se encontro el folio de liberacion. Actualiza el listado.";
-      }
-
       if (!form.validadoPor.trim() || !form.personaRecibeVehiculo.trim()) {
         return "Captura quien valida y quien recibe el vehiculo.";
       }
-
-      if (!form.estadoSalida.trim()) {
-        return "Captura el estado de salida.";
+      if (isSalidaAnticipada) {
+        if (!form.folioLiberacionPresentado.trim() ||
+            !form.nombrePropietarioDeclarado.trim()) {
+          return "Captura el folio de liberación presentado y el propietario del vehículo.";
+        }
+        if (!form.placasCotejadas.trim()) {
+          return "Escribe las placas verificadas fisicamente.";
+        }
+        if (form.anioModeloCotejado.trim() &&
+            (!/^[0-9]{4}$/u.test(form.anioModeloCotejado.trim()) ||
+              Number(form.anioModeloCotejado) < 1900 ||
+              Number(form.anioModeloCotejado) > 2100)) {
+          return "Captura un año modelo valido.";
+        }
+        if (diferenciasCotejo.length > 0) {
+          if (!form.reportarDiferencia) {
+            return "Confirma que reportarás las diferencias a Infracciones.";
+          }
+          if (!form.motivoDiferencia.trim() || !form.evidenciaDiferencia.trim()) {
+            return "Describe las diferencias y la referencia de evidencia.";
+          }
+        }
+        if (!form.autorizacionDocumentalVerificada) {
+          return "Confirma que verificaste la autorizacion documental.";
+        }
+      } else {
+        if (!item.liberacion?.idLiberacionVehiculo ||
+            !item.liberacion.folioLiberacion?.trim()) {
+          return "No se encontro la liberacion electronica vigente.";
+        }
+        if (!form.estadoSalida.trim()) {
+          return "Captura el estado de salida.";
+        }
       }
     }
 
@@ -565,8 +709,52 @@ export function InfraccionOperacionModal({
         completed = await submitLiberacion(item);
       }
 
+      if (type === "salida" && isSalidaAnticipada && item.retencion?.idRetencionVehiculo) {
+        const confirmed = await confirmAction({
+          title: "Registrar salida anticipada",
+          text: `Vas a entregar el vehículo del expediente ${item.folioInfraccion} sin liberación electrónica. Folio presentado: ${form.folioLiberacionPresentado.trim()}.${diferenciasCotejo.length > 0 ? ` Se registrarán ${diferenciasCotejo.length} observaciones pendientes para Infracciones, sin cambiar los datos originales.` : ""}`,
+          confirmButtonText: "Registrar salida anticipada",
+          cancelButtonText: "Seguir editando",
+        });
+        if (!confirmed) {
+          return;
+        }
+        setSaving(true);
+        setError(null);
+        const datos = form;
+        const payload: RegistrarSalidaAnticipadaPayload = {
+          idRetencionVehiculo: item.retencion.idRetencionVehiculo,
+          folioLiberacionPresentado: datos.folioLiberacionPresentado.trim(),
+          placasCotejadas: datos.placasCotejadas.trim(),
+          datosVehiculoCotejados: {
+            ...(datos.marcaCotejada.trim() && { marca: datos.marcaCotejada.trim() }),
+            ...(datos.lineaCotejada.trim() && { linea: datos.lineaCotejada.trim() }),
+            ...(datos.claseCotejada.trim() && { clase: datos.claseCotejada.trim() }),
+            ...(datos.colorCotejado.trim() && { color: datos.colorCotejado.trim() }),
+            ...(datos.anioModeloCotejado.trim() && { anioModelo: Number(datos.anioModeloCotejado.trim()) }),
+            ...(datos.estadoPlacasCotejado.trim() && { estadoPlacas: datos.estadoPlacasCotejado.trim() }),
+            ...(datos.serieCotejada.trim() && { serie: datos.serieCotejada.trim() }),
+            ...(datos.motorCotejado.trim() && { motor: datos.motorCotejado.trim() }),
+          },
+          autorizacionDocumentalVerificada: true,
+          nombrePropietarioDeclarado: datos.nombrePropietarioDeclarado.trim(),
+          validadoPor: datos.validadoPor.trim(),
+          personaRecibeVehiculo: datos.personaRecibeVehiculo.trim(),
+          observacionesSalida: toNullableString(datos.observacionesSalida),
+          ...(diferenciasCotejo.length > 0 && {
+            discrepanciaMenor: {
+              motivo: datos.motivoDiferencia.trim(),
+              referenciaEvidencia: datos.evidenciaDiferencia.trim(),
+            },
+          }),
+        };
+        await createSalidaAnticipada(token, payload);
+        completed = true;
+      }
+
       if (
         type === "salida" &&
+        !isSalidaAnticipada &&
         item.retencion?.idRetencionVehiculo &&
         item.liberacion?.idLiberacionVehiculo
       ) {
@@ -612,13 +800,21 @@ export function InfraccionOperacionModal({
   );
   const canSubmit = getValidationError() === null;
   const submitLabel =
-    type === "pago" && noAplicaPago ? "Solventar sin pago" : copy.submitLabel;
+    type === "pago" && noAplicaPago
+      ? "Solventar sin pago"
+      : isSalidaAnticipada
+        ? "Registrar salida anticipada"
+        : copy.submitLabel;
   const alternateLabel =
     type === "pago"
       ? noAplicaPago
         ? "Volver a registrar pago"
         : "No aplica pago"
       : undefined;
+
+  if (isSalidaAnticipada && roleName?.toUpperCase() !== "ENCIERRO") {
+    return null;
+  }
 
   return (
     <Modal
@@ -866,9 +1062,161 @@ export function InfraccionOperacionModal({
         {type === "salida" ? (
           <div className="form-grid form-grid-2">
             <RequiredNote>
-              Se usaran automaticamente la retencion y la liberacion vigentes
-              del expediente.
+              {isSalidaAnticipada
+                ? "Los datos del vehículo están precargados desde el expediente. Verifícalos físicamente antes de confirmar. Si difiere el color o año modelo, modifica ese campo y registra una observación para Infracciones con evidencia. Las demás diferencias bloquean la salida."
+                : "Se usaran automaticamente la retencion y la liberacion vigentes del expediente."}
             </RequiredNote>
+
+            {isSalidaAnticipada ? (
+              <>
+                <Field htmlFor="operacion-ant-folioLiberacionPresentado" label="Folio de liberacion presentado">
+                  <TextInput
+                    id="operacion-ant-folioLiberacionPresentado"
+                    value={form.folioLiberacionPresentado}
+                    
+                    onChange={(event) => updateField("folioLiberacionPresentado", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-placasCotejadas" label="Placas verificadas fisicamente">
+                  <TextInput
+                    id="operacion-ant-placasCotejadas"
+                    value={form.placasCotejadas}
+                    onChange={(event) => updateField("placasCotejadas", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-marcaCotejada" label="Marca cotejada">
+                  <TextInput
+                    id="operacion-ant-marcaCotejada"
+                    value={form.marcaCotejada}
+                    onChange={(event) => updateField("marcaCotejada", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-lineaCotejada" label="Linea cotejada">
+                  <TextInput
+                    id="operacion-ant-lineaCotejada"
+                    value={form.lineaCotejada}
+                    onChange={(event) => updateField("lineaCotejada", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-claseCotejada" label="Clase cotejada">
+                  <TextInput
+                    id="operacion-ant-claseCotejada"
+                    value={form.claseCotejada}
+                    onChange={(event) => updateField("claseCotejada", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-colorCotejado" label="Color cotejado">
+                  <TextInput
+                    id="operacion-ant-colorCotejado"
+                    value={form.colorCotejado}
+                    onChange={(event) => updateField("colorCotejado", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-anioModeloCotejado" label="Año modelo cotejado (opcional)">
+                  <TextInput
+                    id="operacion-ant-anioModeloCotejado"
+                    value={form.anioModeloCotejado}
+                    
+                    onChange={(event) => updateField("anioModeloCotejado", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-estadoPlacasCotejado" label="Estado de placas (opcional)">
+                  <TextInput
+                    id="operacion-ant-estadoPlacasCotejado"
+                    value={form.estadoPlacasCotejado}
+                    onChange={(event) => updateField("estadoPlacasCotejado", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-serieCotejada" label="Numero de serie (opcional)">
+                  <TextInput
+                    id="operacion-ant-serieCotejada"
+                    value={form.serieCotejada}
+                    onChange={(event) => updateField("serieCotejada", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-motorCotejado" label="Numero de motor (opcional)">
+                  <TextInput
+                    id="operacion-ant-motorCotejado"
+                    value={form.motorCotejado}
+                    onChange={(event) => updateField("motorCotejado", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-nombrePropietarioDeclarado" label="Propietario del vehículo">
+                  <TextInput
+                    id="operacion-ant-nombrePropietarioDeclarado"
+                    value={form.nombrePropietarioDeclarado}
+                    
+                    onChange={(event) => updateField("nombrePropietarioDeclarado", event.target.value)}
+                  />
+                  <small>Captura al propietario, aunque otra persona retire físicamente el vehículo.</small>
+                </Field>
+                {diferenciasCotejo.length > 0 ? (
+                  <section className="field field-span-2" aria-label="Diferencias detectadas en el cotejo">
+                    <div className="notice">
+                      <strong>
+                        {diferenciasCotejo.length} {diferenciasCotejo.length === 1
+                          ? "diferencia detectada" : "diferencias detectadas"}
+                      </strong>
+                      <p>Estas diferencias no impiden la salida por sí mismas. Cada campo
+                        se notificará por separado a Infracciones; la ficha original no se modifica.</p>
+                      <ul>
+                        {diferenciasCotejo.map((diferencia) => (
+                          <li key={diferencia.campo}>
+                            <div className="table-cell-stack">
+                              <strong>{diferencia.etiqueta}</strong>
+                              <span>Registrado: {diferencia.registrado}</span>
+                              <span>Cotejado por Encierros: {diferencia.reportado}</span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <label htmlFor="operacion-ant-reportar-diferencia">
+                      <input
+                        id="operacion-ant-reportar-diferencia"
+                        type="checkbox"
+                        checked={form.reportarDiferencia}
+                        onChange={(event) => updateReporteDiferencia(event.target.checked)}
+                      />
+                      {" "}Reportar diferencias a Infracciones
+                    </label>
+                    {form.reportarDiferencia ? (
+                      <>
+                        <label htmlFor="operacion-ant-motivo-diferencia">Motivo de las diferencias</label>
+                        <textarea
+                          id="operacion-ant-motivo-diferencia"
+                          rows={3}
+                          maxLength={1000}
+                          value={form.motivoDiferencia}
+                          onChange={(event) => updateField("motivoDiferencia", event.target.value)}
+                          required
+                        />
+                        <label htmlFor="operacion-ant-evidencia-diferencia">Referencia de evidencia</label>
+                        <TextInput
+                          id="operacion-ant-evidencia-diferencia"
+                          maxLength={255}
+                          placeholder="Documento o constancia consultada"
+                          value={form.evidenciaDiferencia}
+                          onChange={(event) => updateField("evidenciaDiferencia", event.target.value)}
+                          required
+                        />
+                      </>
+                    ) : null}
+                  </section>
+                ) : null}
+                <div className="field field-span-2">
+                  <label htmlFor="operacion-ant-autorizacion">
+                    <input
+                      type="checkbox"
+                      id="operacion-ant-autorizacion"
+                      checked={form.autorizacionDocumentalVerificada}
+                      onChange={(event) => updateAutorizacionDocumental(event.target.checked)}
+                    />
+                    {" "}Confirmo que verifiqué físicamente el vehículo contra los datos del expediente y revisé el documento de liberación presentado.
+                  </label>
+                </div>
+              </>
+            ) : null}
 
             <Field htmlFor="operacion-salida-validado" label="Validado por">
               <TextInput
@@ -895,27 +1243,31 @@ export function InfraccionOperacionModal({
               />
             </Field>
 
-            <Field htmlFor="operacion-salida-fecha" label="Fecha salida">
-              <TextInput
-                id="operacion-salida-fecha"
-                type="datetime-local"
-                value={form.fechaSalida}
-                onChange={(event) =>
-                  updateField("fechaSalida", event.target.value)
-                }
-              />
-            </Field>
-
-            <Field htmlFor="operacion-salida-estado" label="Estado salida">
-              <TextInput
-                id="operacion-salida-estado"
-                value={form.estadoSalida}
-                onChange={(event) =>
-                  updateField("estadoSalida", event.target.value)
-                }
-                required
-              />
-            </Field>
+            {!isSalidaAnticipada ? (
+              <>
+                <Field htmlFor="operacion-salida-fecha" label="Fecha salida">
+                  <TextInput
+                    id="operacion-salida-fecha"
+                    type="datetime-local"
+                    value={form.fechaSalida}
+                    onChange={(event) =>
+                      updateField("fechaSalida", event.target.value)
+                    }
+                  />
+                </Field>
+    
+                <Field htmlFor="operacion-salida-estado" label="Estado salida">
+                  <TextInput
+                    id="operacion-salida-estado"
+                    value={form.estadoSalida}
+                    onChange={(event) =>
+                      updateField("estadoSalida", event.target.value)
+                    }
+                    required
+                  />
+                </Field>
+              </>
+            ) : null}
 
             <div className="field field-span-2">
               <label htmlFor="operacion-salida-observaciones">

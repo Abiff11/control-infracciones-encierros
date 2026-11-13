@@ -1,10 +1,19 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
+
+import { sanitizeAuditPayload } from '../../common/redact-sensitive-data';
+import { Auditoria } from '../auditoria/entities/auditoria.entity';
+import { EstatusInfraccion } from '../catalogos/entities/estatus-infraccion.entity';
+import { InfraccionMovimiento } from '../infracciones/entities/infraccion-movimiento.entity';
+import { Infraccion } from '../infracciones/entities/infraccion.entity';
+import type { RegistrarSalidaAnticipadaDto } from './dto/registrar-salida-anticipada.dto';
+import type { ResolverObservacionDto } from './dto/resolver-observacion.dto';
 
 import { normalizeDate } from '../../common/utils/normalize-date';
 import { AuditoriaService } from '../auditoria/auditoria.service';
@@ -19,11 +28,46 @@ import { Usuario } from '../usuarios/entities/usuario.entity';
 import { Encierro } from './entities/encierro.entity';
 import { RetencionVehiculo } from './entities/retencion-vehiculo.entity';
 import { SalidaVehiculo } from './entities/salida-vehiculo.entity';
+import {
+  type CampoObservado,
+  ObservacionExpediente,
+} from './entities/observacion-expediente.entity';
 import { VehiculosEncierroQueryDto } from './dto/vehiculos-query.dto';
 import {
   type VehiculosEncierroResponseDto,
   type VehiculosEncierroResumenDto,
 } from './dto/vehiculos-response.dto';
+
+interface ObservacionResolverRow {
+  idObservacion: number;
+  idInfraccion: number;
+  idInfraccionRetencion: number;
+  idVehiculo: number;
+  estatus: string;
+  campoObservado: string;
+  valorOriginal: string;
+  valorReportado: string;
+  modalidadSalida: string;
+}
+
+interface VehiculoResolucionRow {
+  color: string | null;
+  anioModelo: number | null;
+}
+
+interface ObservacionPendienteRow {
+  idObservacion: number | string;
+  idInfraccion: number | string;
+  folioInfraccion: string;
+  placas: string | null;
+  campoObservado: string;
+  valorOriginal: string;
+  valorReportado: string;
+  motivoReporte: string;
+  referenciaEvidencia: string;
+  fechaReporte: Date | string;
+  nombreUsuarioReporta: string;
+}
 
 interface RegistrarRetencionParams {
   idInfraccion: number;
@@ -33,6 +77,12 @@ interface RegistrarRetencionParams {
   folioResguardo?: string | null;
   observacionesIngreso?: string | null;
   estadoIngreso?: string | null;
+}
+
+interface DiscrepanciaVehiculo {
+  campo: CampoObservado;
+  valorOriginal: string;
+  valorReportado: string;
 }
 
 interface RegistrarSalidaParams {
@@ -383,6 +433,491 @@ export class EncierrosService {
     });
 
     return savedSalida;
+  }
+
+
+  /**
+   * Registra una entrega fisica sobre una infraccion/retencion existente.
+   * No genera pago ni liberacion electronica y no modifica el flujo ordinario.
+   */
+  async registrarSalidaAnticipada(
+    params: RegistrarSalidaAnticipadaDto & { idUsuarioValidaSalida: number },
+  ): Promise<SalidaVehiculo> {
+    const folio = params.folioLiberacionPresentado?.trim();
+    const placas = params.placasCotejadas?.trim();
+    const propietario = params.nombrePropietarioDeclarado?.trim();
+    if (!folio || !placas || !propietario ||
+        params.autorizacionDocumentalVerificada !== true) {
+      throw new BadRequestException(
+        'La salida anticipada requiere placas, folio, propietario y autorizacion documental verificada.',
+      );
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      const retencion = await manager.getRepository(RetencionVehiculo)
+        .createQueryBuilder('retencion')
+        .innerJoinAndSelect('retencion.infraccion', 'infraccion')
+        .innerJoinAndSelect('infraccion.vehiculo', 'vehiculo')
+        .leftJoinAndSelect('vehiculo.lineaVehiculo', 'linea')
+        .leftJoinAndSelect('linea.marcaVehiculo', 'marca')
+        .leftJoinAndSelect('vehiculo.claseVehiculo', 'clase')
+        .where('retencion.idRetencionVehiculo = :idRetencion', {
+          idRetencion: params.idRetencionVehiculo,
+        })
+        .getOne();
+
+      if (!retencion) {
+        throw new NotFoundException('No existe una retencion con expediente y vehiculo asociado.');
+      }
+
+      const idInfraccion = retencion.infraccion.idInfraccion;
+      const salidaRepository = manager.getRepository(SalidaVehiculo);
+      if (await salidaRepository.exists({
+        where: { retencionVehiculo: { idRetencionVehiculo: params.idRetencionVehiculo } },
+      })) {
+        throw new BadRequestException('La retencion ya tiene una salida registrada.');
+      }
+
+      if (await manager.getRepository(LiberacionVehiculo).exists({
+        where: { infraccion: { idInfraccion } },
+      })) {
+        throw new BadRequestException(
+          'El expediente ya cuenta con liberacion electronica; utiliza el registro ordinario de salida.',
+        );
+      }
+
+      const folioRegistrado = await manager.query<Array<{ id_infraccion: number }>>(
+        `SELECT id_infraccion
+         FROM liberacion_vehiculo
+         WHERE UPPER(BTRIM(folio_liberacion)) = $1
+         LIMIT 1`,
+        [folio.toUpperCase()],
+      );
+      if (folioRegistrado.length > 0) {
+        throw new BadRequestException('El folio de liberacion presentado ya corresponde a una liberacion electronica.');
+      }
+
+      const discrepancias = this.validarCotejoSalidaAnticipada(
+        params,
+        retencion.infraccion,
+      );
+
+      const estatus = await manager.getRepository(EstatusInfraccion).findOne({
+        where: { nombreEstatus: ESTATUS_INFRACCION.VEHICULO_ENTREGADO },
+      });
+      if (!estatus) {
+        throw new NotFoundException('No se encontro el estatus VEHICULO_ENTREGADO.');
+      }
+
+      const fechaSalida = new Date();
+      const datos = params.datosVehiculoCotejados;
+      const savedSalida = await salidaRepository.save(salidaRepository.create({
+        retencionVehiculo: { idRetencionVehiculo: params.idRetencionVehiculo } as RetencionVehiculo,
+        liberacionVehiculo: null,
+        usuarioValidaSalida: { idUsuario: params.idUsuarioValidaSalida } as Usuario,
+        fechaSalida,
+        validadoPor: params.validadoPor.trim(),
+        personaRecibeVehiculo: params.personaRecibeVehiculo.trim(),
+        observacionesSalida: params.observacionesSalida?.trim() || null,
+        estadoSalida: 'ENTREGADO',
+        modalidadSalida: 'ANTICIPADA',
+        folioLiberacionPresentado: folio,
+        placasCotejadas: placas,
+        datosVehiculoCotejados: {
+          placas,
+          estadoPlacas: datos.estadoPlacas?.trim() || null,
+          marca: datos.marca?.trim() || null,
+          linea: datos.linea?.trim() || null,
+          clase: datos.clase?.trim() || null,
+          anioModelo: datos.anioModelo ?? null,
+          color: datos.color?.trim() || null,
+          serie: datos.serie?.trim() || null,
+          motor: datos.motor?.trim() || null,
+        },
+        nombrePropietarioDeclarado: propietario,
+        autorizacionDocumentalVerificada: true,
+        referenciaDocumentoLiberacion: folio,
+      }));
+
+      if (discrepancias.length > 0) {
+        const observacionesRepository = manager.getRepository(ObservacionExpediente);
+        const soporte = params.discrepanciaMenor!;
+        await observacionesRepository.save(
+          discrepancias.map((discrepancia) =>
+            observacionesRepository.create({
+              infraccion: { idInfraccion } as Infraccion,
+              salidaVehiculo: {
+                idSalidaVehiculo: savedSalida.idSalidaVehiculo,
+              } as SalidaVehiculo,
+              usuarioReporta: {
+                idUsuario: params.idUsuarioValidaSalida,
+              } as Usuario,
+              campoObservado: discrepancia.campo,
+              valorOriginal: discrepancia.valorOriginal,
+              valorReportado: discrepancia.valorReportado,
+              motivoReporte: soporte.motivo.trim(),
+              referenciaEvidencia: soporte.referenciaEvidencia.trim(),
+              estatus: 'PENDIENTE',
+            }),
+          ),
+        );
+      }
+
+      await manager.getRepository(Infraccion).update(
+        { idInfraccion },
+        { estatusInfraccion: estatus },
+      );
+      const movimientosRepository = manager.getRepository(InfraccionMovimiento);
+      await movimientosRepository.save(movimientosRepository.create({
+        infraccion: { idInfraccion } as Infraccion,
+        estatusInfraccion: estatus,
+        usuario: { idUsuario: params.idUsuarioValidaSalida } as Usuario,
+        accion: ACCION_MOVIMIENTO.VEHICULO_ENTREGADO,
+        observaciones:
+          discrepancias.length > 0
+            ? 'Salida anticipada con diferencias de cotejo pendientes; pago/liberacion electronica pendientes.'
+            : 'Salida anticipada con autorizacion documental; pago/liberacion electronica pendientes.',
+        fechaMovimiento: fechaSalida,
+      }));
+
+      const auditoriaRepository = manager.getRepository(Auditoria);
+      await auditoriaRepository.save(auditoriaRepository.create({
+        idUsuario: params.idUsuarioValidaSalida,
+        accion: 'SALIDA_ENCIERRO_ANTICIPADA',
+        entidad: 'salidas_vehiculo',
+        entidadId: String(savedSalida.idSalidaVehiculo),
+        severity: 'HIGH',
+        antesJson: null,
+        despuesJson: sanitizeAuditPayload({
+          idInfraccion,
+          idRetencionVehiculo: params.idRetencionVehiculo,
+          modalidadSalida: 'ANTICIPADA',
+          folioLiberacionPresentado: folio,
+          documentoVerificado: true,
+          totalObservaciones: discrepancias.length,
+          camposObservados: discrepancias.map((item) => item.campo),
+        }),
+      }));
+
+      return savedSalida;
+    });
+  }
+
+  /**
+   * Coteja cada dato capturado sin impedir la entrega por discrepancias.
+   * Toda diferencia exige motivo y evidencia para revision de Infracciones.
+   * El vehiculo del expediente no se actualiza durante la salida fisica.
+   */
+  private validarCotejoSalidaAnticipada(
+    params: RegistrarSalidaAnticipadaDto,
+    infraccion: Infraccion,
+  ): DiscrepanciaVehiculo[] {
+    const vehiculo = infraccion.vehiculo;
+    const datos = params.datosVehiculoCotejados;
+    if (!datos) {
+      throw new BadRequestException('Captura los datos generales cotejados.');
+    }
+    const normalize = (value: string | number) =>
+      String(value).normalize('NFKC').trim().replace(/\s+/gu, ' ').toUpperCase();
+    const normalizePlacas = (value: string | number) =>
+      normalize(value).replace(/[\s-]/gu, '');
+
+    const campos: Array<{
+      campo: CampoObservado;
+      reportado: string | number | null | undefined;
+      registrado: string | number | null | undefined;
+    }> = [
+      { campo: 'PLACAS', reportado: params.placasCotejadas, registrado: vehiculo.placas },
+      { campo: 'MARCA', reportado: datos.marca, registrado: vehiculo.lineaVehiculo?.marcaVehiculo?.nombreMarcaVehiculo },
+      { campo: 'LINEA', reportado: datos.linea, registrado: vehiculo.lineaVehiculo?.nombreLineaVehiculo },
+      { campo: 'CLASE', reportado: datos.clase, registrado: vehiculo.claseVehiculo?.nombreClaseVehiculo },
+      { campo: 'COLOR', reportado: datos.color, registrado: vehiculo.color },
+      { campo: 'ANIO_MODELO', reportado: datos.anioModelo, registrado: vehiculo.anioModelo },
+      { campo: 'ESTADO_PLACAS', reportado: datos.estadoPlacas, registrado: vehiculo.estadoPlacas },
+      { campo: 'SERIE', reportado: datos.serie, registrado: vehiculo.serie },
+      { campo: 'MOTOR', reportado: datos.motor, registrado: vehiculo.motor },
+    ];
+
+    const discrepancias: DiscrepanciaVehiculo[] = [];
+    for (const { campo, reportado, registrado } of campos) {
+      if (reportado === null || reportado === undefined || String(reportado).trim() === '') {
+        continue;
+      }
+      const valorReportado = String(reportado).trim();
+      const valorRegistrado = registrado === null || registrado === undefined
+        ? '' : String(registrado).trim();
+      const coinciden = valorRegistrado !== '' && (
+        campo === 'PLACAS'
+          ? normalizePlacas(valorReportado) === normalizePlacas(valorRegistrado)
+          : normalize(valorReportado) === normalize(valorRegistrado)
+      );
+      if (!coinciden) {
+        discrepancias.push({
+          campo,
+          valorOriginal: valorRegistrado || 'SIN DATO',
+          valorReportado,
+        });
+      }
+    }
+
+    if (discrepancias.length > 0) {
+      if (!params.discrepanciaMenor?.motivo?.trim() ||
+          !params.discrepanciaMenor.referenciaEvidencia?.trim()) {
+        throw new BadRequestException(
+          'Las diferencias requieren motivo y referencia de evidencia para Infracciones.',
+        );
+      }
+    } else if (params.discrepanciaMenor) {
+      throw new BadRequestException(
+        'No existen diferencias en el cotejo para crear una observacion.',
+      );
+    }
+
+    return discrepancias;
+  }
+
+  /**
+   * Bandeja paginada de solo lectura para Infracciones.
+   * La API devuelve una proyección explícita: no expone contraseñas,
+   * información del propietario ni documentos ajenos a la observación.
+   */
+  async listarObservacionesPendientes(params: {
+    page: number;
+    limit: number;
+    idInfraccion?: number;
+  }) {
+    const { page, limit, idInfraccion } = params;
+    if (!Number.isInteger(page) || page < 1 ||
+        !Number.isInteger(limit) || limit < 1 || limit > 50) {
+      throw new BadRequestException('Pagina o limite de observaciones invalido (1 a 50).');
+    }
+    if (idInfraccion !== undefined && (!Number.isInteger(idInfraccion) || idInfraccion < 1)) {
+      throw new BadRequestException('El identificador de infraccion es invalido.');
+    }
+
+    const query = this.dataSource.getRepository(ObservacionExpediente)
+      .createQueryBuilder('observacion')
+      .innerJoin('observacion.infraccion', 'infraccion')
+      .innerJoin('infraccion.vehiculo', 'vehiculo')
+      .innerJoin('observacion.usuarioReporta', 'usuarioReporta')
+      .where('observacion.estatus = :estatus', { estatus: 'PENDIENTE' });
+
+    if (idInfraccion !== undefined) {
+      query.andWhere('infraccion.idInfraccion = :idInfraccion', { idInfraccion });
+    }
+
+    const total = await query.getCount();
+    const rows = await query
+      .select('observacion.idObservacion', 'idObservacion')
+      .addSelect('infraccion.idInfraccion', 'idInfraccion')
+      .addSelect('infraccion.folioInfraccion', 'folioInfraccion')
+      .addSelect('vehiculo.placas', 'placas')
+      .addSelect('observacion.campoObservado', 'campoObservado')
+      .addSelect('observacion.valorOriginal', 'valorOriginal')
+      .addSelect('observacion.valorReportado', 'valorReportado')
+      .addSelect('observacion.motivoReporte', 'motivoReporte')
+      .addSelect('observacion.referenciaEvidencia', 'referenciaEvidencia')
+      .addSelect('observacion.fechaReporte', 'fechaReporte')
+      .addSelect('usuarioReporta.nombreUsuario', 'nombreUsuarioReporta')
+      .orderBy('observacion.fechaReporte', 'DESC')
+      .addOrderBy('observacion.idObservacion', 'DESC')
+      .offset((page - 1) * limit)
+      .limit(limit)
+      .getRawMany<ObservacionPendienteRow>();
+
+    return {
+      data: rows.map((row) => ({
+        idObservacion: Number(row.idObservacion),
+        idInfraccion: Number(row.idInfraccion),
+        folioInfraccion: row.folioInfraccion,
+        placas: row.placas,
+        campoObservado: row.campoObservado,
+        valorOriginal: row.valorOriginal,
+        valorReportado: row.valorReportado,
+        motivoReporte: row.motivoReporte,
+        referenciaEvidencia: row.referenciaEvidencia,
+        nombreUsuarioReporta: row.nombreUsuarioReporta,
+        fechaReporte: row.fechaReporte instanceof Date
+          ? row.fechaReporte.toISOString()
+          : row.fechaReporte,
+        estatus: 'PENDIENTE' as const,
+      })),
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
+   * Solo corrige color o año modelo del expediente reportado.
+   * El bloqueo de la observacion, del vehiculo y el registro de auditoria
+   * ocurren en una unica transaccion.
+   */
+  async resolverObservacion(
+    params: ResolverObservacionDto & { idObservacion: number; idUsuarioResuelve: number },
+  ) {
+    const resolucion = params.resolucion?.trim();
+    if (!resolucion || resolucion.length < 10 || resolucion.length > 1000 ||
+        (params.decision !== 'CORREGIR' && params.decision !== 'RECHAZAR')) {
+      throw new BadRequestException('Decision y justificacion de 10 a 1000 caracteres requeridas.');
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      const rows = await manager.query<ObservacionResolverRow[]>(
+        [
+          'SELECT o.id_observacion AS "idObservacion",',
+          'o.id_infraccion AS "idInfraccion",',
+          'r.id_infraccion AS "idInfraccionRetencion",',
+          'i.id_vehiculo AS "idVehiculo", o.estatus,',
+          'o.campo_observado AS "campoObservado",',
+          'o.valor_original AS "valorOriginal",',
+          'o.valor_reportado AS "valorReportado",',
+          's.modalidad_salida AS "modalidadSalida"',
+          'FROM observacion_expediente o',
+          'JOIN infracciones i ON i.id_infraccion = o.id_infraccion',
+          'JOIN salida_vehiculo s ON s.id_salida_vehiculo = o.id_salida_vehiculo',
+          'JOIN retencion_vehiculo r ON r.id_retencion_vehiculo = s.id_retencion_vehiculo',
+          'WHERE o.id_observacion = $1 FOR UPDATE OF o',
+        ].join(' '),
+        [params.idObservacion],
+      );
+      const observacion = rows[0];
+      if (!observacion) {
+        throw new NotFoundException('No se encontro la observacion solicitada.');
+      }
+      if (observacion.estatus !== 'PENDIENTE') {
+        throw new ConflictException('Esta observacion ya fue atendida. Actualiza la bandeja.');
+      }
+      if (observacion.modalidadSalida !== 'ANTICIPADA' ||
+          Number(observacion.idInfraccion) !== Number(observacion.idInfraccionRetencion)) {
+        throw new ConflictException('La salida no pertenece al expediente reportado.');
+      }
+      if (params.decision === 'CORREGIR' &&
+          observacion.campoObservado !== 'COLOR' &&
+          observacion.campoObservado !== 'ANIO_MODELO') {
+        throw new BadRequestException(
+          'La correccion automatica solo permite color y año modelo. ' +
+          'Las demas diferencias requieren atencion administrativa sin editar el vehiculo.',
+        );
+      }
+
+      let valorAnterior: string | null = null;
+      let valorPosterior: string | null = null;
+      const idVehiculo = Number(observacion.idVehiculo);
+      if (params.decision === 'CORREGIR') {
+        const vehiculos = await manager.query<VehiculoResolucionRow[]>(
+          [
+            'SELECT color, anio_modelo AS "anioModelo"',
+            'FROM vehiculo WHERE id_vehiculo = $1 FOR UPDATE',
+          ].join(' '),
+          [idVehiculo],
+        );
+        const vehiculo = vehiculos[0];
+        if (!vehiculo) {
+          throw new NotFoundException('No existe el vehiculo asociado al expediente.');
+        }
+        const count = await manager.query<Array<{ total: number | string }>>(
+          'SELECT COUNT(*)::int AS total FROM infracciones WHERE id_vehiculo = $1',
+          [idVehiculo],
+        );
+        if (Number(count[0]?.total) !== 1) {
+          throw new ConflictException(
+            'Vehiculo asociado a varios expedientes. Requiere revision por ADMIN.',
+          );
+        }
+        const actual = observacion.campoObservado === 'COLOR'
+          ? vehiculo.color : vehiculo.anioModelo;
+        const normalize = (value: string | number) =>
+          String(value).normalize('NFKC').trim().replace(/\s+/gu, ' ').toUpperCase();
+        if (actual === null || actual === undefined ||
+            normalize(actual) !== normalize(observacion.valorOriginal)) {
+          throw new ConflictException(
+            'El valor del vehiculo cambio desde el reporte. Requiere revision.',
+          );
+        }
+        valorAnterior = String(actual);
+        if (observacion.campoObservado === 'COLOR') {
+          const color = observacion.valorReportado.trim();
+          if (!color || color.length > 150 || normalize(color) === normalize(actual)) {
+            throw new ConflictException('Color reportado invalido o ya coincidente.');
+          }
+          await manager.query('UPDATE vehiculo SET color = $1 WHERE id_vehiculo = $2',
+            [color, idVehiculo]);
+          valorPosterior = color;
+        } else {
+          const anio = Number(observacion.valorReportado.trim());
+          if (!/^\d{4}$/u.test(observacion.valorReportado.trim()) ||
+              !Number.isInteger(anio) || anio < 1900 || anio > 2100 || anio === actual) {
+            throw new ConflictException('El año modelo reportado no es valido.');
+          }
+          await manager.query('UPDATE vehiculo SET anio_modelo = $1 WHERE id_vehiculo = $2',
+            [anio, idVehiculo]);
+          valorPosterior = String(anio);
+        }
+      }
+
+      const estatus = params.decision === 'CORREGIR' ? 'CORREGIDA' : 'RECHAZADA';
+      const fechaResolucion = new Date();
+      // TypeORM/PostgreSQL devuelve [filas RETURNING, total afectadas] en UPDATE.
+      const [filasActualizadas, totalActualizadas] = await manager.query<
+        [Array<{ idObservacion: number }>, number]
+      >(
+        [
+          'UPDATE observacion_expediente SET estatus = $1,',
+          'id_usuario_resuelve = $2, resolucion = $3, fecha_resolucion = $4',
+          "WHERE id_observacion = $5 AND estatus = 'PENDIENTE'",
+          'RETURNING id_observacion AS "idObservacion"',
+        ].join(' '),
+        [estatus, params.idUsuarioResuelve, resolucion, fechaResolucion, params.idObservacion],
+      );
+      if (
+        totalActualizadas !== 1 ||
+        filasActualizadas.length !== 1 ||
+        Number(filasActualizadas[0].idObservacion) !== params.idObservacion
+      ) {
+        throw new ConflictException('No fue posible completar la resolucion.');
+      }
+
+      const auditoriaRepository = manager.getRepository(Auditoria);
+      await auditoriaRepository.save(auditoriaRepository.create({
+        idUsuario: params.idUsuarioResuelve,
+        accion: params.decision === 'CORREGIR'
+          ? 'OBSERVACION_EXPEDIENTE_CORREGIDA'
+          : 'OBSERVACION_EXPEDIENTE_RECHAZADA',
+        entidad: 'observacion_expediente',
+        entidadId: String(params.idObservacion),
+        severity: 'HIGH',
+        antesJson: {
+          idInfraccion: Number(observacion.idInfraccion),
+          idVehiculo,
+          campoObservado: observacion.campoObservado,
+          estatus: 'PENDIENTE',
+          valorOriginal: observacion.valorOriginal,
+          valorReportado: observacion.valorReportado,
+          valorAnterior,
+        },
+        despuesJson: {
+          estatus,
+          resolucion,
+          valorPosterior,
+          fechaResolucion: fechaResolucion.toISOString(),
+        },
+      }));
+
+      return {
+        idObservacion: params.idObservacion,
+        idInfraccion: Number(observacion.idInfraccion),
+        campoObservado: observacion.campoObservado,
+        estatus,
+        resolucion,
+        fechaResolucion: fechaResolucion.toISOString(),
+        valorAnterior,
+        valorPosterior,
+      };
+    });
   }
 
   private buildVehiculosEnEncierroBaseQuery(

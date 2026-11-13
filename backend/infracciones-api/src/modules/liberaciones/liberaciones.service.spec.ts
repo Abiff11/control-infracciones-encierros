@@ -14,6 +14,17 @@ function createRepositoryMock() {
 
 function createServiceFixture() {
   const liberacionesRepository = createRepositoryMock();
+  const managerQuery = jest.fn().mockResolvedValue([]);
+  const manager = {
+    query: managerQuery,
+    getRepository: jest.fn(() => liberacionesRepository),
+  };
+  const transaction = jest.fn(
+    (callback: (value: typeof manager) => Promise<unknown>) => callback(manager),
+  );
+  Object.assign(liberacionesRepository, {
+    manager: { transaction },
+  });
   const retencionesRepository = createRepositoryMock();
   const pagosRepository = createRepositoryMock();
   const solventacionesRepository = createRepositoryMock();
@@ -54,6 +65,8 @@ function createServiceFixture() {
     auditoriaService,
     infraccionesService,
     liberacionesRepository,
+    managerQuery,
+    transaction,
     pagosRepository,
     retencionesRepository,
     service,
@@ -159,5 +172,118 @@ describe('LiberacionesService generarLiberacion', () => {
         liberadoPor: 'Operador',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('LiberacionesService conciliacion de salida anticipada', () => {
+  const params = {
+    idInfraccion: 10,
+    idPagoInfraccion: 99,
+    idUsuarioLibera: 4,
+    folioLiberacion: 'LIB-ANT-1',
+    liberadoPor: 'Operador',
+  };
+
+  it('vincula una liberacion coincidente sin crear otra salida', async () => {
+    const f = createServiceFixture();
+    f.pagosRepository.findOne.mockResolvedValue({ idPagoInfraccion: 99 });
+    f.managerQuery
+      .mockResolvedValueOnce([{
+        idSalidaVehiculo: 80,
+        idLiberacionVehiculo: null,
+        folioLiberacionPresentado: ' lib-ant-1 ',
+      }])
+      // PostgreSQL/TypeORM entrega [filas RETURNING, numero de filas actualizadas].
+      .mockResolvedValueOnce([[{ idSalidaVehiculo: 80 }], 1]);
+
+    await f.service.generarLiberacion(params);
+
+    expect(f.transaction).toHaveBeenCalledTimes(1);
+    expect(f.managerQuery).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE salida_vehiculo'),
+      [55, 80],
+    );
+    expect(f.infraccionesService.actualizarEstatusYRegistrarMovimiento)
+      .toHaveBeenCalledWith(expect.objectContaining({
+        nombreEstatus: 'LIBERACION_GENERADA',
+        accion: 'LIBERACION_GENERADA',
+      }));
+  });
+
+  it('rechaza una conciliacion sin filas actualizadas y no registra movimiento', async () => {
+    const f = createServiceFixture();
+    f.pagosRepository.findOne.mockResolvedValue({ idPagoInfraccion: 99 });
+    f.managerQuery
+      .mockResolvedValueOnce([{
+        idSalidaVehiculo: 80,
+        idLiberacionVehiculo: null,
+        folioLiberacionPresentado: 'LIB-ANT-1',
+      }])
+      .mockResolvedValueOnce([[], 0]);
+
+    await expect(f.service.generarLiberacion(params))
+      .rejects.toThrow('No se pudo conciliar la liberacion con la salida anticipada.');
+    expect(f.infraccionesService.actualizarEstatusYRegistrarMovimiento)
+      .not.toHaveBeenCalled();
+    expect(f.auditoriaService.registrar).not.toHaveBeenCalled();
+  });
+
+  it('rechaza una respuesta inconsistente aunque reporte una fila afectada', async () => {
+    const f = createServiceFixture();
+    f.pagosRepository.findOne.mockResolvedValue({ idPagoInfraccion: 99 });
+    f.managerQuery
+      .mockResolvedValueOnce([{
+        idSalidaVehiculo: 80,
+        idLiberacionVehiculo: null,
+        folioLiberacionPresentado: 'LIB-ANT-1',
+      }])
+      .mockResolvedValueOnce([[{ idSalidaVehiculo: 81 }], 1]);
+
+    await expect(f.service.generarLiberacion(params))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(f.infraccionesService.actualizarEstatusYRegistrarMovimiento)
+      .not.toHaveBeenCalled();
+  });
+
+  it('rechaza el folio discordante antes de guardar una liberacion', async () => {
+    const f = createServiceFixture();
+    f.pagosRepository.findOne.mockResolvedValue({ idPagoInfraccion: 99 });
+    f.managerQuery.mockResolvedValueOnce([{
+      idSalidaVehiculo: 80,
+      idLiberacionVehiculo: null,
+      folioLiberacionPresentado: 'OTRO-FOLIO',
+    }]);
+
+    await expect(f.service.generarLiberacion(params))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(f.liberacionesRepository.save).not.toHaveBeenCalled();
+    expect(f.infraccionesService.actualizarEstatusYRegistrarMovimiento)
+      .not.toHaveBeenCalled();
+  });
+
+  it('genera liberacion ordinaria sin vincular ninguna salida anticipada', async () => {
+    const f = createServiceFixture();
+    f.pagosRepository.findOne.mockResolvedValue({ idPagoInfraccion: 99 });
+
+    await f.service.generarLiberacion(params);
+
+    expect(f.liberacionesRepository.save).toHaveBeenCalledTimes(1);
+    expect(f.managerQuery).toHaveBeenCalledTimes(1);
+    expect(f.infraccionesService.actualizarEstatusYRegistrarMovimiento)
+      .toHaveBeenCalledTimes(1);
+  });
+
+  it('rechaza una conciliacion concurrente o ya vinculada', async () => {
+    const f = createServiceFixture();
+    f.pagosRepository.findOne.mockResolvedValue({ idPagoInfraccion: 99 });
+    f.managerQuery.mockResolvedValueOnce([{
+      idSalidaVehiculo: 80,
+      idLiberacionVehiculo: 66,
+      folioLiberacionPresentado: 'LIB-ANT-1',
+    }]);
+
+    await expect(f.service.generarLiberacion(params))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(f.liberacionesRepository.save).not.toHaveBeenCalled();
   });
 });
