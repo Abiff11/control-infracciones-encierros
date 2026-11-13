@@ -15,6 +15,18 @@ import {
 import { formatDateTime, formatEmptyValue } from '../../utils/formatters';
 import { confirmAction } from '../../utils/sweetAlert';
 
+const NOMBRES_CAMPO: Record<ObservacionPendienteItem['campoObservado'], string> = {
+  PLACAS: 'Placas',
+  MARCA: 'Marca',
+  LINEA: 'Línea',
+  CLASE: 'Clase',
+  COLOR: 'Color',
+  ANIO_MODELO: 'Año modelo',
+  ESTADO_PLACAS: 'Estado de placas',
+  SERIE: 'Número de serie',
+  MOTOR: 'Número de motor',
+};
+
 interface ObservacionAtencionModalProps {
   open: boolean;
   token: string;
@@ -35,9 +47,11 @@ export function ObservacionAtencionModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const puedeCorregir = observacion?.campoObservado === 'COLOR' ||
+    observacion?.campoObservado === 'ANIO_MODELO';
   const motivo = justificacion.trim();
-  const valido = Boolean(decision) && motivo.length >= 10 &&
-    motivo.length <= 1000 && !saving;
+  const valido = Boolean(decision) && (decision !== 'CORREGIR' || puedeCorregir) &&
+    motivo.length >= 10 && motivo.length <= 1000 && !saving;
 
   function cambiarDecision(next: DecisionObservacion): void {
     setDecision(next);
@@ -95,7 +109,7 @@ export function ObservacionAtencionModal({
       title={observacion
         ? 'Atender observación ' + observacion.folioInfraccion
         : 'Atender observación'}
-      description="Revisa la evidencia antes de decidir. Solo se puede corregir el campo observado."
+      description="Revisa la evidencia antes de decidir. Solo color y año modelo admiten corrección automática."
       eyebrowLabel="Infracciones · atención de observaciones"
       size="wide"
       onClose={cerrar}
@@ -110,8 +124,7 @@ export function ObservacionAtencionModal({
             </div>
             <div className="table-cell-stack">
               <strong>Campo observado</strong>
-              <span>{observacion.campoObservado === 'ANIO_MODELO'
-                ? 'Año modelo' : 'Color'}</span>
+              <span>{NOMBRES_CAMPO[observacion.campoObservado]}</span>
             </div>
             <div className="table-cell-stack">
               <strong>Dato registrado</strong>
@@ -132,8 +145,12 @@ export function ObservacionAtencionModal({
           </div>
 
           <div className="notice">
-            Si corriges, el sistema actualizará solo el color o el año modelo.
-            Si rechazas, conservará el valor registrado. Ambos resultados quedan auditados.
+            {puedeCorregir
+              ? 'Si corriges, el sistema actualizará solo el color o el año modelo. ' +
+                'Si rechazas, conservará el valor registrado. Ambos resultados quedan auditados.'
+              : 'Este campo requiere revisión administrativa. No se modifican directamente ' +
+                'placas, serie, motor ni los catálogos del vehículo desde esta pantalla. ' +
+                'Puedes rechazar la observación con una justificación; la decisión queda auditada.'}
           </div>
 
           <div className="field">
@@ -143,7 +160,7 @@ export function ObservacionAtencionModal({
                 type="button"
                 variant={decision === 'CORREGIR' ? 'primary' : 'secondary'}
                 aria-pressed={decision === 'CORREGIR'}
-                disabled={saving}
+                disabled={saving || !puedeCorregir}
                 onClick={() => cambiarDecision('CORREGIR')}
               >
                 Corregir dato
@@ -177,7 +194,7 @@ export function ObservacionAtencionModal({
             />
           </Field>
           <p className="page-description">
-            Escribe de 10 a 1,000 caracteres. No se modifican placas, serie, motor ni la salida.
+            Escribe de 10 a 1,000 caracteres. La salida física nunca se modifica.
           </p>
           <ErrorMessage message={error} />
           <div className="button-row">

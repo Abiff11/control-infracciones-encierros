@@ -474,19 +474,28 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
   }
 
   it.each([
-    { label: "color", campo: "Color cotejado", observado: "PLATA", registrado: "BLANCO" },
-    { label: "año modelo", campo: "Año modelo cotejado (opcional)", observado: "2023", registrado: "2022" },
-  ])("reporta una diferencia de $label con evidencia sin modificar el expediente", async ({ campo, observado, registrado }) => {
-    const item = expedienteRetenido({ anioModelo: 2022 });
-    const { onCompleted } = renderModal("salida", item, "ENCIERRO");
+    { campo: "Placas verificadas fisicamente", observado: "OTRAS99", registrado: "ABC123" },
+    { campo: "Marca cotejada", observado: "OTRA MARCA", registrado: "SUZUKI" },
+    { campo: "Linea cotejada", observado: "OTRA LINEA", registrado: "SWIFT" },
+    { campo: "Clase cotejada", observado: "CAMIONETA", registrado: "AUTOMOVIL" },
+    { campo: "Color cotejado", observado: "PLATA", registrado: "BLANCO" },
+    { campo: "Año modelo cotejado (opcional)", observado: "2023", registrado: "2022" },
+    { campo: "Estado de placas (opcional)", observado: "PUEBLA", registrado: "OAXACA" },
+    { campo: "Numero de serie (opcional)", observado: "VIN-555", registrado: "SIN DATO" },
+    { campo: "Numero de motor (opcional)", observado: "MTR-999", registrado: "SIN DATO" },
+  ])("permite reportar diferencias de $campo sin bloquear la entrega", async ({ campo, observado, registrado }) => {
+    const { onCompleted } = renderModal("salida", expedienteRetenido({ anioModelo: 2022 }), "ENCIERRO");
     completarSalida();
     fireEvent.change(screen.getByLabelText(campo), { target: { value: observado } });
+    expect(screen.getByRole("region", { name: "Diferencias detectadas en el cotejo" })).toBeInTheDocument();
     expect(screen.getByText("Registrado: " + registrado)).toBeInTheDocument();
+    expect(screen.getByText("Cotejado por Encierros: " + observado)).toBeInTheDocument();
+
     const submit = screen.getByRole("button", { name: "Registrar salida anticipada" });
     expect(submit).toBeDisabled();
-    fireEvent.click(screen.getByLabelText("Reportar diferencia a Infracciones"));
+    fireEvent.click(screen.getByLabelText("Reportar diferencias a Infracciones"));
     expect(submit).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Motivo de la diferencia"), {
+    fireEvent.change(screen.getByLabelText("Motivo de las diferencias"), {
       target: { value: "Dato revisado en el documento oficial" },
     });
     fireEvent.change(screen.getByLabelText("Referencia de evidencia"), {
@@ -509,29 +518,51 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
     expect(onCompleted).toHaveBeenCalledTimes(1);
   });
 
-  it("bloquea placas distintas, incluso con características coincidentes", () => {
-    renderModal("salida", expedienteRetenido(), "ENCIERRO");
+  it("permite reportar varias diferencias en una sola salida con evidencia obligatoria", async () => {
+    renderModal("salida", expedienteRetenido({ anioModelo: 2022 }), "ENCIERRO");
     completarSalida();
     fireEvent.change(screen.getByLabelText("Placas verificadas fisicamente"), {
       target: { value: "OTRAS99" },
     });
-    expect(screen.getByText(/Las placas no coinciden con el expediente/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Registrar salida anticipada" })).toBeDisabled();
-    expect(apiMocks.createSalidaAnticipada).not.toHaveBeenCalled();
-  });
-
-  it("bloquea varias diferencias menores y no ofrece reportarlas como una sola", () => {
-    renderModal("salida", expedienteRetenido({ anioModelo: 2022 }), "ENCIERRO");
-    completarSalida();
     fireEvent.change(screen.getByLabelText("Color cotejado"), {
       target: { value: "ROJO" },
     });
     fireEvent.change(screen.getByLabelText("Año modelo cotejado (opcional)"), {
       target: { value: "2023" },
     });
-    expect(screen.getByText(/Hay dos diferencias generales/)).toBeInTheDocument();
-    expect(screen.queryByLabelText("Reportar diferencia a Infracciones")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Registrar salida anticipada" })).toBeDisabled();
+    expect(screen.getByText(/3 diferencias detectadas/)).toBeInTheDocument();
+    expect(screen.getByText("Registrado: ABC123")).toBeInTheDocument();
+    expect(screen.getByText("Registrado: BLANCO")).toBeInTheDocument();
+    expect(screen.getByText("Registrado: 2022")).toBeInTheDocument();
+    const submit = screen.getByRole("button", { name: "Registrar salida anticipada" });
+    fireEvent.click(screen.getByLabelText("Reportar diferencias a Infracciones"));
+    fireEvent.change(screen.getByLabelText("Motivo de las diferencias"), {
+      target: { value: "Diferencias constatadas en el documento oficial" },
+    });
+    fireEvent.change(screen.getByLabelText("Referencia de evidencia"), {
+      target: { value: "Informe de cotejo" },
+    });
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+    await waitFor(() => expect(apiMocks.createSalidaAnticipada).toHaveBeenCalledWith(
+      "token-test",
+      expect.objectContaining({
+        placasCotejadas: "OTRAS99",
+        datosVehiculoCotejados: expect.objectContaining({
+          color: "ROJO",
+          anioModelo: 2023,
+        }),
+        discrepanciaMenor: {
+          motivo: "Diferencias constatadas en el documento oficial",
+          referenciaEvidencia: "Informe de cotejo",
+        },
+      }),
+    ));
+    expect(apiMocks.confirmAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining("3 observaciones pendientes"),
+      }),
+    );
   });
 
   it("no envía observación si todos los datos coinciden", async () => {

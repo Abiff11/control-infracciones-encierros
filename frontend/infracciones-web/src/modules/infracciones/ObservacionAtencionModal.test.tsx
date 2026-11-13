@@ -31,14 +31,14 @@ const observation: ObservacionPendienteItem = {
   estatus: 'PENDIENTE',
 };
 
-function renderModal() {
+function renderModal(item: ObservacionPendienteItem = observation) {
   const onClose = vi.fn();
   const onCompleted = vi.fn();
   render(
     <ObservacionAtencionModal
       open
       token="token-test"
-      observacion={observation}
+      observacion={item}
       onClose={onClose}
       onCompleted={onCompleted}
     />,
@@ -102,6 +102,41 @@ describe('ObservacionAtencionModal', () => {
         },
       );
     });
+  });
+
+  it.each([
+    ['PLACAS', 'Placas'],
+    ['MARCA', 'Marca'],
+    ['LINEA', 'Línea'],
+    ['CLASE', 'Clase'],
+    ['ESTADO_PLACAS', 'Estado de placas'],
+    ['SERIE', 'Número de serie'],
+    ['MOTOR', 'Número de motor'],
+  ] as const)('identifica correctamente %s e impide su corrección directa', (campo, etiqueta) => {
+    renderModal({ ...observation, campoObservado: campo });
+    expect(screen.getByText(etiqueta)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Corregir dato' })).toBeDisabled();
+    expect(screen.getByText(/requiere revisión administrativa/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Rechazar observación' })).toBeEnabled();
+  });
+
+  it('permite decidir sin modificar placas, con justificación y auditoría del servidor', async () => {
+    const { onCompleted } = renderModal({
+      ...observation, campoObservado: 'PLACAS',
+      valorOriginal: 'ABC123', valorReportado: 'OTRAS99',
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Rechazar observación' }));
+    fireEvent.change(screen.getByLabelText('Justificación de la decisión'), {
+      target: { value: 'Se revisó el documento de placas y no procede modificar el expediente.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar rechazo' }));
+    await waitFor(() => expect(mocks.resolverObservacion).toHaveBeenCalledWith(
+      'token-test', 12, {
+        decision: 'RECHAZAR',
+        resolucion: 'Se revisó el documento de placas y no procede modificar el expediente.',
+      },
+    ));
+    expect(onCompleted).toHaveBeenCalledTimes(1);
   });
 
   it('no permite enviar una justificación incompleta', () => {

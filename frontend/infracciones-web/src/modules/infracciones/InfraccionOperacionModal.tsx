@@ -182,101 +182,60 @@ function createInitialForm(
 
 
 interface DiferenciaCotejo {
-  campo: "COLOR" | "ANIO_MODELO";
+  campo: "PLACAS" | "MARCA" | "LINEA" | "CLASE" | "COLOR" | "ANIO_MODELO" |
+    "ESTADO_PLACAS" | "SERIE" | "MOTOR";
   etiqueta: string;
   registrado: string;
   reportado: string;
-}
-
-interface ResultadoCotejo {
-  coincidencias: number;
-  diferencias: DiferenciaCotejo[];
-  problemas: string[];
 }
 
 function normalizarCotejo(value: string | number): string {
   return String(value).normalize("NFKC").trim().replace(/\s+/gu, " ").toUpperCase();
 }
 
-function normalizarPlacas(value: string): string {
+function normalizarPlacas(value: string | number): string {
   return normalizarCotejo(value).replace(/[\s-]/gu, "");
 }
 
+/** Compara los nueve campos con las mismas reglas del servicio NestJS. */
 function analizarCotejo(
   item: InfraccionListItem,
   form: OperationFormState,
-): ResultadoCotejo {
-  const result: ResultadoCotejo = {
-    coincidencias: 0,
-    diferencias: [],
-    problemas: [],
-  };
-
-  if (form.placasCotejadas.trim() &&
-      (!item.vehiculo.placas ||
-        normalizarPlacas(form.placasCotejadas) !==
-          normalizarPlacas(item.vehiculo.placas))) {
-    result.problemas.push(
-      "Las placas no coinciden con el expediente. Se requiere revisión antes de la entrega.",
-    );
-  }
-
-  const generales: Array<{
+): DiferenciaCotejo[] {
+  const campos: Array<{
+    campo: DiferenciaCotejo["campo"];
     etiqueta: string;
     valor: string;
     registrado: string | number | null | undefined;
-    menor?: DiferenciaCotejo["campo"];
   }> = [
-    { etiqueta: "Marca", valor: form.marcaCotejada, registrado: item.vehiculo.marca },
-    { etiqueta: "Línea", valor: form.lineaCotejada, registrado: item.vehiculo.linea },
-    { etiqueta: "Clase", valor: form.claseCotejada, registrado: item.vehiculo.clase },
-    { etiqueta: "Color", valor: form.colorCotejado, registrado: item.vehiculo.color, menor: "COLOR" },
-    { etiqueta: "Año modelo", valor: form.anioModeloCotejado, registrado: item.vehiculo.anioModelo, menor: "ANIO_MODELO" },
+    { campo: "PLACAS", etiqueta: "Placas", valor: form.placasCotejadas, registrado: item.vehiculo.placas },
+    { campo: "MARCA", etiqueta: "Marca", valor: form.marcaCotejada, registrado: item.vehiculo.marca },
+    { campo: "LINEA", etiqueta: "Línea", valor: form.lineaCotejada, registrado: item.vehiculo.linea },
+    { campo: "CLASE", etiqueta: "Clase", valor: form.claseCotejada, registrado: item.vehiculo.clase },
+    { campo: "COLOR", etiqueta: "Color", valor: form.colorCotejado, registrado: item.vehiculo.color },
+    { campo: "ANIO_MODELO", etiqueta: "Año modelo", valor: form.anioModeloCotejado, registrado: item.vehiculo.anioModelo },
+    { campo: "ESTADO_PLACAS", etiqueta: "Estado de placas", valor: form.estadoPlacasCotejado, registrado: item.vehiculo.estadoPlacas },
+    { campo: "SERIE", etiqueta: "Número de serie", valor: form.serieCotejada, registrado: item.vehiculo.serie },
+    { campo: "MOTOR", etiqueta: "Número de motor", valor: form.motorCotejado, registrado: item.vehiculo.motor },
   ];
 
-  for (const { etiqueta, valor, registrado, menor } of generales) {
+  return campos.flatMap(({ campo, etiqueta, valor, registrado }) => {
     if (!valor.trim()) {
-      continue;
+      return [];
     }
-    if (registrado === null || registrado === undefined || String(registrado).trim() === "") {
-      result.problemas.push(etiqueta + ": no hay dato registrado para cotejar.");
-      continue;
-    }
-    if (normalizarCotejo(valor) === normalizarCotejo(registrado)) {
-      result.coincidencias += 1;
-    } else if (menor) {
-      result.diferencias.push({
-        campo: menor,
-        etiqueta,
-        registrado: String(registrado),
-        reportado: valor.trim(),
-      });
-    } else {
-      result.problemas.push(etiqueta + ": el dato observado no coincide con el expediente.");
-    }
-  }
-
-  const identificadores: Array<{
-    etiqueta: string;
-    valor: string;
-    registrado: string | null | undefined;
-  }> = [
-    { etiqueta: "Estado de placas", valor: form.estadoPlacasCotejado, registrado: item.vehiculo.estadoPlacas },
-    { etiqueta: "Número de serie", valor: form.serieCotejada, registrado: item.vehiculo.serie },
-    { etiqueta: "Número de motor", valor: form.motorCotejado, registrado: item.vehiculo.motor },
-  ];
-  for (const { etiqueta, valor, registrado } of identificadores) {
-    if (valor.trim() &&
-        (!registrado || normalizarCotejo(valor) !== normalizarCotejo(registrado))) {
-      result.problemas.push(etiqueta + ": discrepancia que requiere revisión.");
-    }
-  }
-  if (result.diferencias.length > 1) {
-    result.problemas.push(
-      "Hay dos diferencias generales: se requiere revisión antes de entregar el vehículo.",
+    const valorRegistrado = registrado == null ? "" : String(registrado).trim();
+    const coinciden = valorRegistrado !== "" && (
+      campo === "PLACAS"
+        ? normalizarPlacas(valor) === normalizarPlacas(valorRegistrado)
+        : normalizarCotejo(valor) === normalizarCotejo(valorRegistrado)
     );
-  }
-  return result;
+    return coinciden ? [] : [{
+      campo,
+      etiqueta,
+      registrado: valorRegistrado || "SIN DATO",
+      reportado: valor.trim(),
+    }];
+  });
 }
 
 function getOperationCopy(type: InfraccionOperacionTipo | null): OperationCopy {
@@ -437,14 +396,9 @@ export function InfraccionOperacionModal({
     type === "salida" &&
     Boolean(item?.retencion?.idRetencionVehiculo) &&
     !item?.liberacion?.tieneLiberacion;
-  const cotejo = isSalidaAnticipada && item
+  const diferenciasCotejo = isSalidaAnticipada && item
     ? analizarCotejo(item, form)
-    : null;
-  const diferenciaMenor = cotejo &&
-    cotejo.diferencias.length === 1 &&
-    cotejo.problemas.length === 0
-      ? cotejo.diferencias[0]
-      : null;
+    : [];
 
   useEffect(() => {
     if (open) {
@@ -589,18 +543,12 @@ export function InfraccionOperacionModal({
               Number(form.anioModeloCotejado) > 2100)) {
           return "Captura un año modelo valido.";
         }
-        if (cotejo?.problemas.length) {
-          return cotejo.problemas[0];
-        }
-        if (!cotejo || cotejo.coincidencias < 2) {
-          return "Las placas y al menos dos datos generales deben coincidir con el expediente.";
-        }
-        if (diferenciaMenor) {
+        if (diferenciasCotejo.length > 0) {
           if (!form.reportarDiferencia) {
-            return "Confirma que reportaras la diferencia menor a Infracciones.";
+            return "Confirma que reportarás las diferencias a Infracciones.";
           }
           if (!form.motivoDiferencia.trim() || !form.evidenciaDiferencia.trim()) {
-            return "Describe la diferencia y la referencia de evidencia.";
+            return "Describe las diferencias y la referencia de evidencia.";
           }
         }
         if (!form.autorizacionDocumentalVerificada) {
@@ -764,7 +712,7 @@ export function InfraccionOperacionModal({
       if (type === "salida" && isSalidaAnticipada && item.retencion?.idRetencionVehiculo) {
         const confirmed = await confirmAction({
           title: "Registrar salida anticipada",
-          text: `Vas a entregar el vehículo del expediente ${item.folioInfraccion} sin liberación electrónica. Folio presentado: ${form.folioLiberacionPresentado.trim()}.${diferenciaMenor ? " Se creará una observación pendiente para Infracciones." : ""}`,
+          text: `Vas a entregar el vehículo del expediente ${item.folioInfraccion} sin liberación electrónica. Folio presentado: ${form.folioLiberacionPresentado.trim()}.${diferenciasCotejo.length > 0 ? ` Se registrarán ${diferenciasCotejo.length} observaciones pendientes para Infracciones, sin cambiar los datos originales.` : ""}`,
           confirmButtonText: "Registrar salida anticipada",
           cancelButtonText: "Seguir editando",
         });
@@ -793,7 +741,7 @@ export function InfraccionOperacionModal({
           validadoPor: datos.validadoPor.trim(),
           personaRecibeVehiculo: datos.personaRecibeVehiculo.trim(),
           observacionesSalida: toNullableString(datos.observacionesSalida),
-          ...(diferenciaMenor && {
+          ...(diferenciasCotejo.length > 0 && {
             discrepanciaMenor: {
               motivo: datos.motivoDiferencia.trim(),
               referenciaEvidencia: datos.evidenciaDiferencia.trim(),
@@ -1202,26 +1150,26 @@ export function InfraccionOperacionModal({
                   />
                   <small>Captura al propietario, aunque otra persona retire físicamente el vehículo.</small>
                 </Field>
-                {cotejo && cotejo.problemas.length > 0 ? (
-                  <div className="notice notice-error field-span-2" role="alert">
-                    <strong>Salida bloqueada por diferencias de identidad.</strong>
-                    <ul>
-                      {cotejo.problemas.map((problema) => (
-                        <li key={problema}>{problema}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-                {diferenciaMenor ? (
-                  <section
-                    className="field field-span-2"
-                    aria-label="Detalle de discrepancia menor"
-                  >
+                {diferenciasCotejo.length > 0 ? (
+                  <section className="field field-span-2" aria-label="Diferencias detectadas en el cotejo">
                     <div className="notice">
-                      <strong>Diferencia menor detectada: {diferenciaMenor.etiqueta}</strong>
-                      <p>Registrado: {diferenciaMenor.registrado}</p>
-                      <p>Cotejado por Encierros: {diferenciaMenor.reportado}</p>
-                      <p>La salida requiere reporte con evidencia; el expediente no se modifica.</p>
+                      <strong>
+                        {diferenciasCotejo.length} {diferenciasCotejo.length === 1
+                          ? "diferencia detectada" : "diferencias detectadas"}
+                      </strong>
+                      <p>Estas diferencias no impiden la salida por sí mismas. Cada campo
+                        se notificará por separado a Infracciones; la ficha original no se modifica.</p>
+                      <ul>
+                        {diferenciasCotejo.map((diferencia) => (
+                          <li key={diferencia.campo}>
+                            <div className="table-cell-stack">
+                              <strong>{diferencia.etiqueta}</strong>
+                              <span>Registrado: {diferencia.registrado}</span>
+                              <span>Cotejado por Encierros: {diferencia.reportado}</span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                     <label htmlFor="operacion-ant-reportar-diferencia">
                       <input
@@ -1230,11 +1178,11 @@ export function InfraccionOperacionModal({
                         checked={form.reportarDiferencia}
                         onChange={(event) => updateReporteDiferencia(event.target.checked)}
                       />
-                      {" "}Reportar diferencia a Infracciones
+                      {" "}Reportar diferencias a Infracciones
                     </label>
                     {form.reportarDiferencia ? (
                       <>
-                        <label htmlFor="operacion-ant-motivo-diferencia">Motivo de la diferencia</label>
+                        <label htmlFor="operacion-ant-motivo-diferencia">Motivo de las diferencias</label>
                         <textarea
                           id="operacion-ant-motivo-diferencia"
                           rows={3}

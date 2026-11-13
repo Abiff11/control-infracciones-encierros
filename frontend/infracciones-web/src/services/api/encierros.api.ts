@@ -54,7 +54,8 @@ export interface ObservacionPendienteItem {
   idInfraccion: number;
   folioInfraccion: string;
   placas: string | null;
-  campoObservado: 'COLOR' | 'ANIO_MODELO';
+  campoObservado: 'PLACAS' | 'MARCA' | 'LINEA' | 'CLASE' | 'COLOR' |
+    'ANIO_MODELO' | 'ESTADO_PLACAS' | 'SERIE' | 'MOTOR';
   valorOriginal: string;
   valorReportado: string;
   motivoReporte: string;
