@@ -1063,7 +1063,7 @@ export function InfraccionOperacionModal({
           <div className="form-grid form-grid-2">
             <RequiredNote>
               {isSalidaAnticipada
-                ? "Los datos del vehículo están precargados desde el expediente. Verifícalos físicamente antes de confirmar. Si difiere el color o año modelo, modifica ese campo y registra una observación para Infracciones con evidencia. Las demás diferencias bloquean la salida."
+                ? "Los datos del vehículo están precargados desde el expediente. Verifica físicamente cada campo y captura cualquier diferencia encontrada. Si existen discrepancias, deberás registrar el motivo y la referencia de evidencia para su revisión por Infracciones. Las diferencias no impedirán la salida anticipada si se cumplen los demás requisitos y no modificarán los datos originales del expediente."
                 : "Se usaran automaticamente la retencion y la liberacion vigentes del expediente."}
             </RequiredNote>
 
@@ -1171,7 +1171,7 @@ export function InfraccionOperacionModal({
                         ))}
                       </ul>
                     </div>
-                    <label htmlFor="operacion-ant-reportar-diferencia">
+                    <label className="operation-modal-checkbox-label" htmlFor="operacion-ant-reportar-diferencia">
                       <input
                         id="operacion-ant-reportar-diferencia"
                         type="checkbox"
@@ -1205,7 +1205,7 @@ export function InfraccionOperacionModal({
                   </section>
                 ) : null}
                 <div className="field field-span-2">
-                  <label htmlFor="operacion-ant-autorizacion">
+                  <label className="operation-modal-checkbox-label" htmlFor="operacion-ant-autorizacion">
                     <input
                       type="checkbox"
                       id="operacion-ant-autorizacion"
