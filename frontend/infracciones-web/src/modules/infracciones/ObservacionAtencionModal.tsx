@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react';
 
+import './ObservacionAtencionModal.css';
+
 import { Button } from '../../components/ui/Button';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Field } from '../../components/ui/Field';
@@ -112,39 +114,40 @@ export function ObservacionAtencionModal({
       description="Revisa la evidencia antes de decidir. Solo color y año modelo admiten corrección automática."
       eyebrowLabel="Infracciones · atención de observaciones"
       size="wide"
+      className="observacion-atencion-modal"
       onClose={cerrar}
     >
       {observacion ? (
-        <form className="page-stack" onSubmit={(event) => { void guardar(event); }}>
-          <div className="form-grid form-grid-2">
-            <div className="table-cell-stack">
+        <form className="page-stack observacion-form" onSubmit={(event) => { void guardar(event); }}>
+          <div className="form-grid form-grid-2 observacion-resumen">
+            <div className="table-cell-stack observacion-dato">
               <strong>Expediente</strong>
               <span>{observacion.folioInfraccion}</span>
               <span>Placas: {formatEmptyValue(observacion.placas)}</span>
             </div>
-            <div className="table-cell-stack">
+            <div className="table-cell-stack observacion-dato">
               <strong>Campo observado</strong>
               <span>{NOMBRES_CAMPO[observacion.campoObservado]}</span>
             </div>
-            <div className="table-cell-stack">
+            <div className="table-cell-stack observacion-dato">
               <strong>Dato registrado</strong>
               <span>{observacion.valorOriginal}</span>
             </div>
-            <div className="table-cell-stack">
+            <div className="table-cell-stack observacion-dato">
               <strong>Dato reportado por Encierros</strong>
               <span>{observacion.valorReportado}</span>
             </div>
           </div>
 
-          <div className="table-cell-stack">
+          <div className="table-cell-stack observacion-evidencia">
             <strong>Motivo del reporte</strong>
             <p>{observacion.motivoReporte}</p>
             <strong>Referencia de evidencia</strong>
             <p>{observacion.referenciaEvidencia}</p>
-            <span>Reportó: {observacion.nombreUsuarioReporta} · {formatDateTime(observacion.fechaReporte)}</span>
+            <span className="observacion-reporte-meta">Reportó: {observacion.nombreUsuarioReporta} · {formatDateTime(observacion.fechaReporte)}</span>
           </div>
 
-          <div className="notice">
+          <div className="notice observacion-aviso">
             {puedeCorregir
               ? 'Si corriges, el sistema actualizará solo el color o el año modelo. ' +
                 'Si rechazas, conservará el valor registrado. Ambos resultados quedan auditados.'
@@ -153,9 +156,9 @@ export function ObservacionAtencionModal({
                 'Puedes rechazar la observación con una justificación; la decisión queda auditada.'}
           </div>
 
-          <div className="field">
+          <div className="field observacion-decision">
             <strong>Decisión de Infracciones</strong>
-            <div className="button-row" role="group" aria-label="Decisión sobre la observación">
+            <div className="button-row observacion-decision-actions" role="group" aria-label="Decisión sobre la observación">
               <Button
                 type="button"
                 variant={decision === 'CORREGIR' ? 'primary' : 'secondary'}
@@ -193,11 +196,11 @@ export function ObservacionAtencionModal({
               placeholder="Explica los documentos revisados y por qué procedió tu decisión."
             />
           </Field>
-          <p className="page-description">
+          <p className="page-description observacion-hint">
             Escribe de 10 a 1,000 caracteres. La salida física nunca se modifica.
           </p>
           <ErrorMessage message={error} />
-          <div className="button-row">
+          <div className="button-row observacion-actions">
             <Button type="button" variant="secondary" disabled={saving} onClick={cerrar}>
               Cancelar
             </Button>
