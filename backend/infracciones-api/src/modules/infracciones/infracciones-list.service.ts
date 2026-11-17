@@ -176,7 +176,7 @@ export class InfraccionesListService {
     return builder
       .select('infraccion.idInfraccion', 'idInfraccion')
       .addSelect('infraccion.folioInfraccion', 'folioInfraccion')
-      .addSelect('infraccion.fechaInfraccion', 'fechaInfraccion')
+      .addSelect("TO_CHAR(infraccion.fechaInfraccion, 'YYYY-MM-DD')", 'fechaInfraccion')
       .addSelect('infraccion.horaInfraccion', 'horaInfraccion')
       .addSelect('infraccion.observaciones', 'observaciones')
       .addSelect('infraccion.clavePolicia', 'clavePolicia')
