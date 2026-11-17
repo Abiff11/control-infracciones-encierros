@@ -84,7 +84,7 @@ export interface RegistrarSalidaPayload {
   observacionesSalida?: string | null;
   estadoSalida: string;
 }
- 
+
 export interface RegistrarSalidaAnticipadaPayload {
   idRetencionVehiculo: number;
   folioLiberacionPresentado: string;

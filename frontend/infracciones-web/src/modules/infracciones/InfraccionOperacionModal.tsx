@@ -1073,7 +1073,7 @@ export function InfraccionOperacionModal({
                   <TextInput
                     id="operacion-ant-folioLiberacionPresentado"
                     value={form.folioLiberacionPresentado}
-                    
+
                     onChange={(event) => updateField("folioLiberacionPresentado", event.target.value)}
                   />
                 </Field>
@@ -1116,7 +1116,7 @@ export function InfraccionOperacionModal({
                   <TextInput
                     id="operacion-ant-anioModeloCotejado"
                     value={form.anioModeloCotejado}
-                    
+
                     onChange={(event) => updateField("anioModeloCotejado", event.target.value)}
                   />
                 </Field>
@@ -1145,7 +1145,7 @@ export function InfraccionOperacionModal({
                   <TextInput
                     id="operacion-ant-nombrePropietarioDeclarado"
                     value={form.nombrePropietarioDeclarado}
-                    
+
                     onChange={(event) => updateField("nombrePropietarioDeclarado", event.target.value)}
                   />
                   <small>Captura al propietario, aunque otra persona retire físicamente el vehículo.</small>
@@ -1255,7 +1255,7 @@ export function InfraccionOperacionModal({
                     }
                   />
                 </Field>
-    
+
                 <Field htmlFor="operacion-salida-estado" label="Estado salida">
                   <TextInput
                     id="operacion-salida-estado"
