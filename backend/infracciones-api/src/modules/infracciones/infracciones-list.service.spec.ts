@@ -90,3 +90,40 @@ describe('InfraccionesListService folio de liberacion', () => {
     ).toBe(idQuery);
   });
 });
+
+describe('InfraccionesListService regularizacion posterior', () => {
+  it('expone solventacion sin pago y folio documental de salida anticipada', () => {
+    const addSelect = jest.fn().mockReturnThis();
+    const builder = {
+      select: jest.fn().mockReturnThis(),
+      addSelect,
+    } as unknown as SelectQueryBuilder<Infraccion>;
+    const service = new InfraccionesListService({} as DataSource) as unknown as {
+      applySelects(query: SelectQueryBuilder<Infraccion>): SelectQueryBuilder<Infraccion>;
+    };
+
+    service.applySelects(builder);
+
+    const selected = new Map(
+      (addSelect.mock.calls as Array<[string, string]>).map(([sql, alias]) => [
+        alias,
+        sql,
+      ]),
+    );
+    expect(selected.get('tieneSolventacionSinPago')).toContain(
+      'FROM solventacion_sin_pago solventacion',
+    );
+    expect(selected.get('folioLiberacionPresentado')).toContain(
+      "salida_anticipada.modalidad_salida = 'ANTICIPADA'",
+    );
+    expect(selected.get('folioLiberacionPresentado')).toContain(
+      'salida_anticipada.id_retencion_vehiculo = retencion.id_retencion_vehiculo',
+    );
+    expect(selected.get('cantidadObservacionesPendientes')).toContain(
+      'observacion_pendiente.id_infraccion = infraccion.id_infraccion',
+    );
+    expect(selected.get('cantidadObservacionesPendientes')).toContain(
+      "observacion_pendiente.estatus = 'PENDIENTE'",
+    );
+  });
+});

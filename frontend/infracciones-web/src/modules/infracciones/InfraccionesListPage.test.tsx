@@ -6,6 +6,10 @@ import InfraccionesListPage from "./InfraccionesListPage";
 
 const apiMocks = vi.hoisted(() => ({
   findConceptosPago: vi.fn(),
+  getObservacionesPendientes: vi.fn().mockResolvedValue({
+    data: [],
+    meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
+  }),
   getInfraccionDetalle: vi.fn(),
   getInfracciones: vi.fn(),
 }));
@@ -15,8 +19,35 @@ vi.mock("../../services/api/infracciones.api", () => ({
   getInfracciones: apiMocks.getInfracciones,
 }));
 
+vi.mock("../../services/api/encierros.api", () => ({
+  getObservacionesPendientes: apiMocks.getObservacionesPendientes,
+}));
+
 vi.mock("../../services/api/pagos.api", () => ({
   findConceptosPago: apiMocks.findConceptosPago,
+}));
+
+vi.mock("./ObservacionAtencionModal", () => ({
+  ObservacionAtencionModal: ({
+    open,
+    observacion,
+    onClose,
+    onCompleted,
+  }: {
+    open: boolean;
+    observacion: { idObservacion: number } | null;
+    onClose: () => void;
+    onCompleted: (result: { idObservacion: number; estatus: "CORREGIDA" }) => void;
+  }) => open ? (
+    <div data-testid="observacion-atencion">
+      <span>Atendiendo observación {observacion?.idObservacion}</span>
+      <button type="button" onClick={() => onCompleted({
+        idObservacion: observacion?.idObservacion ?? 0,
+        estatus: "CORREGIDA",
+      })}>Simular resolución</button>
+      <button type="button" onClick={onClose}>Cerrar atención</button>
+    </div>
+  ) : null,
 }));
 
 vi.mock("./InfraccionDetalleModal", () => ({
@@ -129,6 +160,108 @@ async function renderWithItem(item: InfraccionListItem, roleName?: string) {
 
   expect(await screen.findByText("INF-10")).toBeInTheDocument();
 }
+
+describe("InfraccionesListPage notificaciones por expediente", () => {
+  const observacion = {
+    idObservacion: 12,
+    idInfraccion: 10,
+    folioInfraccion: "INF-10",
+    placas: "ABC123",
+    campoObservado: "ANIO_MODELO",
+    valorOriginal: "2022",
+    valorReportado: "2023",
+    motivoReporte: "La tarjeta indica un modelo distinto.",
+    referenciaEvidencia: "Tarjeta de circulación revisada",
+    nombreUsuarioReporta: "Encierros Central",
+    fechaReporte: "2026-11-09T17:00:00.000Z",
+    estatus: "PENDIENTE",
+  };
+  beforeEach(() => {
+    vi.clearAllMocks();
+    apiMocks.findConceptosPago.mockResolvedValue([]);
+    apiMocks.getObservacionesPendientes.mockResolvedValue({
+      data: [observacion],
+      meta: { page: 1, limit: 1, total: 1, totalPages: 1 },
+    });
+  });
+
+  it("muestra campana exclusivamente en la infracción con pendientes", async () => {
+    await renderWithItem(createItem({ cantidadObservacionesPendientes: 2 }), "INFRACCIONES");
+    expect(screen.getByRole("button", {
+      name: "Revisar 2 observaciones pendientes del expediente INF-10",
+    })).toBeEnabled();
+    expect(apiMocks.getObservacionesPendientes).not.toHaveBeenCalled();
+  });
+
+  it("consulta la infracción exacta al pulsar la campana y abre su atención", async () => {
+    await renderWithItem(createItem({ cantidadObservacionesPendientes: 1 }), "INFRACCIONES");
+    fireEvent.click(screen.getByRole("button", {
+      name: "Revisar 1 observaciones pendientes del expediente INF-10",
+    }));
+    await waitFor(() => expect(apiMocks.getObservacionesPendientes).toHaveBeenCalledWith(
+      "token-test", 1, 1, 10,
+    ));
+    expect(await screen.findByTestId("observacion-atencion")).toHaveTextContent(
+      "Atendiendo observación 12",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar atención" }));
+    expect(screen.queryByTestId("observacion-atencion")).not.toBeInTheDocument();
+  });
+
+  it("actualiza el listado después de resolver una observación", async () => {
+    await renderWithItem(createItem({ cantidadObservacionesPendientes: 1 }), "INFRACCIONES");
+    fireEvent.click(screen.getByRole("button", {
+      name: "Revisar 1 observaciones pendientes del expediente INF-10",
+    }));
+    await screen.findByTestId("observacion-atencion");
+    apiMocks.getInfracciones.mockResolvedValue({
+      data: [createItem({ cantidadObservacionesPendientes: 0 })],
+      meta: { page: 1, limit: 30, total: 1, totalPages: 1 },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Simular resolución" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Observación 12 corregida correctamente.");
+    await waitFor(() => expect(screen.queryByRole("button", {
+      name: /Revisar 1 observaciones pendientes del expediente INF-10/,
+    })).not.toBeInTheDocument());
+  });
+
+  it.each(["ENCIERRO", "CONSULTA", "LIBERACIONES", "OPERADOR"] as const)(
+    "no expone la atención de observaciones al rol %s",
+    async (rol) => {
+      await renderWithItem(createItem({ cantidadObservacionesPendientes: 1 }), rol);
+      expect(screen.queryByRole("button", { name: /observaciones pendientes del expediente/i }))
+        .not.toBeInTheDocument();
+      expect(apiMocks.getObservacionesPendientes).not.toHaveBeenCalled();
+    },
+  );
+
+  it("mantiene visible y habilitado Registrar pago cuando hay observación", async () => {
+    await renderWithItem({
+      ...createItemEnEncierro("EN_ENCIERRO_SIN_PAGO"),
+      cantidadObservacionesPendientes: 1,
+    }, "INFRACCIONES");
+    expect(screen.getByRole("button", { name: "Registrar pago" })).toBeEnabled();
+    expect(screen.getByRole("button", {
+      name: "Revisar 1 observaciones pendientes del expediente INF-10",
+    })).toBeEnabled();
+  });
+
+  it("muestra fallo de consulta sin impedir acciones del listado", async () => {
+    apiMocks.getObservacionesPendientes.mockRejectedValueOnce(new Error("Consulta no disponible"));
+    await renderWithItem(createItem({ cantidadObservacionesPendientes: 1 }), "ADMIN");
+    fireEvent.click(screen.getByRole("button", {
+      name: "Revisar 1 observaciones pendientes del expediente INF-10",
+    }));
+    expect(await screen.findByText("Consulta no disponible")).toBeInTheDocument();
+    expect(screen.getByText("INF-10")).toBeInTheDocument();
+  });
+
+  it("no muestra campana cuando el expediente no tiene observaciones pendientes", async () => {
+    await renderWithItem(createItem({ cantidadObservacionesPendientes: 0 }), "INFRACCIONES");
+    expect(screen.queryByRole("button", { name: /observaciones pendientes del expediente/i }))
+      .not.toBeInTheDocument();
+  });
+});
 
 describe("InfraccionesListPage solventacion sin pago", () => {
   beforeEach(() => {
@@ -278,13 +411,106 @@ function createItemEnEncierro(
   });
 }
 
+describe("InfraccionesListPage regularizacion de entregas anticipadas", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    apiMocks.findConceptosPago.mockResolvedValue([]);
+  });
+
+  function delivered(overrides: Partial<InfraccionListItem> = {}): InfraccionListItem {
+    const item = createItemEnEncierro("EN_ENCIERRO_SIN_PAGO");
+    return {
+      ...item,
+      salida: {
+        tieneSalida: true,
+        fechaSalida: "2026-08-26T10:00:00.000Z",
+        folioLiberacionPresentado: "FL-2026-01",
+      },
+      estatusInfraccion: {
+        idEstatusInfraccion: 8,
+        nombreEstatus: "VEHICULO_ENTREGADO",
+      },
+      estadoOperativoCalculado: "VEHICULO_ENTREGADO",
+      ...overrides,
+    };
+  }
+
+  it("ofrece registrar pago pendiente a INFRACCIONES sin duplicar salida", async () => {
+    await renderWithItem(delivered(), "INFRACCIONES");
+
+    fireEvent.click(screen.getByRole("button", { name: "Registrar pago pendiente" }));
+    expect(screen.getByTestId("operation-open")).toHaveTextContent("pago");
+    expect(screen.getByText("Regularización administrativa; vehículo ya entregado")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Registrar salida" })).not.toBeInTheDocument();
+  });
+
+  it("ofrece liberar tras pago y muestra el folio documental", async () => {
+    await renderWithItem(
+      delivered({ pago: { tienePago: true, idPagoInfraccion: 11,
+        fechaUltimoPago: "2026-08-26T12:00:00.000Z",
+        montoPagado: "1200", clavesConcepto: null } }),
+      "INFRACCIONES",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Autorizar liberacion pendiente" }));
+    expect(screen.getByTestId("operation-open")).toHaveTextContent("liberacion");
+    expect(screen.getByText(/Folio documental: FL-2026-01/)).toBeInTheDocument();
+  });
+
+  it("permite la liberacion posterior cuando se registro No aplica pago", async () => {
+    await renderWithItem(
+      delivered({ pago: { tienePago: false, tieneSolventacionSinPago: true,
+        idPagoInfraccion: null, fechaUltimoPago: null,
+        montoPagado: null, clavesConcepto: null } }),
+      "INFRACCIONES",
+    );
+    expect(screen.getByRole("button", { name: "Autorizar liberacion pendiente" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Registrar pago pendiente" })).not.toBeInTheDocument();
+  });
+
+  it("no muestra una segunda salida ni operaciones pendientes tras regularizar", async () => {
+    await renderWithItem(
+      delivered({ liberacion: { tieneLiberacion: true,
+        idLiberacionVehiculo: 12, folioLiberacion: "FL-2026-01",
+        fechaLiberacion: "2026-08-26T13:00:00.000Z" } }),
+      "INFRACCIONES",
+    );
+    expect(screen.getByRole("button", { name: "Completado" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Registrar salida/i })).not.toBeInTheDocument();
+  });
+
+  it("conserva el estado fisico entregado aunque exista un estatus No aplica pago", async () => {
+    await renderWithItem(
+      delivered({ estatusInfraccion: { idEstatusInfraccion: 7,
+        nombreEstatus: "SOLVENTADA_SIN_PAGO" },
+        pago: { tienePago: false, idPagoInfraccion: null,
+          fechaUltimoPago: null, montoPagado: null, clavesConcepto: null } }),
+      "INFRACCIONES",
+    );
+    expect(screen.getByText("INF-10").closest("tr")).toHaveTextContent("Vehiculo entregado");
+    expect(screen.getByRole("button", { name: "Autorizar liberacion pendiente" })).toBeEnabled();
+  });
+
+  it("impide que LIBERACIONES registre el pago pendiente de una salida anticipada", async () => {
+    await renderWithItem(delivered(), "LIBERACIONES");
+    expect(screen.getByRole("button", { name: "Pago pendiente" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Registrar pago pendiente" })).not.toBeInTheDocument();
+  });
+
+  it("no habilita otra salida a ENCIERRO si falta pago y liberacion", async () => {
+    await renderWithItem(delivered(), "ENCIERRO");
+    expect(screen.getByRole("button", { name: "Completado" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Registrar salida/i })).not.toBeInTheDocument();
+  });
+});
+
 describe("InfraccionesListPage rol ENCIERRO", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiMocks.findConceptosPago.mockResolvedValue([]);
   });
 
-  it("muestra el pago pendiente sin permitirlo y oculta Nueva infraccion", async () => {
+  it("muestra salida anticipada cuando aun no hay pago y oculta Nueva infraccion", async () => {
     await renderWithItem(
       createItemEnEncierro("EN_ENCIERRO_SIN_PAGO"),
       "ENCIERRO",
@@ -296,8 +522,28 @@ describe("InfraccionesListPage rol ENCIERRO", () => {
     expect(
       screen.queryByRole("button", { name: "Registrar pago" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Pendiente: registrar pago")).toBeInTheDocument();
-    expect(screen.getByText("Infracciones debe registrar el pago")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Registrar salida anticipada" }));
+    expect(screen.getByTestId("operation-open")).toHaveTextContent("salida");
+  });
+
+  it.each(["ADMIN", "OPERADOR", "INFRACCIONES", "LIBERACIONES"] as const)(
+    "no ofrece el botón de salida anticipada al rol %s",
+    async (rol) => {
+      await renderWithItem(createItemEnEncierro("EN_ENCIERRO_SIN_PAGO"), rol);
+      expect(
+        screen.queryByRole("button", { name: "Registrar salida anticipada" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("bloquea salida anticipada si la entrega ya fue registrada", async () => {
+    const item = createItemEnEncierro("EN_ENCIERRO_SIN_PAGO");
+    await renderWithItem({
+      ...item,
+      salida: { tieneSalida: true, fechaSalida: "2026-08-26T10:00:00.000Z" },
+      estadoOperativoCalculado: "VEHICULO_ENTREGADO",
+    }, "ENCIERRO");
+    expect(screen.queryByRole("button", { name: "Registrar salida anticipada" })).not.toBeInTheDocument();
   });
 
   it("mantiene habilitada la salida cuando el expediente fue liberado", async () => {

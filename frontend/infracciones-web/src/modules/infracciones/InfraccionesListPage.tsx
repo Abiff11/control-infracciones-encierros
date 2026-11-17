@@ -11,6 +11,11 @@ import { SelectField } from "../../components/ui/SelectField";
 import { StatusBadge } from "../../components/ui/StatusBadge";
 import { getErrorMessage } from "../../services/api/apiClient";
 import {
+  getObservacionesPendientes,
+  type ObservacionPendienteItem,
+  type ResolverObservacionResponse,
+} from "../../services/api/encierros.api";
+import {
   getInfraccionDetalle,
   getInfracciones,
 } from "../../services/api/infracciones.api";
@@ -34,6 +39,7 @@ import type {
 } from "../../types/infracciones.types";
 import type { ConceptoPagoOption } from "../../types/operaciones.types";
 import { InfraccionDetalleModal } from "./InfraccionDetalleModal";
+import { ObservacionAtencionModal } from "./ObservacionAtencionModal";
 import {
   InfraccionOperacionModal,
   type InfraccionOperacionTipo,
@@ -180,6 +186,10 @@ function getVehicleLabel(item: InfraccionListItem): string {
 function getEstadoOperativoEfectivo(
   item: InfraccionListItem,
 ): EstadoOperativoVehiculo {
+  // Una entrega fisica confirmada tiene prioridad sobre cualquier estado administrativo.
+  if (item.salida?.tieneSalida) {
+    return "VEHICULO_ENTREGADO";
+  }
   if (item.estatusInfraccion.nombreEstatus === "SOLVENTADA_SIN_PAGO") {
     if (!item.tipoProcedimiento.permiteRetencion) {
       return "PAGADA_SIN_RETENCION";
@@ -225,7 +235,60 @@ function getOperationalDetail(item: InfraccionListItem): string {
   }
 }
 
-function getNextOperation(item: InfraccionListItem): NextOperation {
+function getNextOperation(item: InfraccionListItem, roleName?: string): NextOperation {
+  const role = roleName?.toUpperCase();
+  const tieneSalida = item.salida?.tieneSalida === true;
+  const tieneLiberacion = item.liberacion?.tieneLiberacion === true;
+  const tieneRespaldoAdministrativo =
+    item.pago?.tienePago === true ||
+    item.pago?.tieneSolventacionSinPago === true ||
+    item.estatusInfraccion.nombreEstatus === "SOLVENTADA_SIN_PAGO";
+
+  // El vehículo ya salió: solo se permite completar lo administrativo.
+  // No ofrece una segunda entrega ni reabre el estado físico.
+  if (
+    tieneSalida &&
+    !tieneLiberacion &&
+    ["INFRACCIONES", "ADMIN", "OPERADOR", "LIBERACIONES"].includes(role ?? "")
+  ) {
+    if (!tieneRespaldoAdministrativo) {
+      return role === "LIBERACIONES"
+        ? {
+            type: null,
+            label: "Pago pendiente",
+            helper: "Infracciones debe registrar el pago; vehículo ya entregado",
+            disabled: true,
+          }
+        : {
+            type: "pago",
+            label: "Registrar pago pendiente",
+            helper: "Regularización administrativa; vehículo ya entregado",
+          };
+    }
+
+    const folio = item.salida?.folioLiberacionPresentado?.trim();
+    return {
+      type: "liberacion",
+      label: "Autorizar liberacion pendiente",
+      helper: folio
+        ? `Vehículo entregado · Folio documental: ${folio}`
+        : "Vehículo entregado · Verificar el folio documental presentado",
+    };
+  }
+
+  if (
+    role === "ENCIERRO" &&
+    item.retencion?.idRetencionVehiculo &&
+    !item.salida?.tieneSalida &&
+    !item.liberacion?.tieneLiberacion &&
+    getEstadoOperativoEfectivo(item) !== "VEHICULO_ENTREGADO"
+  ) {
+    return {
+      type: "salida",
+      label: "Registrar salida anticipada",
+      helper: "Cotejar placas, datos generales y documento de liberacion",
+    };
+  }
   switch (getEstadoOperativoEfectivo(item)) {
     case "SIN_RETENCION":
       if (!item.tipoProcedimiento.permiteRetencion) {
@@ -367,6 +430,14 @@ function InfraccionesListPage({
   >([]);
   const [conceptSearchLoading, setConceptSearchLoading] = useState(false);
   const [conceptSearchError, setConceptSearchError] = useState(false);
+  const puedeConsultarObservaciones =
+    roleName?.toUpperCase() === "INFRACCIONES" ||
+    roleName?.toUpperCase() === "ADMIN";
+  const [consultandoObservacionId, setConsultandoObservacionId] = useState<number | null>(null);
+  const [observacionesError, setObservacionesError] = useState<string | null>(null);
+  const [observacionSeleccionada, setObservacionSeleccionada] =
+    useState<ObservacionPendienteItem | null>(null);
+  const [resultadoObservacion, setResultadoObservacion] = useState<string | null>(null);
 
   const query = useMemo(() => buildQuery(activeFilters), [activeFilters]);
   const meta: PaginationMeta | null = state.data?.meta ?? null;
@@ -591,8 +662,47 @@ function InfraccionesListPage({
     setLocalRefreshKey((current) => current + 1);
   }
 
+  async function abrirAtencionObservacion(item: InfraccionListItem): Promise<void> {
+    if (!puedeConsultarObservaciones || !item.cantidadObservacionesPendientes) {
+      return;
+    }
+    setObservacionesError(null);
+    setConsultandoObservacionId(item.idInfraccion);
+    try {
+      // La consulta filtrada evita perder observaciones por paginacion global.
+      const respuesta = await getObservacionesPendientes(token, 1, 1, item.idInfraccion);
+      const observacion = respuesta.data[0];
+      if (!observacion) {
+        setObservacionesError('La observación ya fue atendida. Se actualizará el listado.');
+        setLocalRefreshKey((actual) => actual + 1);
+        return;
+      }
+      setObservacionSeleccionada(observacion);
+      setResultadoObservacion(null);
+    } catch (cause) {
+      setObservacionesError(getErrorMessage(cause));
+    } finally {
+      setConsultandoObservacionId(null);
+    }
+  }
+
+  function cerrarAtencionObservacion(): void {
+    setObservacionSeleccionada(null);
+  }
+
+  function completarAtencionObservacion(resultado: ResolverObservacionResponse): void {
+    setObservacionSeleccionada(null);
+    setResultadoObservacion(
+      'Observación ' + resultado.idObservacion + ' ' +
+      (resultado.estatus === 'CORREGIDA'
+        ? 'corregida correctamente.'
+        : 'rechazada con justificación.'),
+    );
+    setLocalRefreshKey((actual) => actual + 1);
+  }
+
   function renderNextActionCell(item: InfraccionListItem) {
-    const nextOperation = getNextOperation(item);
+    const nextOperation = getNextOperation(item, roleName);
 
     if (nextOperation.type && !canPerformOperationForRole(roleName, nextOperation.type)) {
       return (
@@ -653,6 +763,11 @@ function InfraccionesListPage({
           </div>
         ) : null}
       </header>
+
+      {resultadoObservacion ? (
+        <div className="notice" role="status">{resultadoObservacion}</div>
+      ) : null}
+      <ErrorMessage message={observacionesError} />
 
       <Card>
         <form className="page-stack" onSubmit={applyFilters}>
@@ -951,7 +1066,23 @@ function InfraccionesListPage({
                     <tr key={item.idInfraccion}>
                       <td>
                         <div className="table-cell-stack">
-                          <strong>{item.folioInfraccion}</strong>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                            <strong>{item.folioInfraccion}</strong>
+                            {puedeConsultarObservaciones &&
+                              (item.cantidadObservacionesPendientes ?? 0) > 0 ? (
+                                <Button
+                                  type="button"
+                                  variant="link"
+                                  title="Revisar observaciones pendientes"
+                                  aria-label={`Revisar ${item.cantidadObservacionesPendientes} observaciones pendientes del expediente ${item.folioInfraccion}`}
+                                  disabled={consultandoObservacionId === item.idInfraccion}
+                                  onClick={() => { void abrirAtencionObservacion(item); }}
+                                >
+                                  <span aria-hidden="true">🔔</span>
+                                  <span>{item.cantidadObservacionesPendientes}</span>
+                                </Button>
+                              ) : null}
+                          </div>
                           <span>{formatDate(item.fechaInfraccion)}</span>
                           <span>{formatTimeOfDay(item.horaInfraccion)}</span>
                         </div>
@@ -1017,6 +1148,16 @@ function InfraccionesListPage({
           ) : null}
         </div>
       </Card>
+
+      {observacionSeleccionada ? (
+        <ObservacionAtencionModal
+          open
+          observacion={observacionSeleccionada}
+          token={token}
+          onClose={cerrarAtencionObservacion}
+          onCompleted={completarAtencionObservacion}
+        />
+      ) : null}
 
       <InfraccionDetalleModal
         open={selectedId !== null}
