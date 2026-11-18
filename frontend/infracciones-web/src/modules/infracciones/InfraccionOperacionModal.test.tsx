@@ -410,6 +410,9 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
     for (const [name, value] of fields) {
       fireEvent.change(screen.getByLabelText(name), { target: { value } });
     }
+    const fechaSalida = screen.getByLabelText("Fecha salida");
+    expect(fechaSalida).toHaveAttribute("type", "datetime-local");
+    fireEvent.change(fechaSalida, { target: { value: "2026-08-26T10:45" } });
     fireEvent.click(screen.getByLabelText(/Confirmo que verifiqué físicamente el vehículo/i));
     fireEvent.click(screen.getByRole("button", { name: "Registrar salida anticipada" }));
     await waitFor(() => {
@@ -429,6 +432,7 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
           autorizacionDocumentalVerificada: true,
           nombrePropietarioDeclarado: "Persona propietaria",
           personaRecibeVehiculo: "Persona receptora",
+          fechaSalida: "2026-08-26T16:45:00.000Z",
         }),
       );
     });
