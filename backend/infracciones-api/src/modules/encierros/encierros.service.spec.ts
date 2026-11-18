@@ -233,6 +233,47 @@ describe('EncierrosService registrarSalidaAnticipada', () => {
     expect(f.auditoria.save).toHaveBeenCalledTimes(1);
   });
 
+  it('guarda la fecha y hora enviada y la reutiliza en el movimiento', async () => {
+    const f = fixture();
+    const fechaSalida = '2026-08-26T16:45:00.000Z';
+    const salida = await f.service.registrarSalidaAnticipada({
+      ...f.params,
+      fechaSalida,
+    });
+
+    expect(salida.fechaSalida).toEqual(new Date(fechaSalida));
+    expect(f.movimientos.create).toHaveBeenCalledWith(
+      expect.objectContaining({ fechaMovimiento: new Date(fechaSalida) }),
+    );
+  });
+
+  it('conserva la fecha actual por defecto si no se envia fechaSalida', async () => {
+    const f = fixture();
+    const inicio = Date.now();
+    const salida = await f.service.registrarSalidaAnticipada(f.params);
+    const fin = Date.now();
+
+    expect(salida.fechaSalida).toBeInstanceOf(Date);
+    expect(salida.fechaSalida.getTime()).toBeGreaterThanOrEqual(inicio);
+    expect(salida.fechaSalida.getTime()).toBeLessThanOrEqual(fin);
+    expect(f.movimientos.create).toHaveBeenCalledWith(
+      expect.objectContaining({ fechaMovimiento: salida.fechaSalida }),
+    );
+  });
+
+  it('rechaza una fecha invalida antes de guardar la salida', async () => {
+    const f = fixture();
+
+    await expect(
+      f.service.registrarSalidaAnticipada({
+        ...f.params,
+        fechaSalida: 'fecha-invalida',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(f.salidas.save).not.toHaveBeenCalled();
+    expect(f.movimientos.save).not.toHaveBeenCalled();
+  });
+
   it('bloquea una segunda salida para la misma retencion', async () => {
     const f = fixture();
     f.salidas.exists.mockResolvedValue(true);

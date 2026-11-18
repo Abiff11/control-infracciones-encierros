@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   Equals,
   IsBoolean,
+  IsDateString,
   IsDefined,
   IsInt,
   IsNotEmpty,
@@ -108,6 +109,10 @@ export class RegistrarSalidaAnticipadaDto {
   @IsNotEmpty()
   @MaxLength(100)
   personaRecibeVehiculo!: string;
+
+  @IsOptional()
+  @IsDateString()
+  fechaSalida?: string;
 
   @IsOptional()
   @IsString()
