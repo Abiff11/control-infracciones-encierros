@@ -103,6 +103,7 @@ export interface RegistrarSalidaAnticipadaPayload {
   nombrePropietarioDeclarado: string;
   validadoPor: string;
   personaRecibeVehiculo: string;
+  fechaSalida?: string;
   observacionesSalida?: string | null;
   discrepanciaMenor?: {
     motivo: string;

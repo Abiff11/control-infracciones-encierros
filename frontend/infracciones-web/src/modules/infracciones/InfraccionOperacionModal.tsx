@@ -740,6 +740,7 @@ export function InfraccionOperacionModal({
           nombrePropietarioDeclarado: datos.nombrePropietarioDeclarado.trim(),
           validadoPor: datos.validadoPor.trim(),
           personaRecibeVehiculo: datos.personaRecibeVehiculo.trim(),
+          fechaSalida: toIsoDateTime(datos.fechaSalida),
           observacionesSalida: toNullableString(datos.observacionesSalida),
           ...(diferenciasCotejo.length > 0 && {
             discrepanciaMenor: {
@@ -1243,30 +1244,28 @@ export function InfraccionOperacionModal({
               />
             </Field>
 
-            {!isSalidaAnticipada ? (
-              <>
-                <Field htmlFor="operacion-salida-fecha" label="Fecha salida">
-                  <TextInput
-                    id="operacion-salida-fecha"
-                    type="datetime-local"
-                    value={form.fechaSalida}
-                    onChange={(event) =>
-                      updateField("fechaSalida", event.target.value)
-                    }
-                  />
-                </Field>
+            <Field htmlFor="operacion-salida-fecha" label="Fecha salida">
+              <TextInput
+                id="operacion-salida-fecha"
+                type="datetime-local"
+                value={form.fechaSalida}
+                onChange={(event) =>
+                  updateField("fechaSalida", event.target.value)
+                }
+              />
+            </Field>
 
-                <Field htmlFor="operacion-salida-estado" label="Estado salida">
-                  <TextInput
-                    id="operacion-salida-estado"
-                    value={form.estadoSalida}
-                    onChange={(event) =>
-                      updateField("estadoSalida", event.target.value)
-                    }
-                    required
-                  />
-                </Field>
-              </>
+            {!isSalidaAnticipada ? (
+              <Field htmlFor="operacion-salida-estado" label="Estado salida">
+                <TextInput
+                  id="operacion-salida-estado"
+                  value={form.estadoSalida}
+                  onChange={(event) =>
+                    updateField("estadoSalida", event.target.value)
+                  }
+                  required
+                />
+              </Field>
             ) : null}
 
             <div className="field field-span-2">
