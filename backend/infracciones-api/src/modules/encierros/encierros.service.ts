@@ -509,7 +509,7 @@ export class EncierrosService {
         throw new NotFoundException('No se encontro el estatus VEHICULO_ENTREGADO.');
       }
 
-      const fechaSalida = new Date();
+      const fechaSalida = normalizeDate(params.fechaSalida);
       const datos = params.datosVehiculoCotejados;
       const savedSalida = await salidaRepository.save(salidaRepository.create({
         retencionVehiculo: { idRetencionVehiculo: params.idRetencionVehiculo } as RetencionVehiculo,
