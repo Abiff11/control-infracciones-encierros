@@ -127,3 +127,25 @@ describe('InfraccionesListService regularizacion posterior', () => {
     );
   });
 });
+
+describe('InfraccionesListService fecha civil de infraccion', () => {
+  it('devuelve la fecha como YYYY-MM-DD sin convertirla a un instante UTC', () => {
+    const addSelect = jest.fn().mockReturnThis();
+    const builder = {
+      select: jest.fn().mockReturnThis(),
+      addSelect,
+    } as unknown as SelectQueryBuilder<Infraccion>;
+    const service = new InfraccionesListService({} as DataSource) as unknown as {
+      applySelects(query: SelectQueryBuilder<Infraccion>): SelectQueryBuilder<Infraccion>;
+    };
+
+    service.applySelects(builder);
+
+    const fechaSelect = (addSelect.mock.calls as Array<[string, string]>).find(
+      ([, alias]) => alias === 'fechaInfraccion',
+    );
+    expect(fechaSelect?.[0]).toBe(
+      "TO_CHAR(infraccion.fechaInfraccion, 'YYYY-MM-DD')",
+    );
+  });
+});
