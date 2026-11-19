@@ -117,4 +117,4 @@ Puerto local:
 - Revisa `docs/deployment/produccion-docker.md`.
 - Desarrollo usa `docker-compose.yml` solo para PostgreSQL local.
 - Produccion usa `Dockerfile` raiz y `docker-compose.prod.yml`.
-- Usa `GET /health` para la verificacion basica del backend.
+- Usa `GET /api/health` para la verificacion basica del backend.

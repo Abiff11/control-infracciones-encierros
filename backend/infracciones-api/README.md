@@ -24,10 +24,10 @@ npm run migration:show
 
 ## Swagger / OpenAPI
 
-La documentacion interactiva esta disponible en:
+Con `ENABLE_SWAGGER=true`, la documentacion interactiva esta disponible en:
 
 ```txt
-http://localhost:3000/docs
+http://localhost:3000/api/docs
 ```
 
 Para probar endpoints protegidos:
