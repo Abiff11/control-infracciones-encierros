@@ -55,7 +55,7 @@ docker compose -f docker-compose.prod.yml logs -f infracciones_api
 
 ## Health check basico
 
-- Backend: desde la red de Docker, `GET /health` responde JSON con `status: ok`.
+- Backend: desde la red de Docker, `GET /api/health` responde JSON con `status: ok`.
 - Frontend/Nginx: abrir `http://127.0.0.1:${WEB_PORT:-8088}/healthz` y confirmar `ok`.
 - SPA: abrir `http://127.0.0.1:${WEB_PORT:-8088}/`.
 
