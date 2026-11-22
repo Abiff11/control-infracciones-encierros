@@ -4,14 +4,14 @@ import { ExecutionContext, INestApplication, ValidationPipe } from '@nestjs/comm
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
-import { ROLES } from '../auth/constants/roles.constants';
+import { INVENTORY_READ_ROLES, ROLES } from '../auth/constants/roles.constants';
 import { ROLES_KEY } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleAuthGuard } from '../auth/guards/role-auth.guard';
 import { EncierrosController } from './encierros.controller';
 import { EncierrosService } from './encierros.service';
 
-type EncierrosHandlerName = 'registrarRetencion' | 'registrarSalida' | 'registrarSalidaAnticipada' | 'listarObservacionesPendientes' | 'resolverObservacion';
+type EncierrosHandlerName = 'registrarRetencion' | 'registrarSalida' | 'registrarSalidaAnticipada' | 'listarObservacionesPendientes' | 'resolverObservacion' | 'findVehiculosEnEncierro' | 'getVehiculosResumen';
 
 function getHandlerRoles(handlerName: EncierrosHandlerName): string[] {
   const prototype = EncierrosController.prototype as unknown as Record<
@@ -35,6 +35,14 @@ function getHandlerRoles(handlerName: EncierrosHandlerName): string[] {
 
 describe('EncierrosController authorization', () => {
   it('permite a INFRACCIONES registrar ingresos sin autorizar salidas', () => {
+    const inventarioRoles = getHandlerRoles('findVehiculosEnEncierro');
+    const resumenRoles = getHandlerRoles('getVehiculosResumen');
+    expect(inventarioRoles).toEqual(INVENTORY_READ_ROLES);
+    expect(resumenRoles).toEqual(INVENTORY_READ_ROLES);
+    expect(inventarioRoles).not.toContain(ROLES.INFRACCIONES);
+    expect(inventarioRoles).toContain(ROLES.ENCIERRO);
+    expect(inventarioRoles).toContain(ROLES.ADMIN);
+
     const retencionRoles = getHandlerRoles('registrarRetencion');
     const salidaRoles = getHandlerRoles('registrarSalida');
     const anticipadaRoles = getHandlerRoles('registrarSalidaAnticipada');
@@ -82,6 +90,7 @@ describe('EncierrosController accesos HTTP de ENCIERRO', () => {
     listarObservacionesPendientes: jest.fn(),
     resolverObservacion: jest.fn(),
     findVehiculosEnEncierro: jest.fn(),
+    getVehiculosEnEncierroResumen: jest.fn(),
   };
 
   beforeAll(async () => {
@@ -125,6 +134,7 @@ describe('EncierrosController accesos HTTP de ENCIERRO', () => {
     encierrosService.registrarSalida.mockResolvedValue({
       idSalidaVehiculo: 100,
     });
+    encierrosService.getVehiculosEnEncierroResumen.mockResolvedValue({ total: 0 });
     encierrosService.findVehiculosEnEncierro.mockResolvedValue({
       data: [],
       meta: { page: 1, limit: 10, total: 0 },
@@ -220,6 +230,11 @@ describe('EncierrosController accesos HTTP de ENCIERRO', () => {
       .send({ decision: 'CORREGIR', resolucion: 'Documento oficial cotejado.' })
       .expect(403);
     expect(encierrosService.resolverObservacion).not.toHaveBeenCalled();
+  });
+
+  it('permite consultar el resumen del inventario al rol ENCIERRO', async () => {
+    await request(app.getHttpServer()).get('/encierros/vehiculos/resumen').expect(200);
+    expect(encierrosService.getVehiculosEnEncierroResumen).toHaveBeenCalledTimes(1);
   });
 
   it('permite consultar el inventario sin modificar registros', async () => {
@@ -318,7 +333,11 @@ describe('EncierrosController salida anticipada exclusiva de ENCIERRO', () => {
 
 describe('EncierrosController atencion de observaciones por INFRACCIONES', () => {
   let app: INestApplication;
-  const service = { resolverObservacion: jest.fn() };
+  const service = {
+    resolverObservacion: jest.fn(),
+    findVehiculosEnEncierro: jest.fn(),
+    getVehiculosEnEncierroResumen: jest.fn(),
+  };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -353,6 +372,15 @@ describe('EncierrosController atencion de observaciones por INFRACCIONES', () =>
     service.resolverObservacion.mockResolvedValue({ idObservacion: 21, estatus: 'CORREGIDA' });
   });
   afterAll(async () => { await app.close(); });
+
+  it.each(['/encierros/vehiculos', '/encierros/vehiculos/resumen'])(
+    'responde HTTP 403 a INFRACCIONES en %s sin consultar inventario',
+    async (ruta) => {
+      await request(app.getHttpServer()).get(ruta).expect(403);
+      expect(service.findVehiculosEnEncierro).not.toHaveBeenCalled();
+      expect(service.getVehiculosEnEncierroResumen).not.toHaveBeenCalled();
+    },
+  );
 
   it('resuelve observacion con identidad del usuario autenticado', async () => {
     await request(app.getHttpServer())
