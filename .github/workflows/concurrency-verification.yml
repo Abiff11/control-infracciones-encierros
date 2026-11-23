@@ -87,6 +87,9 @@ jobs:
       - name: Build backend
         run: npm run build
 
+      - name: Validate HTTP business rules against disposable PostgreSQL
+        run: node scripts/reglas-negocio-integration.mjs
+
       - name: Apply migrations
         run: npm run migration:run
 
