@@ -47,13 +47,20 @@ export class PagoInfraccion {
     type: 'decimal',
     precision: 10,
     scale: 2,
+    default: 0,
   })
   montoInfraccion!: string;
 
-  @Column({ name: 'dias_piso_cobrados', type: 'int' })
+  @Column({ name: 'dias_piso_cobrados', type: 'int', default: 0 })
   diasPisoCobrados!: number;
 
-  @Column({ name: 'monto_dias_piso', type: 'decimal', precision: 10, scale: 2 })
+  @Column({
+    name: 'monto_dias_piso',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    default: 0,
+  })
   montoDiasPiso!: string;
 
   @Column({ name: 'fecha_pago', type: 'timestamp' })

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 
 import { sanitizeAuditPayload } from '../../common/redact-sensitive-data';
 import { Auditoria } from './entities/auditoria.entity';
@@ -24,21 +24,26 @@ export class AuditoriaService {
     private readonly auditoriaRepository: Repository<Auditoria>,
   ) {}
 
-  async registrar(params: {
-    idUsuario?: number | null;
-    accion: string;
-    entidad: string;
-    entidadId?: string | number | null;
-    antesJson?: unknown;
-    despuesJson?: unknown;
-    ip?: string | null;
-    severity?: AuditSeverity | null;
-    requestId?: string | null;
-    httpMethod?: string | null;
-    requestPath?: string | null;
-    userAgent?: string | null;
-  }): Promise<Auditoria> {
-    const item = this.auditoriaRepository.create({
+  async registrar(
+    params: {
+      idUsuario?: number | null;
+      accion: string;
+      entidad: string;
+      entidadId?: string | number | null;
+      antesJson?: unknown;
+      despuesJson?: unknown;
+      ip?: string | null;
+      severity?: AuditSeverity | null;
+      requestId?: string | null;
+      httpMethod?: string | null;
+      requestPath?: string | null;
+      userAgent?: string | null;
+    },
+    manager?: EntityManager,
+  ): Promise<Auditoria> {
+    const repository =
+      manager?.getRepository(Auditoria) ?? this.auditoriaRepository;
+    const item = repository.create({
       idUsuario: params.idUsuario ?? null,
       accion: params.accion,
       entidad: params.entidad,
@@ -56,7 +61,7 @@ export class AuditoriaService {
       userAgent: truncate(params.userAgent, 512),
     });
 
-    const saved = await this.auditoriaRepository.save(item);
+    const saved = await repository.save(item);
 
     if (saved.severity === 'CRITICAL') {
       this.logger.error(this.toSecurityLog(saved));

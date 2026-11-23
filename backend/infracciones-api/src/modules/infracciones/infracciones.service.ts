@@ -109,8 +109,13 @@ export class InfraccionesService {
     private readonly salidasRepository: Repository<SalidaVehiculo>,
   ) {}
 
-  async findByIdOrFail(idInfraccion: number): Promise<Infraccion> {
-    const infraccion = await this.buildBaseInfraccionQuery()
+  async findByIdOrFail(
+    idInfraccion: number,
+    manager?: EntityManager,
+  ): Promise<Infraccion> {
+    const infraccion = await this.buildBaseInfraccionQuery(
+      manager?.getRepository(Infraccion),
+    )
       .where('infraccion.idInfraccion = :idInfraccion', { idInfraccion })
       .getOne();
 
@@ -844,12 +849,15 @@ export class InfraccionesService {
 
   async actualizarEstatusYRegistrarMovimiento(
     params: ActualizarEstatusYRegistrarMovimientoParams,
+    manager?: EntityManager,
   ): Promise<InfraccionMovimiento> {
+    const salidasRepository =
+      manager?.getRepository(SalidaVehiculo) ?? this.salidasRepository;
     // La salida es un hecho fisico: los movimientos administrativos
     // posteriores no deben devolver el expediente a un estatus anterior.
     const hasSalida =
       params.nombreEstatus !== ESTATUS_INFRACCION.VEHICULO_ENTREGADO &&
-      (await this.salidasRepository.exists({
+      (await salidasRepository.exists({
         where: {
           retencionVehiculo: {
             infraccion: { idInfraccion: params.idInfraccion },
@@ -859,28 +867,38 @@ export class InfraccionesService {
     const nombreEstatus = hasSalida
       ? ESTATUS_INFRACCION.VEHICULO_ENTREGADO
       : params.nombreEstatus;
-    const [infraccion, estatusInfraccion] = await Promise.all([
-      this.findByIdOrFail(params.idInfraccion),
-      this.findEstatusByNombreOrFail(nombreEstatus),
-    ]);
+    const infraccion = await this.findByIdOrFail(params.idInfraccion, manager);
+    const estatusInfraccion = await this.findEstatusByNombreOrFail(
+      nombreEstatus,
+      manager,
+    );
 
+    const infraccionesRepository =
+      manager?.getRepository(Infraccion) ?? this.infraccionesRepository;
     infraccion.estatusInfraccion = estatusInfraccion;
-    await this.infraccionesRepository.save(infraccion);
+    await infraccionesRepository.save(infraccion);
 
-    return this.registrarMovimiento({
-      idInfraccion: params.idInfraccion,
-      idEstatusInfraccion: estatusInfraccion.idEstatusInfraccion,
-      idUsuario: params.idUsuario,
-      accion: params.accion,
-      observaciones: params.observaciones,
-      fechaMovimiento: params.fechaMovimiento,
-    });
+    return this.registrarMovimiento(
+      {
+        idInfraccion: params.idInfraccion,
+        idEstatusInfraccion: estatusInfraccion.idEstatusInfraccion,
+        idUsuario: params.idUsuario,
+        accion: params.accion,
+        observaciones: params.observaciones,
+        fechaMovimiento: params.fechaMovimiento,
+      },
+      manager,
+    );
   }
 
   async registrarMovimiento(
     params: RegistrarMovimientoParams,
+    manager?: EntityManager,
   ): Promise<InfraccionMovimiento> {
-    const movimiento = this.infraccionMovimientosRepository.create({
+    const repository =
+      manager?.getRepository(InfraccionMovimiento) ??
+      this.infraccionMovimientosRepository;
+    const movimiento = repository.create({
       infraccion: { idInfraccion: params.idInfraccion } as Infraccion,
       estatusInfraccion: {
         idEstatusInfraccion: params.idEstatusInfraccion,
@@ -891,11 +909,13 @@ export class InfraccionesService {
       fechaMovimiento: normalizeDate(params.fechaMovimiento),
     });
 
-    return this.infraccionMovimientosRepository.save(movimiento);
+    return repository.save(movimiento);
   }
 
-  private buildBaseInfraccionQuery(): SelectQueryBuilder<Infraccion> {
-    return this.infraccionesRepository
+  private buildBaseInfraccionQuery(
+    repository = this.infraccionesRepository,
+  ): SelectQueryBuilder<Infraccion> {
+    return repository
       .createQueryBuilder('infraccion')
       .leftJoinAndSelect('infraccion.infractor', 'infractor')
       .leftJoinAndSelect('infractor.sexo', 'sexo')
@@ -1201,8 +1221,12 @@ export class InfraccionesService {
 
   private async findEstatusByNombreOrFail(
     nombreEstatus: EstatusInfraccionNombre,
+    manager?: EntityManager,
   ): Promise<EstatusInfraccion> {
-    const estatusInfraccion = await this.estatusInfraccionRepository.findOne({
+    const repository =
+      manager?.getRepository(EstatusInfraccion) ??
+      this.estatusInfraccionRepository;
+    const estatusInfraccion = await repository.findOne({
       where: { nombreEstatus },
     });
 

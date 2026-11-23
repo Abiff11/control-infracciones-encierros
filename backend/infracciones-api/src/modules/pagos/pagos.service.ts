@@ -66,8 +66,13 @@ export class PagosService {
     private readonly auditoriaService: AuditoriaService,
   ) {}
 
-  async findByIdOrFail(idPagoInfraccion: number): Promise<PagoInfraccion> {
-    const pago = await this.pagosRepository.findOne({
+  async findByIdOrFail(
+    idPagoInfraccion: number,
+    manager?: EntityManager,
+  ): Promise<PagoInfraccion> {
+    const repository =
+      manager?.getRepository(PagoInfraccion) ?? this.pagosRepository;
+    const pago = await repository.findOne({
       where: { idPagoInfraccion },
       relations: {
         infraccion: true,
@@ -112,8 +117,12 @@ export class PagosService {
 
   async findNoAplicaByIdOrFail(
     idSolventacionSinPago: number,
+    manager?: EntityManager,
   ): Promise<SolventacionSinPago> {
-    const solventacion = await this.solventacionesRepository.findOne({
+    const repository =
+      manager?.getRepository(SolventacionSinPago) ??
+      this.solventacionesRepository;
+    const solventacion = await repository.findOne({
       where: { idSolventacionSinPago },
       relations: {
         infraccion: true,
@@ -190,78 +199,81 @@ export class PagosService {
       conceptos.map((concepto) => concepto.monto),
     );
 
-    const idPagoInfraccion = await this.dataSource.transaction(
-      async (manager): Promise<number> => {
-        const pagoRepository = manager.getRepository(PagoInfraccion);
-        const pagoConceptoRepository = manager.getRepository(PagoConcepto);
-
-        const pago = pagoRepository.create({
-          infraccion: { idInfraccion: params.idInfraccion } as Infraccion,
-          usuarioRegistraPago: {
-            idUsuario: params.idUsuarioRegistraPago,
-          } as Usuario,
-          folioLineaCaptura,
-          monto: montoTotal,
-          montoInfraccion: montoTotal,
-          diasPisoCobrados: 0,
-          montoDiasPiso: '0.00',
-          fechaPago: normalizeDate(params.fechaPago),
-          observaciones: params.observaciones ?? null,
-        });
-
-        const savedPago = await pagoRepository.save(pago);
-
-        for (const [index, concepto] of conceptos.entries()) {
-          const conceptoPago = await this.getOrCreateConcepto(
-            manager,
-            concepto.claveConcepto,
-          );
-
-          await pagoConceptoRepository.save(
-            pagoConceptoRepository.create({
-              pagoInfraccion: savedPago,
-              conceptoPago,
-              monto: concepto.monto,
-              orden: index + 1,
-            }),
-          );
-        }
-
-        return savedPago.idPagoInfraccion;
-      },
-    );
-
     const nombreEstatus =
       infraccion.tipoProcedimiento.claveTipoProcedimiento ===
       CLAVE_INFRACCION_SIN_RETENCION
         ? ESTATUS_INFRACCION.PAGADA_SIN_RETENCION
         : ESTATUS_INFRACCION.PAGADA;
 
-    await this.infraccionesService.actualizarEstatusYRegistrarMovimiento({
-      idInfraccion: params.idInfraccion,
-      nombreEstatus,
-      idUsuario: params.idUsuarioRegistraPago,
-      accion: ACCION_MOVIMIENTO.PAGO_REGISTRADO,
-      observaciones: `Pago registrado con linea de captura ${folioLineaCaptura}`,
-      fechaMovimiento: params.fechaPago,
-    });
+    return this.dataSource.transaction(async (manager) => {
+      const pagoRepository = manager.getRepository(PagoInfraccion);
+      const pagoConceptoRepository = manager.getRepository(PagoConcepto);
 
-    await this.auditoriaService.registrar({
-      idUsuario: params.idUsuarioRegistraPago,
-      accion: 'PAGO_REGISTRADO',
-      entidad: 'pagos',
-      entidadId: idPagoInfraccion,
-      despuesJson: {
-        idPagoInfraccion,
-        idInfraccion: params.idInfraccion,
+      const pago = pagoRepository.create({
+        infraccion: { idInfraccion: params.idInfraccion } as Infraccion,
+        usuarioRegistraPago: {
+          idUsuario: params.idUsuarioRegistraPago,
+        } as Usuario,
         folioLineaCaptura,
         monto: montoTotal,
-        conceptos,
-        fechaPago: params.fechaPago,
-      },
-    });
+        montoInfraccion: montoTotal,
+        diasPisoCobrados: 0,
+        montoDiasPiso: '0.00',
+        fechaPago: normalizeDate(params.fechaPago),
+        observaciones: params.observaciones ?? null,
+      });
 
-    return this.findByIdOrFail(idPagoInfraccion);
+      const savedPago = await pagoRepository.save(pago);
+
+      for (const [index, concepto] of conceptos.entries()) {
+        const conceptoPago = await this.getOrCreateConcepto(
+          manager,
+          concepto.claveConcepto,
+        );
+
+        await pagoConceptoRepository.save(
+          pagoConceptoRepository.create({
+            pagoInfraccion: savedPago,
+            conceptoPago,
+            monto: concepto.monto,
+            orden: index + 1,
+          }),
+        );
+      }
+
+      await this.infraccionesService.actualizarEstatusYRegistrarMovimiento(
+        {
+          idInfraccion: params.idInfraccion,
+          nombreEstatus,
+          idUsuario: params.idUsuarioRegistraPago,
+          accion: ACCION_MOVIMIENTO.PAGO_REGISTRADO,
+          observaciones: `Pago registrado con linea de captura ${folioLineaCaptura}`,
+          fechaMovimiento: params.fechaPago,
+        },
+        manager,
+      );
+
+      const { idPagoInfraccion } = savedPago;
+      await this.auditoriaService.registrar(
+        {
+          idUsuario: params.idUsuarioRegistraPago,
+          accion: 'PAGO_REGISTRADO',
+          entidad: 'pagos',
+          entidadId: idPagoInfraccion,
+          despuesJson: {
+            idPagoInfraccion,
+            idInfraccion: params.idInfraccion,
+            folioLineaCaptura,
+            monto: montoTotal,
+            conceptos,
+            fechaPago: params.fechaPago,
+          },
+        },
+        manager,
+      );
+
+      return this.findByIdOrFail(idPagoInfraccion, manager);
+    });
   }
 
   async registrarNoAplicaPago(
@@ -304,34 +316,42 @@ export class PagosService {
       fechaSolventacion: new Date(),
     });
 
-    const savedSolventacion =
-      await this.solventacionesRepository.save(solventacion);
+    return this.dataSource.transaction(async (manager) => {
+      const savedSolventacion = await manager
+        .getRepository(SolventacionSinPago)
+        .save(solventacion);
+      const { idSolventacionSinPago, fechaSolventacion } = savedSolventacion;
 
-    await this.infraccionesService.actualizarEstatusYRegistrarMovimiento({
-      idInfraccion: params.idInfraccion,
-      nombreEstatus: ESTATUS_INFRACCION.SOLVENTADA_SIN_PAGO,
-      idUsuario: params.idUsuarioRegistra,
-      accion: ACCION_MOVIMIENTO.NO_APLICA_PAGO,
-      observaciones: `No aplica pago: ${motivo}`,
-      fechaMovimiento: savedSolventacion.fechaSolventacion,
+      await this.infraccionesService.actualizarEstatusYRegistrarMovimiento(
+        {
+          idInfraccion: params.idInfraccion,
+          nombreEstatus: ESTATUS_INFRACCION.SOLVENTADA_SIN_PAGO,
+          idUsuario: params.idUsuarioRegistra,
+          accion: ACCION_MOVIMIENTO.NO_APLICA_PAGO,
+          observaciones: `No aplica pago: ${motivo}`,
+          fechaMovimiento: fechaSolventacion,
+        },
+        manager,
+      );
+
+      await this.auditoriaService.registrar(
+        {
+          idUsuario: params.idUsuarioRegistra,
+          accion: 'NO_APLICA_PAGO',
+          entidad: 'solventacion_sin_pago',
+          entidadId: idSolventacionSinPago,
+          despuesJson: {
+            idSolventacionSinPago,
+            idInfraccion: params.idInfraccion,
+            motivo,
+            fechaSolventacion,
+          },
+        },
+        manager,
+      );
+
+      return this.findNoAplicaByIdOrFail(idSolventacionSinPago, manager);
     });
-
-    await this.auditoriaService.registrar({
-      idUsuario: params.idUsuarioRegistra,
-      accion: 'NO_APLICA_PAGO',
-      entidad: 'solventacion_sin_pago',
-      entidadId: savedSolventacion.idSolventacionSinPago,
-      despuesJson: {
-        idSolventacionSinPago: savedSolventacion.idSolventacionSinPago,
-        idInfraccion: params.idInfraccion,
-        motivo,
-        fechaSolventacion: savedSolventacion.fechaSolventacion,
-      },
-    });
-
-    return this.findNoAplicaByIdOrFail(
-      savedSolventacion.idSolventacionSinPago,
-    );
   }
 
   private normalizeConceptos(
