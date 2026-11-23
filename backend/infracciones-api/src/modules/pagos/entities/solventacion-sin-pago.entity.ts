@@ -25,6 +25,10 @@ export class SolventacionSinPago {
   @Column({ name: 'motivo', type: 'text' })
   motivo!: string;
 
-  @Column({ name: 'fecha_solventacion', type: 'timestamp' })
+  @Column({
+    name: 'fecha_solventacion',
+    type: 'timestamp',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
   fechaSolventacion!: Date;
 }

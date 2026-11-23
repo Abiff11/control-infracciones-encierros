@@ -67,6 +67,9 @@ jobs:
       - name: Run migrations on disposable PostgreSQL
         run: npm run migration:run
 
+      - name: Verify the operational PostgreSQL schema
+        run: node scripts/postgres-schema-integrity.cjs
+
       - name: Assert payment, dashboard, auth, security and concurrency schema
         run: |
           node <<'NODE'
@@ -196,6 +199,9 @@ jobs:
 
       - name: Re-run reverted migrations
         run: npm run migration:run
+
+      - name: Verify the operational schema after migrating again
+        run: node scripts/postgres-schema-integrity.cjs
 
       - name: Show migration state
         run: npm run migration:show
