@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 
 import { normalizeDate } from '../../common/utils/normalize-date';
 import { AuditoriaService } from '../auditoria/auditoria.service';
@@ -47,8 +47,11 @@ export class LiberacionesService {
 
   async findByIdOrFail(
     idLiberacionVehiculo: number,
+    manager?: EntityManager,
   ): Promise<LiberacionVehiculo> {
-    const liberacion = await this.liberacionesRepository.findOne({
+    const repository =
+      manager?.getRepository(LiberacionVehiculo) ?? this.liberacionesRepository;
+    const liberacion = await repository.findOne({
       where: { idLiberacionVehiculo },
       relations: {
         infraccion: true,
@@ -182,7 +185,7 @@ export class LiberacionesService {
       observacion: params.observacion ?? null,
     });
 
-    const savedLiberacion = await this.liberacionesRepository.manager.transaction(
+    return this.liberacionesRepository.manager.transaction(
       async (manager) => {
         // Bloquea la salida fisica anticipada durante el cotejo de folios.
         // Un folio discordante no puede quedar ligado a otro expediente.
@@ -223,7 +226,9 @@ export class LiberacionesService {
           }
         }
 
-        const saved = await manager.getRepository(LiberacionVehiculo).save(liberacion);
+        const { idLiberacionVehiculo } = await manager
+          .getRepository(LiberacionVehiculo)
+          .save(liberacion);
 
         if (salidaAnticipada) {
           // TypeORM en PostgreSQL devuelve [filas, cantidad] para UPDATE,
@@ -236,7 +241,7 @@ export class LiberacionesService {
              WHERE id_salida_vehiculo = $2
                AND id_liberacion_vehiculo IS NULL
              RETURNING id_salida_vehiculo AS "idSalidaVehiculo"`,
-            [saved.idLiberacionVehiculo, salidaAnticipada.idSalidaVehiculo],
+            [idLiberacionVehiculo, salidaAnticipada.idSalidaVehiculo],
           );
           if (
             totalActualizadas !== 1 ||
@@ -250,36 +255,40 @@ export class LiberacionesService {
           }
         }
 
-        return saved;
+        await this.infraccionesService.actualizarEstatusYRegistrarMovimiento(
+          {
+            idInfraccion: params.idInfraccion,
+            nombreEstatus: ESTATUS_INFRACCION.LIBERACION_GENERADA,
+            idUsuario: params.idUsuarioLibera,
+            accion: ACCION_MOVIMIENTO.LIBERACION_GENERADA,
+            observaciones: `Liberacion generada con folio ${folioLiberacion}`,
+            fechaMovimiento: params.fechaLiberacion,
+          },
+          manager,
+        );
+
+        await this.auditoriaService.registrar(
+          {
+            idUsuario: params.idUsuarioLibera,
+            accion: 'LIBERACION_GENERADA',
+            entidad: 'liberaciones',
+            entidadId: idLiberacionVehiculo,
+            despuesJson: {
+              idLiberacionVehiculo,
+              idInfraccion: params.idInfraccion,
+              idPagoInfraccion: pagoInfraccion?.idPagoInfraccion ?? null,
+              idSolventacionSinPago:
+                solventacionSinPago?.idSolventacionSinPago ?? null,
+              folioLiberacion,
+              responsableLibera: params.liberadoPor,
+              fechaLiberacion: params.fechaLiberacion,
+            },
+          },
+          manager,
+        );
+
+        return this.findByIdOrFail(idLiberacionVehiculo, manager);
       },
     );
-
-    await this.infraccionesService.actualizarEstatusYRegistrarMovimiento({
-      idInfraccion: params.idInfraccion,
-      nombreEstatus: ESTATUS_INFRACCION.LIBERACION_GENERADA,
-      idUsuario: params.idUsuarioLibera,
-      accion: ACCION_MOVIMIENTO.LIBERACION_GENERADA,
-      observaciones: `Liberacion generada con folio ${folioLiberacion}`,
-      fechaMovimiento: params.fechaLiberacion,
-    });
-
-    await this.auditoriaService.registrar({
-      idUsuario: params.idUsuarioLibera,
-      accion: 'LIBERACION_GENERADA',
-      entidad: 'liberaciones',
-      entidadId: savedLiberacion.idLiberacionVehiculo,
-      despuesJson: {
-        idLiberacionVehiculo: savedLiberacion.idLiberacionVehiculo,
-        idInfraccion: params.idInfraccion,
-        idPagoInfraccion: pagoInfraccion?.idPagoInfraccion ?? null,
-        idSolventacionSinPago:
-          solventacionSinPago?.idSolventacionSinPago ?? null,
-        folioLiberacion,
-        responsableLibera: params.liberadoPor,
-        fechaLiberacion: params.fechaLiberacion,
-      },
-    });
-
-    return this.findByIdOrFail(savedLiberacion.idLiberacionVehiculo);
   }
 }

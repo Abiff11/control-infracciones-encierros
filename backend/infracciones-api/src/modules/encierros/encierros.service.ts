@@ -407,32 +407,42 @@ export class EncierrosService {
       estadoSalida: params.estadoSalida,
     });
 
-    const savedSalida = await this.salidasRepository.save(salida);
+    return this.dataSource.transaction(async (manager) => {
+      const savedSalida = await manager
+        .getRepository(SalidaVehiculo)
+        .save(salida);
 
-    await this.infraccionesService.actualizarEstatusYRegistrarMovimiento({
-      idInfraccion: retencion.infraccion.idInfraccion,
-      nombreEstatus: ESTATUS_INFRACCION.VEHICULO_ENTREGADO,
-      idUsuario: params.idUsuarioValidaSalida,
-      accion: ACCION_MOVIMIENTO.VEHICULO_ENTREGADO,
-      observaciones: 'Salida vehicular registrada',
-      fechaMovimiento: params.fechaSalida,
+      await this.infraccionesService.actualizarEstatusYRegistrarMovimiento(
+        {
+          idInfraccion: retencion.infraccion.idInfraccion,
+          nombreEstatus: ESTATUS_INFRACCION.VEHICULO_ENTREGADO,
+          idUsuario: params.idUsuarioValidaSalida,
+          accion: ACCION_MOVIMIENTO.VEHICULO_ENTREGADO,
+          observaciones: 'Salida vehicular registrada',
+          fechaMovimiento: params.fechaSalida,
+        },
+        manager,
+      );
+
+      await this.auditoriaService.registrar(
+        {
+          idUsuario: params.idUsuarioValidaSalida,
+          accion: 'SALIDA_ENCIERRO_REGISTRADA',
+          entidad: 'salidas_vehiculo',
+          entidadId: savedSalida.idSalidaVehiculo,
+          despuesJson: {
+            idSalidaVehiculo: savedSalida.idSalidaVehiculo,
+            idRetencionVehiculo: params.idRetencionVehiculo,
+            idLiberacionVehiculo: params.idLiberacionVehiculo,
+            idUsuarioValidaSalida: params.idUsuarioValidaSalida,
+            fechaSalida: savedSalida.fechaSalida,
+          },
+        },
+        manager,
+      );
+
+      return savedSalida;
     });
-
-    await this.auditoriaService.registrar({
-      idUsuario: params.idUsuarioValidaSalida,
-      accion: 'SALIDA_ENCIERRO_REGISTRADA',
-      entidad: 'salidas_vehiculo',
-      entidadId: savedSalida.idSalidaVehiculo,
-      despuesJson: {
-        idSalidaVehiculo: savedSalida.idSalidaVehiculo,
-        idRetencionVehiculo: params.idRetencionVehiculo,
-        idLiberacionVehiculo: params.idLiberacionVehiculo,
-        idUsuarioValidaSalida: params.idUsuarioValidaSalida,
-        fechaSalida: savedSalida.fechaSalida,
-      },
-    });
-
-    return savedSalida;
   }
 
 
