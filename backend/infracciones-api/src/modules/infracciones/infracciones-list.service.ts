@@ -24,6 +24,7 @@ interface InfraccionListRow {
   serie: string | null;
   motor: string | null;
   color: string | null;
+  anioModelo: string | number | null;
   marca: string | null;
   linea: string | null;
   clase: string | null;
@@ -48,15 +49,19 @@ interface InfraccionListRow {
   folioResguardo: string | null;
   estadoIngreso: string | null;
   tienePago: boolean | number | string | null;
+  tieneSolventacionSinPago: boolean | number | string | null;
   idUltimoPago: string | number | null;
   fechaUltimoPago: string | Date | null;
   montoPagado: string | number | null;
   tieneLiberacion: boolean | number | string | null;
   idUltimaLiberacion: string | number | null;
+  folioLiberacion: string | null;
   fechaLiberacion: string | Date | null;
   tieneSalida: boolean | number | string | null;
   fechaSalida: string | Date | null;
+  folioLiberacionPresentado: string | null;
   clavesPago: string | null;
+  cantidadObservacionesPendientes: string | number | null;
 }
 
 interface MotivoRow {
@@ -105,6 +110,29 @@ export class InfraccionesListService {
     };
   }
 
+  countForPdfReport(query: FindInfraccionesQueryDto): Promise<number> {
+    return this.buildBaseQuery(query).getCount();
+  }
+
+  async findForReportExportBlock(
+    query: FindInfraccionesQueryDto,
+    offset: number,
+    limit: number,
+  ) {
+    const rows = await this.applySelects(this.buildBaseQuery(query))
+      .orderBy(this.resolveSortColumn(query.sortBy), this.resolveSortOrder(query.sortOrder))
+      .addOrderBy('infraccion.horaInfraccion', this.resolveSortOrder(query.sortOrder))
+      .addOrderBy('infraccion.idInfraccion', 'DESC')
+      .offset(offset)
+      .limit(limit)
+      .getRawMany<InfraccionListRow>();
+
+    const ids = rows.map((row) => this.toNumber(row.idInfraccion));
+    const motivosMap = await this.loadMotivosMap(ids);
+
+    return rows.map((row) => this.mapRow(row, motivosMap));
+  }
+
   private buildBaseQuery(
     query: FindInfraccionesQueryDto,
   ): SelectQueryBuilder<Infraccion> {
@@ -148,7 +176,7 @@ export class InfraccionesListService {
     return builder
       .select('infraccion.idInfraccion', 'idInfraccion')
       .addSelect('infraccion.folioInfraccion', 'folioInfraccion')
-      .addSelect('infraccion.fechaInfraccion', 'fechaInfraccion')
+      .addSelect("TO_CHAR(infraccion.fechaInfraccion, 'YYYY-MM-DD')", 'fechaInfraccion')
       .addSelect('infraccion.horaInfraccion', 'horaInfraccion')
       .addSelect('infraccion.observaciones', 'observaciones')
       .addSelect('infraccion.clavePolicia', 'clavePolicia')
@@ -162,6 +190,7 @@ export class InfraccionesListService {
       .addSelect('vehiculo.serie', 'serie')
       .addSelect('vehiculo.motor', 'motor')
       .addSelect('vehiculo.color', 'color')
+      .addSelect('vehiculo.anioModelo', 'anioModelo')
       .addSelect('lineaVehiculo.nombreLineaVehiculo', 'linea')
       .addSelect('marcaVehiculo.nombreMarcaVehiculo', 'marca')
       .addSelect('claseVehiculo.nombreClaseVehiculo', 'clase')
@@ -198,6 +227,14 @@ export class InfraccionesListService {
       .addSelect('retencion.folio_resguardo', 'folioResguardo')
       .addSelect('retencion.estado_ingreso', 'estadoIngreso')
       .addSelect(this.hasPagoExpression(), 'tienePago')
+      .addSelect(
+        `EXISTS (
+          SELECT 1
+          FROM solventacion_sin_pago solventacion
+          WHERE solventacion.id_infraccion = infraccion.id_infraccion
+        )`,
+        'tieneSolventacionSinPago',
+      )
       .addSelect(
         `(
           SELECT pago.id_pago_infraccion
@@ -259,6 +296,16 @@ export class InfraccionesListService {
       )
       .addSelect(
         `(
+          SELECT liberacion.folio_liberacion
+          FROM liberacion_vehiculo liberacion
+          WHERE liberacion.id_infraccion = infraccion.id_infraccion
+          ORDER BY liberacion.fecha_liberacion DESC, liberacion.id_liberacion_vehiculo DESC
+          LIMIT 1
+        )`,
+        'folioLiberacion',
+      )
+      .addSelect(
+        `(
           SELECT liberacion.fecha_liberacion
           FROM liberacion_vehiculo liberacion
           WHERE liberacion.id_infraccion = infraccion.id_infraccion
@@ -266,6 +313,15 @@ export class InfraccionesListService {
           LIMIT 1
         )`,
         'fechaLiberacion',
+      )
+      .addSelect(
+        `(
+          SELECT COUNT(*)::int
+          FROM observacion_expediente observacion_pendiente
+          WHERE observacion_pendiente.id_infraccion = infraccion.id_infraccion
+            AND observacion_pendiente.estatus = 'PENDIENTE'
+        )`,
+        'cantidadObservacionesPendientes',
       )
       .addSelect(this.hasSalidaExpression(), 'tieneSalida')
       .addSelect(
@@ -277,6 +333,17 @@ export class InfraccionesListService {
           LIMIT 1
         )`,
         'fechaSalida',
+      )
+      .addSelect(
+        `(
+          SELECT salida_anticipada.folio_liberacion_presentado
+          FROM salida_vehiculo salida_anticipada
+          WHERE salida_anticipada.id_retencion_vehiculo = retencion.id_retencion_vehiculo
+            AND salida_anticipada.modalidad_salida = 'ANTICIPADA'
+          ORDER BY salida_anticipada.id_salida_vehiculo DESC
+          LIMIT 1
+        )`,
+        'folioLiberacionPresentado',
       );
   }
 
@@ -392,6 +459,12 @@ export class InfraccionesListService {
       );
     }
 
+    if (query.idInfracciones?.length) {
+      builder.andWhere('infraccion.idInfraccion IN (:...idInfracciones)', {
+        idInfracciones: query.idInfracciones,
+      });
+    }
+
     if (query.idEncierro) {
       builder.andWhere('retencion.id_encierro = :idEncierro', {
         idEncierro: query.idEncierro,
@@ -453,6 +526,23 @@ export class InfraccionesListService {
       builder.andWhere('infraccion.clavePolicia ILIKE :claveOficial', {
         claveOficial: `%${query.claveOficial.trim()}%`,
       });
+    }
+
+    const claveConcepto = query.claveConcepto?.trim().toUpperCase();
+    if (claveConcepto) {
+      builder.andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM pago_infraccion pago_clave
+          INNER JOIN pago_concepto pago_concepto_clave
+            ON pago_concepto_clave.id_pago_infraccion = pago_clave.id_pago_infraccion
+          INNER JOIN concepto_pago concepto_pago_clave
+            ON concepto_pago_clave.id_concepto_pago = pago_concepto_clave.id_concepto_pago
+          WHERE pago_clave.id_infraccion = infraccion.id_infraccion
+            AND concepto_pago_clave.clave_concepto = :claveConcepto
+        )`,
+        { claveConcepto },
+      );
     }
 
     if (query.anio) {
@@ -631,6 +721,7 @@ export class InfraccionesListService {
       fechaInfraccion: this.toStringValue(row.fechaInfraccion),
       horaInfraccion: this.toStringValue(row.horaInfraccion),
       observaciones: this.toNullableString(row.observaciones),
+      cantidadObservacionesPendientes: this.toNumber(row.cantidadObservacionesPendientes ?? 0),
       clavePolicia: this.toNullableString(row.clavePolicia),
       numParteInformativo: this.toNullableString(row.numParteInformativo),
       infractor: {
@@ -645,6 +736,7 @@ export class InfraccionesListService {
         serie: this.toNullableString(row.serie),
         motor: this.toNullableString(row.motor),
         color: this.toNullableString(row.color),
+        anioModelo: this.toNullableNumber(row.anioModelo),
         marca: this.toNullableString(row.marca),
         linea: this.toNullableString(row.linea),
         clase: this.toNullableString(row.clase),
@@ -688,6 +780,7 @@ export class InfraccionesListService {
         : null,
       pago: {
         tienePago: hasPago,
+        tieneSolventacionSinPago: this.toBoolean(row.tieneSolventacionSinPago),
         idPagoInfraccion: this.toNullableNumber(row.idUltimoPago),
         fechaUltimoPago: this.toIsoString(row.fechaUltimoPago),
         montoPagado: this.toNullableString(row.montoPagado),
@@ -696,11 +789,13 @@ export class InfraccionesListService {
       liberacion: {
         tieneLiberacion: hasLiberacion,
         idLiberacionVehiculo: this.toNullableNumber(row.idUltimaLiberacion),
+        folioLiberacion: this.toNullableString(row.folioLiberacion),
         fechaLiberacion: this.toIsoString(row.fechaLiberacion),
       },
       salida: {
         tieneSalida: hasSalida,
         fechaSalida: this.toIsoString(row.fechaSalida),
+        folioLiberacionPresentado: this.toNullableString(row.folioLiberacionPresentado),
       },
       estadoOperativoCalculado: resolveEstadoOperativoVehiculo({
         permiteRetencion,

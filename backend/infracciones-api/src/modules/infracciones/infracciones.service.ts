@@ -22,7 +22,10 @@ import { LugarInfraccion } from '../catalogos/entities/lugar-infraccion.entity';
 import { Operativo } from '../catalogos/entities/operativo.entity';
 import { type Servicio } from '../catalogos/entities/servicio.entity';
 import { TipoProcedimiento } from '../catalogos/entities/tipo-procedimiento.entity';
-import { normalizeParteInformativoFolio } from '../catalogos/utils/tipo-procedimiento-rules';
+import {
+  normalizeParteInformativoFolio,
+  normalizeTipoProcedimientoClave,
+} from '../catalogos/utils/tipo-procedimiento-rules';
 import { normalizeDate } from '../../common/utils/normalize-date';
 import { Infractor } from '../infractores/entities/infractor.entity';
 import { type Sexo } from '../catalogos/entities/sexo.entity';
@@ -30,7 +33,7 @@ import { LiberacionVehiculo } from '../liberaciones/entities/liberacion-vehiculo
 import { PagoInfraccion } from '../pagos/entities/pago-infraccion.entity';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { Vehiculo } from '../vehiculos/entities/vehiculo.entity';
-import { type EstatusInfraccionNombre } from './constants/estatus-infraccion.constants';
+import { ESTATUS_INFRACCION, type EstatusInfraccionNombre } from './constants/estatus-infraccion.constants';
 import { ACCION_MOVIMIENTO } from './constants/accion-movimiento.constants';
 import { CreateInfraccionCompletaDto } from './dto/create-infraccion-completa.dto';
 import { FindInfraccionesQueryDto } from './dto/find-infracciones-query.dto';
@@ -65,6 +68,23 @@ interface ActualizarEstatusYRegistrarMovimientoParams {
   accion: string;
   observaciones?: string | null;
   fechaMovimiento?: string | Date;
+}
+
+const VEHICULO_SIN_INFRACCION_CLAVE = 'VEHICULO_SIN_INFRACCION';
+const DOCUMENTO_PARTE_INFORMATIVO = 'PARTE_INFORMATIVO';
+const DOCUMENTO_FOLIO_LIBERACION = 'FOLIO_LIBERACION';
+
+function resolveVehiculoSinInfraccionFolio(
+  tipoDocumentoReferencia: string,
+  numeroDocumento: string,
+): string {
+  const numeroNormalizado = normalizeParteInformativoFolio(numeroDocumento);
+
+  if (tipoDocumentoReferencia === DOCUMENTO_FOLIO_LIBERACION) {
+    return numeroNormalizado;
+  }
+
+  return `PI-${numeroNormalizado.replace(/^(?:PI-)+/, '')}`;
 }
 
 @Injectable()
@@ -633,6 +653,12 @@ export class InfraccionesService {
         dto.infraccion.folioInfraccion?.trim() ?? '';
       const normalizedNumParteInformativo =
         dto.infraccion.numParteInformativo?.trim() ?? '';
+      const tipoDocumentoReferencia =
+        dto.infraccion.tipoDocumentoReferencia?.trim() ?? '';
+      const esVehiculoSinInfraccion =
+        normalizeTipoProcedimientoClave(
+          tipoProcedimiento.claveTipoProcedimiento,
+        ) === VEHICULO_SIN_INFRACCION_CLAVE;
 
       if (
         tipoProcedimiento.requiereFolioInfraccion &&
@@ -653,6 +679,24 @@ export class InfraccionesService {
       }
 
       if (
+        tipoProcedimiento.requiereNumParteInformativo &&
+        ![
+          DOCUMENTO_PARTE_INFORMATIVO,
+          DOCUMENTO_FOLIO_LIBERACION,
+        ].includes(tipoDocumentoReferencia)
+      ) {
+        throw new BadRequestException(
+          'El tipo de documento de referencia es obligatorio para el tipo seleccionado',
+        );
+      }
+
+      if (esVehiculoSinInfraccion && !encierro) {
+        throw new BadRequestException(
+          'El encierro es obligatorio para vehiculo sin infraccion',
+        );
+      }
+
+      if (
         tipoProcedimiento.requiereMotivos &&
         dto.infraccion.motivos.length === 0
       ) {
@@ -662,9 +706,14 @@ export class InfraccionesService {
       }
 
       finalFolioInfraccion =
-        !tipoProcedimiento.requiereFolioInfraccion &&
-        tipoProcedimiento.requiereNumParteInformativo
-          ? `PI-${normalizeParteInformativoFolio(normalizedNumParteInformativo)}`
+        esVehiculoSinInfraccion
+          ? resolveVehiculoSinInfraccionFolio(
+              tipoDocumentoReferencia,
+              normalizedNumParteInformativo.replace(/^FL-/i, ''),
+            )
+          : !tipoProcedimiento.requiereFolioInfraccion &&
+              tipoProcedimiento.requiereNumParteInformativo
+            ? `PI-${normalizeParteInformativoFolio(normalizedNumParteInformativo)}`
           : normalizedFolioInfraccion;
 
       if (finalFolioInfraccion.length === 0) {
@@ -796,9 +845,23 @@ export class InfraccionesService {
   async actualizarEstatusYRegistrarMovimiento(
     params: ActualizarEstatusYRegistrarMovimientoParams,
   ): Promise<InfraccionMovimiento> {
+    // La salida es un hecho fisico: los movimientos administrativos
+    // posteriores no deben devolver el expediente a un estatus anterior.
+    const hasSalida =
+      params.nombreEstatus !== ESTATUS_INFRACCION.VEHICULO_ENTREGADO &&
+      (await this.salidasRepository.exists({
+        where: {
+          retencionVehiculo: {
+            infraccion: { idInfraccion: params.idInfraccion },
+          },
+        },
+      }));
+    const nombreEstatus = hasSalida
+      ? ESTATUS_INFRACCION.VEHICULO_ENTREGADO
+      : params.nombreEstatus;
     const [infraccion, estatusInfraccion] = await Promise.all([
       this.findByIdOrFail(params.idInfraccion),
-      this.findEstatusByNombreOrFail(params.nombreEstatus),
+      this.findEstatusByNombreOrFail(nombreEstatus),
     ]);
 
     infraccion.estatusInfraccion = estatusInfraccion;

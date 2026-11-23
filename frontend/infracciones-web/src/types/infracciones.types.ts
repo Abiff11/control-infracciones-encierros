@@ -27,6 +27,7 @@ export interface VehiculoSummary {
   serie: string | null;
   motor: string | null;
   color: string | null;
+  anioModelo?: number | null;
   marca?: string | null;
   linea?: string | null;
   clase?: string | null;
@@ -42,6 +43,7 @@ export interface InfraccionListRetencionSummary {
 
 export interface InfraccionListPagoSummary {
   tienePago: boolean;
+  tieneSolventacionSinPago?: boolean;
   idPagoInfraccion: number | null;
   fechaUltimoPago: string | null;
   montoPagado: string | null;
@@ -51,12 +53,14 @@ export interface InfraccionListPagoSummary {
 export interface InfraccionListLiberacionSummary {
   tieneLiberacion: boolean;
   idLiberacionVehiculo: number | null;
+  folioLiberacion?: string | null;
   fechaLiberacion: string | null;
 }
 
 export interface InfraccionListSalidaSummary {
   tieneSalida: boolean;
   fechaSalida: string | null;
+  folioLiberacionPresentado?: string | null;
 }
 
 export interface InfraccionListItem {
@@ -65,6 +69,7 @@ export interface InfraccionListItem {
   fechaInfraccion: string;
   horaInfraccion: string;
   observaciones: string | null;
+  cantidadObservacionesPendientes?: number;
   clavePolicia: string | null;
   numParteInformativo: string | null;
   infractor: InfractorSummary;
@@ -92,6 +97,17 @@ export interface PaginationMeta {
 export interface InfraccionesResponse {
   data: InfraccionListItem[];
   meta?: PaginationMeta;
+}
+
+export interface PdfReportAvailability {
+  total: number;
+  limitePdf: number;
+  permitido: boolean;
+}
+
+export interface ExportInfraccionesExcelPayload extends InfraccionesQuery {
+  campos: string[];
+  idInfracciones?: number[];
 }
 
 export interface InfraccionMotivoDetalle {
@@ -257,6 +273,7 @@ export interface CreateInfraccionCaptura {
   idOperativo?: number | null;
   idEncierro?: number | null;
   folioInfraccion?: string;
+  tipoDocumentoReferencia?: string;
   fechaInfraccion: string;
   horaInfraccion: string;
   observaciones?: string | null;
@@ -283,10 +300,12 @@ export interface InfraccionesQuery {
   idDelegacion?: number;
   idRegion?: number;
   idTipoProcedimiento?: number;
+  idInfracciones?: number[];
   idMotivo?: number;
   idEncierro?: number;
   rfc?: string;
   claveOficial?: string;
+  claveConcepto?: string;
   placas?: string;
   serie?: string;
   motor?: string;

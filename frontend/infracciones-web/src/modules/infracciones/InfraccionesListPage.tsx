@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { canPerformOperationForRole } from "../../app/navigation-access";
 
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -10,9 +11,15 @@ import { SelectField } from "../../components/ui/SelectField";
 import { StatusBadge } from "../../components/ui/StatusBadge";
 import { getErrorMessage } from "../../services/api/apiClient";
 import {
+  getObservacionesPendientes,
+  type ObservacionPendienteItem,
+  type ResolverObservacionResponse,
+} from "../../services/api/encierros.api";
+import {
   getInfraccionDetalle,
   getInfracciones,
 } from "../../services/api/infracciones.api";
+import { findConceptosPago } from "../../services/api/pagos.api";
 import {
   formatCurrencyMxn,
   formatDate,
@@ -30,7 +37,9 @@ import type {
   InfraccionListItem,
   PaginationMeta,
 } from "../../types/infracciones.types";
+import type { ConceptoPagoOption } from "../../types/operaciones.types";
 import { InfraccionDetalleModal } from "./InfraccionDetalleModal";
+import { ObservacionAtencionModal } from "./ObservacionAtencionModal";
 import {
   InfraccionOperacionModal,
   type InfraccionOperacionTipo,
@@ -56,6 +65,7 @@ interface FiltersForm {
   placas: string;
   rfc: string;
   claveOficial: string;
+  claveConcepto: string;
   estadoOperativo: string;
   page: string;
   limit: string;
@@ -70,6 +80,7 @@ interface InfraccionesListPageProps {
   catalogs: CatalogosBundle | null;
   token: string;
   refreshKey: number;
+  roleName?: string;
   onNavigateCreate: () => void;
 }
 
@@ -97,6 +108,7 @@ const DEFAULT_FILTERS: FiltersForm = {
   placas: "",
   rfc: "",
   claveOficial: "",
+  claveConcepto: "",
   estadoOperativo: "",
   page: "1",
   limit: "30",
@@ -145,6 +157,7 @@ function buildQuery(filters: FiltersForm): InfraccionesQuery {
     placas: filters.placas || undefined,
     rfc: filters.rfc || undefined,
     claveOficial: filters.claveOficial || undefined,
+    claveConcepto: filters.claveConcepto.trim().toUpperCase() || undefined,
     estadoOperativo: (filters.estadoOperativo || undefined) as
       EstadoOperativoVehiculo | undefined,
     page: toNumber(filters.page),
@@ -170,17 +183,46 @@ function getVehicleLabel(item: InfraccionListItem): string {
   return parts.length > 0 ? parts.join(" - ") : "Sin informacion registrada";
 }
 
+function getEstadoOperativoEfectivo(
+  item: InfraccionListItem,
+): EstadoOperativoVehiculo {
+  // Una entrega fisica confirmada tiene prioridad sobre cualquier estado administrativo.
+  if (item.salida?.tieneSalida) {
+    return "VEHICULO_ENTREGADO";
+  }
+  if (item.estatusInfraccion.nombreEstatus === "SOLVENTADA_SIN_PAGO") {
+    if (!item.tipoProcedimiento.permiteRetencion) {
+      return "PAGADA_SIN_RETENCION";
+    }
+
+    if (item.retencion && !item.liberacion?.tieneLiberacion) {
+      return "PAGADO_PENDIENTE_LIBERACION";
+    }
+  }
+
+  return item.estadoOperativoCalculado;
+}
+
 function getOperationalDetail(item: InfraccionListItem): string {
-  switch (item.estadoOperativoCalculado) {
+  const estadoOperativo = getEstadoOperativoEfectivo(item);
+  const solventadaSinPago =
+    item.estatusInfraccion.nombreEstatus === "SOLVENTADA_SIN_PAGO";
+
+  switch (estadoOperativo) {
     case "SIN_RETENCION":
       return item.tipoProcedimiento.permiteRetencion
         ? "Ingreso a encierro pendiente"
         : "Sin retencion por tipo de expediente";
     case "PAGADA_SIN_RETENCION":
-      return "Flujo completado sin retencion";
+      return solventadaSinPago
+        ? "Solventada sin pago"
+        : "Flujo completado sin retencion";
     case "EN_ENCIERRO_SIN_PAGO":
       return "Vehiculo en resguardo";
     case "PAGADO_PENDIENTE_LIBERACION":
+      if (solventadaSinPago) {
+        return "Solventacion sin pago registrada";
+      }
       return item.pago?.montoPagado
         ? `Pago registrado por ${formatCurrencyMxn(item.pago.montoPagado)}`
         : "Pago registrado";
@@ -193,8 +235,61 @@ function getOperationalDetail(item: InfraccionListItem): string {
   }
 }
 
-function getNextOperation(item: InfraccionListItem): NextOperation {
-  switch (item.estadoOperativoCalculado) {
+function getNextOperation(item: InfraccionListItem, roleName?: string): NextOperation {
+  const role = roleName?.toUpperCase();
+  const tieneSalida = item.salida?.tieneSalida === true;
+  const tieneLiberacion = item.liberacion?.tieneLiberacion === true;
+  const tieneRespaldoAdministrativo =
+    item.pago?.tienePago === true ||
+    item.pago?.tieneSolventacionSinPago === true ||
+    item.estatusInfraccion.nombreEstatus === "SOLVENTADA_SIN_PAGO";
+
+  // El vehículo ya salió: solo se permite completar lo administrativo.
+  // No ofrece una segunda entrega ni reabre el estado físico.
+  if (
+    tieneSalida &&
+    !tieneLiberacion &&
+    ["INFRACCIONES", "ADMIN", "OPERADOR", "LIBERACIONES"].includes(role ?? "")
+  ) {
+    if (!tieneRespaldoAdministrativo) {
+      return role === "LIBERACIONES"
+        ? {
+            type: null,
+            label: "Pago pendiente",
+            helper: "Infracciones debe registrar el pago; vehículo ya entregado",
+            disabled: true,
+          }
+        : {
+            type: "pago",
+            label: "Registrar pago pendiente",
+            helper: "Regularización administrativa; vehículo ya entregado",
+          };
+    }
+
+    const folio = item.salida?.folioLiberacionPresentado?.trim();
+    return {
+      type: "liberacion",
+      label: "Autorizar liberacion pendiente",
+      helper: folio
+        ? `Vehículo entregado · Folio documental: ${folio}`
+        : "Vehículo entregado · Verificar el folio documental presentado",
+    };
+  }
+
+  if (
+    role === "ENCIERRO" &&
+    item.retencion?.idRetencionVehiculo &&
+    !item.salida?.tieneSalida &&
+    !item.liberacion?.tieneLiberacion &&
+    getEstadoOperativoEfectivo(item) !== "VEHICULO_ENTREGADO"
+  ) {
+    return {
+      type: "salida",
+      label: "Registrar salida anticipada",
+      helper: "Cotejar placas, datos generales y documento de liberacion",
+    };
+  }
+  switch (getEstadoOperativoEfectivo(item)) {
     case "SIN_RETENCION":
       if (!item.tipoProcedimiento.permiteRetencion) {
         return {
@@ -213,7 +308,10 @@ function getNextOperation(item: InfraccionListItem): NextOperation {
       return {
         type: null,
         label: "Completado",
-        helper: "Flujo completado sin retencion",
+        helper:
+          item.estatusInfraccion.nombreEstatus === "SOLVENTADA_SIN_PAGO"
+            ? "Infraccion solventada sin pago"
+            : "Flujo completado sin retencion",
         disabled: true,
       };
     case "EN_ENCIERRO_SIN_PAGO":
@@ -226,7 +324,10 @@ function getNextOperation(item: InfraccionListItem): NextOperation {
       return {
         type: "liberacion",
         label: "Autorizar liberacion",
-        helper: "Liberaciones debe emitir la autorizacion",
+        helper:
+          item.estatusInfraccion.nombreEstatus === "SOLVENTADA_SIN_PAGO"
+            ? "Expediente solventado sin pago"
+            : "Liberaciones debe emitir la autorizacion",
       };
     case "LIBERADO_PENDIENTE_SALIDA":
       return {
@@ -308,6 +409,7 @@ function InfraccionesListPage({
   catalogs,
   refreshKey,
   token,
+  roleName,
   onNavigateCreate,
 }: InfraccionesListPageProps) {
   const [draftFilters, setDraftFilters] =
@@ -323,10 +425,30 @@ function InfraccionesListPage({
     null,
   );
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
+  const [conceptSuggestions, setConceptSuggestions] = useState<
+    ConceptoPagoOption[]
+  >([]);
+  const [conceptSearchLoading, setConceptSearchLoading] = useState(false);
+  const [conceptSearchError, setConceptSearchError] = useState(false);
+  const puedeConsultarObservaciones =
+    roleName?.toUpperCase() === "INFRACCIONES" ||
+    roleName?.toUpperCase() === "ADMIN";
+  const [consultandoObservacionId, setConsultandoObservacionId] = useState<number | null>(null);
+  const [observacionesError, setObservacionesError] = useState<string | null>(null);
+  const [observacionSeleccionada, setObservacionSeleccionada] =
+    useState<ObservacionPendienteItem | null>(null);
+  const [resultadoObservacion, setResultadoObservacion] = useState<string | null>(null);
 
   const query = useMemo(() => buildQuery(activeFilters), [activeFilters]);
   const meta: PaginationMeta | null = state.data?.meta ?? null;
   const items = state.data?.data ?? [];
+  const conceptSuggestionKeys = useMemo(
+    () =>
+      Array.from(
+        new Set(conceptSuggestions.map((concepto) => concepto.claveConcepto)),
+      ),
+    [conceptSuggestions],
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -369,6 +491,42 @@ function InfraccionesListPage({
       mounted = false;
     };
   }, [query, refreshKey, localRefreshKey, token]);
+
+  useEffect(() => {
+    const conceptQuery = draftFilters.claveConcepto.trim();
+    if (!conceptQuery) {
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      setConceptSearchLoading(true);
+      setConceptSearchError(false);
+
+      void findConceptosPago(token, conceptQuery, 20)
+        .then((result) => {
+          if (!cancelled) {
+            setConceptSuggestions(result);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setConceptSuggestions([]);
+            setConceptSearchError(true);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setConceptSearchLoading(false);
+          }
+        });
+    }, 220);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [draftFilters.claveConcepto, token]);
 
   useEffect(() => {
     const detailId = selectedId;
@@ -423,6 +581,17 @@ function InfraccionesListPage({
     }));
   }
 
+  function updateConceptFilter(value: string): void {
+    const normalized = value.toUpperCase();
+    updateDraftField("claveConcepto", normalized);
+
+    if (!normalized.trim()) {
+      setConceptSuggestions([]);
+      setConceptSearchError(false);
+      setConceptSearchLoading(false);
+    }
+  }
+
   function applyFilters(event?: FormEvent<HTMLFormElement>): void {
     event?.preventDefault();
     const nextFilters = {
@@ -437,6 +606,9 @@ function InfraccionesListPage({
   function resetFilters(): void {
     setDraftFilters(DEFAULT_FILTERS);
     setActiveFilters(DEFAULT_FILTERS);
+    setConceptSuggestions([]);
+    setConceptSearchError(false);
+    setConceptSearchLoading(false);
   }
 
   function applyQuickStatusFilter(value: EstadoOperativoVehiculo | ""): void {
@@ -475,6 +647,9 @@ function InfraccionesListPage({
     type: InfraccionOperacionTipo,
     item: InfraccionListItem,
   ): void {
+    if (!canPerformOperationForRole(roleName, type)) {
+      return;
+    }
     setOperationState({ type, item });
   }
 
@@ -487,8 +662,56 @@ function InfraccionesListPage({
     setLocalRefreshKey((current) => current + 1);
   }
 
+  async function abrirAtencionObservacion(item: InfraccionListItem): Promise<void> {
+    if (!puedeConsultarObservaciones || !item.cantidadObservacionesPendientes) {
+      return;
+    }
+    setObservacionesError(null);
+    setConsultandoObservacionId(item.idInfraccion);
+    try {
+      // La consulta filtrada evita perder observaciones por paginacion global.
+      const respuesta = await getObservacionesPendientes(token, 1, 1, item.idInfraccion);
+      const observacion = respuesta.data[0];
+      if (!observacion) {
+        setObservacionesError('La observación ya fue atendida. Se actualizará el listado.');
+        setLocalRefreshKey((actual) => actual + 1);
+        return;
+      }
+      setObservacionSeleccionada(observacion);
+      setResultadoObservacion(null);
+    } catch (cause) {
+      setObservacionesError(getErrorMessage(cause));
+    } finally {
+      setConsultandoObservacionId(null);
+    }
+  }
+
+  function cerrarAtencionObservacion(): void {
+    setObservacionSeleccionada(null);
+  }
+
+  function completarAtencionObservacion(resultado: ResolverObservacionResponse): void {
+    setObservacionSeleccionada(null);
+    setResultadoObservacion(
+      'Observación ' + resultado.idObservacion + ' ' +
+      (resultado.estatus === 'CORREGIDA'
+        ? 'corregida correctamente.'
+        : 'rechazada con justificación.'),
+    );
+    setLocalRefreshKey((actual) => actual + 1);
+  }
+
   function renderNextActionCell(item: InfraccionListItem) {
-    const nextOperation = getNextOperation(item);
+    const nextOperation = getNextOperation(item, roleName);
+
+    if (nextOperation.type && !canPerformOperationForRole(roleName, nextOperation.type)) {
+      return (
+        <div className="table-cell-stack">
+          <strong>Pendiente: {nextOperation.label.toLowerCase()}</strong>
+          <PendingText>{nextOperation.helper}</PendingText>
+        </div>
+      );
+    }
 
     if (!nextOperation.type || nextOperation.disabled) {
       return (
@@ -532,12 +755,19 @@ function InfraccionesListPage({
           </p>
         </div>
 
-        <div className="button-row">
-          <Button variant="primary" type="button" onClick={onNavigateCreate}>
-            Nueva infraccion
-          </Button>
-        </div>
+        {roleName?.toUpperCase() !== "ENCIERRO" ? (
+          <div className="button-row">
+            <Button variant="primary" type="button" onClick={onNavigateCreate}>
+              Nueva infraccion
+            </Button>
+          </div>
+        ) : null}
       </header>
+
+      {resultadoObservacion ? (
+        <div className="notice" role="status">{resultadoObservacion}</div>
+      ) : null}
+      <ErrorMessage message={observacionesError} />
 
       <Card>
         <form className="page-stack" onSubmit={applyFilters}>
@@ -669,6 +899,36 @@ function InfraccionesListPage({
           </div>
 
           <div className="form-grid form-grid-3">
+            <Field
+              htmlFor="infracciones-clave-concepto"
+              label="Clave de concepto"
+            >
+              <TextInput
+                id="infracciones-clave-concepto"
+                type="text"
+                list="infracciones-conceptos-sugerencias"
+                value={draftFilters.claveConcepto}
+                onChange={(event) => updateConceptFilter(event.target.value)}
+                placeholder="Todas / buscar clave"
+                maxLength={50}
+                autoComplete="off"
+              />
+              <datalist id="infracciones-conceptos-sugerencias">
+                {conceptSuggestionKeys.map((clave) => (
+                  <option key={clave} value={clave} />
+                ))}
+              </datalist>
+              <small>
+                {conceptSearchLoading
+                  ? "Buscando claves..."
+                  : conceptSearchError
+                    ? "No se pudieron consultar coincidencias."
+                    : draftFilters.claveConcepto.trim()
+                      ? `${conceptSuggestionKeys.length} coincidencia(s).`
+                      : "Todas las claves"}
+              </small>
+            </Field>
+
             <Field
               htmlFor="infracciones-estatus"
               label="Estatus administrativo"
@@ -806,7 +1066,23 @@ function InfraccionesListPage({
                     <tr key={item.idInfraccion}>
                       <td>
                         <div className="table-cell-stack">
-                          <strong>{item.folioInfraccion}</strong>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                            <strong>{item.folioInfraccion}</strong>
+                            {puedeConsultarObservaciones &&
+                              (item.cantidadObservacionesPendientes ?? 0) > 0 ? (
+                                <Button
+                                  type="button"
+                                  variant="link"
+                                  title="Revisar observaciones pendientes"
+                                  aria-label={`Revisar ${item.cantidadObservacionesPendientes} observaciones pendientes del expediente ${item.folioInfraccion}`}
+                                  disabled={consultandoObservacionId === item.idInfraccion}
+                                  onClick={() => { void abrirAtencionObservacion(item); }}
+                                >
+                                  <span aria-hidden="true">🔔</span>
+                                  <span>{item.cantidadObservacionesPendientes}</span>
+                                </Button>
+                              ) : null}
+                          </div>
                           <span>{formatDate(item.fechaInfraccion)}</span>
                           <span>{formatTimeOfDay(item.horaInfraccion)}</span>
                         </div>
@@ -840,7 +1116,7 @@ function InfraccionesListPage({
                       </td>
                       <td>
                         <div className="table-cell-stack">
-                          <StatusBadge value={item.estadoOperativoCalculado} />
+                          <StatusBadge value={getEstadoOperativoEfectivo(item)} />
                           <span>{getOperationalDetail(item)}</span>
                         </div>
                       </td>
@@ -873,6 +1149,16 @@ function InfraccionesListPage({
         </div>
       </Card>
 
+      {observacionSeleccionada ? (
+        <ObservacionAtencionModal
+          open
+          observacion={observacionSeleccionada}
+          token={token}
+          onClose={cerrarAtencionObservacion}
+          onCompleted={completarAtencionObservacion}
+        />
+      ) : null}
+
       <InfraccionDetalleModal
         open={selectedId !== null}
         loading={detailState.status === "loading"}
@@ -887,6 +1173,7 @@ function InfraccionesListPage({
         open={operationState !== null}
         token={token}
         type={operationState?.type ?? null}
+        roleName={roleName}
         onClose={closeOperation}
         onCompleted={completeOperation}
       />

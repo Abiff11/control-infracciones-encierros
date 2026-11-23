@@ -61,7 +61,7 @@ function normalizeFileName(value: string): string {
   );
 }
 
-function downloadBlob(blob: Blob, fileName: string): void {
+export function downloadBlob(blob: Blob, fileName: string): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -70,6 +70,28 @@ function downloadBlob(blob: Blob, fileName: string): void {
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
+}
+
+export function buildInfraccionesExcelFileName({
+  fechaFin,
+  fechaInicio,
+}: {
+  fechaInicio?: string;
+  fechaFin?: string;
+}): string {
+  if (fechaInicio && fechaFin) {
+    return `reporte-infracciones-${fechaInicio}-${fechaFin}.xlsx`;
+  }
+
+  if (fechaInicio) {
+    return `reporte-infracciones-desde-${fechaInicio}.xlsx`;
+  }
+
+  if (fechaFin) {
+    return `reporte-infracciones-hasta-${fechaFin}.xlsx`;
+  }
+
+  return `reporte-infracciones-completo-${formatDateInput()}.xlsx`;
 }
 
 function buildReportHtml(payload: InfraccionesReportPayload): string {
@@ -110,17 +132,6 @@ ${bodyRows}
 </table>
 </body>
 </html>`;
-}
-
-export function downloadInfraccionesExcelReport(payload: InfraccionesReportPayload): void {
-  const reportDate = formatDateInput();
-
-  downloadBlob(
-    new Blob([`\ufeff${buildReportHtml(payload)}`], {
-      type: 'application/vnd.ms-excel;charset=utf-8',
-    }),
-    `${normalizeFileName(payload.title)}-${reportDate}.xls`,
-  );
 }
 
 export function downloadInfraccionesPdfReport(payload: InfraccionesReportPayload): void {

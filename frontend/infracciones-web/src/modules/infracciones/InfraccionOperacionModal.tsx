@@ -1,3 +1,4 @@
+import { canPerformOperationForRole } from "../../app/navigation-access";
 import {
   useEffect,
   useMemo,
@@ -15,9 +16,13 @@ import { getErrorMessage } from "../../services/api/apiClient";
 import {
   createRetencion,
   createSalida,
+  createSalidaAnticipada,
 } from "../../services/api/encierros.api";
 import { createLiberacion } from "../../services/api/liberaciones.api";
-import { createPago } from "../../services/api/pagos.api";
+import {
+  createNoAplicaPago,
+  createPago,
+} from "../../services/api/pagos.api";
 import {
   formatDate,
   formatEmptyValue,
@@ -33,9 +38,11 @@ import type { CatalogosBundle } from "../../types/catalogos.types";
 import type { InfraccionListItem } from "../../types/infracciones.types";
 import type {
   GenerarLiberacionPayload,
+  RegistrarNoAplicaPagoPayload,
   RegistrarPagoPayload,
   RegistrarRetencionPayload,
   RegistrarSalidaPayload,
+  RegistrarSalidaAnticipadaPayload,
 } from "../../types/operaciones.types";
 import {
   createEmptyPagoConceptoRow,
@@ -45,7 +52,10 @@ import {
 import "./InfraccionOperacionModal.css";
 
 export type InfraccionOperacionTipo =
-  "retencion" | "pago" | "liberacion" | "salida";
+  | "retencion"
+  | "pago"
+  | "liberacion"
+  | "salida";
 
 interface InfraccionOperacionModalProps {
   catalogs: CatalogosBundle | null;
@@ -53,6 +63,7 @@ interface InfraccionOperacionModalProps {
   open: boolean;
   token: string;
   type: InfraccionOperacionTipo | null;
+  roleName?: string;
   onClose: () => void;
   onCompleted: () => void;
 }
@@ -82,6 +93,21 @@ interface OperationFormState {
   fechaSalida: string;
   estadoSalida: string;
   observacionesSalida: string;
+  folioLiberacionPresentado: string;
+  placasCotejadas: string;
+  marcaCotejada: string;
+  lineaCotejada: string;
+  claseCotejada: string;
+  colorCotejado: string;
+  anioModeloCotejado: string;
+  estadoPlacasCotejado: string;
+  serieCotejada: string;
+  motorCotejado: string;
+  nombrePropietarioDeclarado: string;
+  autorizacionDocumentalVerificada: boolean;
+  reportarDiferencia: boolean;
+  motivoDiferencia: string;
+  evidenciaDiferencia: string;
 }
 
 function toNullableString(value: string): string | null {
@@ -105,8 +131,15 @@ function toMoney(value: string): string {
 
 function createInitialForm(
   type: InfraccionOperacionTipo | null,
+  item: InfraccionListItem | null,
 ): OperationFormState {
   const now = formatDateTimeLocalInput();
+  const vehiculoParaCotejo =
+    type === "salida" &&
+    Boolean(item?.retencion?.idRetencionVehiculo) &&
+    !item?.liberacion?.tieneLiberacion
+      ? item?.vehiculo
+      : null;
 
   return {
     idEncierro: "",
@@ -127,7 +160,82 @@ function createInitialForm(
     fechaSalida: now,
     estadoSalida: type === "salida" ? "ENTREGADO" : "",
     observacionesSalida: "",
+    folioLiberacionPresentado: "",
+    placasCotejadas: vehiculoParaCotejo?.placas ?? "",
+    marcaCotejada: vehiculoParaCotejo?.marca ?? "",
+    lineaCotejada: vehiculoParaCotejo?.linea ?? "",
+    claseCotejada: vehiculoParaCotejo?.clase ?? "",
+    colorCotejado: vehiculoParaCotejo?.color ?? "",
+    anioModeloCotejado: vehiculoParaCotejo?.anioModelo == null
+      ? ""
+      : String(vehiculoParaCotejo.anioModelo),
+    estadoPlacasCotejado: vehiculoParaCotejo?.estadoPlacas ?? "",
+    serieCotejada: vehiculoParaCotejo?.serie ?? "",
+    motorCotejado: vehiculoParaCotejo?.motor ?? "",
+    nombrePropietarioDeclarado: "",
+    autorizacionDocumentalVerificada: false,
+    reportarDiferencia: false,
+    motivoDiferencia: "",
+    evidenciaDiferencia: "",
   };
+}
+
+
+interface DiferenciaCotejo {
+  campo: "PLACAS" | "MARCA" | "LINEA" | "CLASE" | "COLOR" | "ANIO_MODELO" |
+    "ESTADO_PLACAS" | "SERIE" | "MOTOR";
+  etiqueta: string;
+  registrado: string;
+  reportado: string;
+}
+
+function normalizarCotejo(value: string | number): string {
+  return String(value).normalize("NFKC").trim().replace(/\s+/gu, " ").toUpperCase();
+}
+
+function normalizarPlacas(value: string | number): string {
+  return normalizarCotejo(value).replace(/[\s-]/gu, "");
+}
+
+/** Compara los nueve campos con las mismas reglas del servicio NestJS. */
+function analizarCotejo(
+  item: InfraccionListItem,
+  form: OperationFormState,
+): DiferenciaCotejo[] {
+  const campos: Array<{
+    campo: DiferenciaCotejo["campo"];
+    etiqueta: string;
+    valor: string;
+    registrado: string | number | null | undefined;
+  }> = [
+    { campo: "PLACAS", etiqueta: "Placas", valor: form.placasCotejadas, registrado: item.vehiculo.placas },
+    { campo: "MARCA", etiqueta: "Marca", valor: form.marcaCotejada, registrado: item.vehiculo.marca },
+    { campo: "LINEA", etiqueta: "Línea", valor: form.lineaCotejada, registrado: item.vehiculo.linea },
+    { campo: "CLASE", etiqueta: "Clase", valor: form.claseCotejada, registrado: item.vehiculo.clase },
+    { campo: "COLOR", etiqueta: "Color", valor: form.colorCotejado, registrado: item.vehiculo.color },
+    { campo: "ANIO_MODELO", etiqueta: "Año modelo", valor: form.anioModeloCotejado, registrado: item.vehiculo.anioModelo },
+    { campo: "ESTADO_PLACAS", etiqueta: "Estado de placas", valor: form.estadoPlacasCotejado, registrado: item.vehiculo.estadoPlacas },
+    { campo: "SERIE", etiqueta: "Número de serie", valor: form.serieCotejada, registrado: item.vehiculo.serie },
+    { campo: "MOTOR", etiqueta: "Número de motor", valor: form.motorCotejado, registrado: item.vehiculo.motor },
+  ];
+
+  return campos.flatMap(({ campo, etiqueta, valor, registrado }) => {
+    if (!valor.trim()) {
+      return [];
+    }
+    const valorRegistrado = registrado == null ? "" : String(registrado).trim();
+    const coinciden = valorRegistrado !== "" && (
+      campo === "PLACAS"
+        ? normalizarPlacas(valor) === normalizarPlacas(valorRegistrado)
+        : normalizarCotejo(valor) === normalizarCotejo(valorRegistrado)
+    );
+    return coinciden ? [] : [{
+      campo,
+      etiqueta,
+      registrado: valorRegistrado || "SIN DATO",
+      reportado: valor.trim(),
+    }];
+  });
 }
 
 function getOperationCopy(type: InfraccionOperacionTipo | null): OperationCopy {
@@ -142,13 +250,14 @@ function getOperationCopy(type: InfraccionOperacionTipo | null): OperationCopy {
       return {
         title: "Registrar pago",
         description:
-          "Registra el folio de la linea de captura y sus claves de concepto.",
+          "Registra la linea de captura o solventa la infraccion mediante No aplica pago.",
         submitLabel: "Guardar pago",
       };
     case "liberacion":
       return {
         title: "Generar liberacion",
-        description: "Genera la liberacion del vehiculo despues del pago.",
+        description:
+          "Genera la liberacion del vehiculo cuando el expediente fue pagado o solventado sin pago.",
         submitLabel: "Guardar liberacion",
       };
     case "salida":
@@ -194,6 +303,8 @@ function OperationSummary({ item }: { item: InfraccionListItem }) {
         <span>{formatTimeOfDay(item.horaInfraccion)}</span>
         <span>Placas: {formatEmptyValue(item.vehiculo.placas)}</span>
         <span>{getVehicleLabel(item)}</span>
+        <span>Color: {formatEmptyValue(item.vehiculo.color)}</span>
+        <span>Año modelo: {formatEmptyValue(item.vehiculo.anioModelo == null ? null : String(item.vehiculo.anioModelo))}</span>
       </div>
 
       <StatusBadge value={item.estadoOperativoCalculado} />
@@ -202,21 +313,35 @@ function OperationSummary({ item }: { item: InfraccionListItem }) {
 }
 
 function FormActions({
+  alternateLabel,
   disabled,
+  onAlternate,
   onClose,
   saving,
   submitLabel,
 }: {
+  alternateLabel?: string;
   disabled: boolean;
+  onAlternate?: () => void;
   onClose: () => void;
   saving: boolean;
   submitLabel: string;
 }) {
   return (
     <div className="operation-modal-actions">
-      <Button type="button" variant="secondary" onClick={onClose}>
+      <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>
         Cancelar
       </Button>
+      {alternateLabel && onAlternate ? (
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onAlternate}
+          disabled={saving}
+        >
+          {alternateLabel}
+        </Button>
+      ) : null}
       <Button type="submit" variant="primary" disabled={disabled || saving}>
         {saving ? "Guardando..." : submitLabel}
       </Button>
@@ -228,6 +353,10 @@ function RequiredNote({ children }: { children: ReactNode }) {
   return <p className="operation-modal-note">{children}</p>;
 }
 
+function isSolventadaSinPago(item: InfraccionListItem | null): boolean {
+  return item?.estatusInfraccion.nombreEstatus === "SOLVENTADA_SIN_PAGO";
+}
+
 export function InfraccionOperacionModal({
   catalogs,
   item,
@@ -236,14 +365,17 @@ export function InfraccionOperacionModal({
   open,
   token,
   type,
+  roleName,
 }: InfraccionOperacionModalProps) {
   const copy = useMemo(() => getOperationCopy(type), [type]);
   const [form, setForm] = useState<OperationFormState>(() =>
-    createInitialForm(type),
+    createInitialForm(type, item),
   );
   const [pagoConceptos, setPagoConceptos] = useState<PagoConceptoFormRow[]>([
     createEmptyPagoConceptoRow(),
   ]);
+  const [noAplicaPago, setNoAplicaPago] = useState(false);
+  const [motivoNoAplica, setMotivoNoAplica] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -260,19 +392,38 @@ export function InfraccionOperacionModal({
     [pagoConceptos],
   );
   const permiteRetencion = item?.tipoProcedimiento.permiteRetencion ?? true;
+  const isSalidaAnticipada =
+    type === "salida" &&
+    Boolean(item?.retencion?.idRetencionVehiculo) &&
+    !item?.liberacion?.tieneLiberacion;
+  const diferenciasCotejo = isSalidaAnticipada && item
+    ? analizarCotejo(item, form)
+    : [];
 
   useEffect(() => {
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setForm(createInitialForm(type));
+      setForm(createInitialForm(type, item));
       setPagoConceptos([createEmptyPagoConceptoRow()]);
+      setNoAplicaPago(false);
+      setMotivoNoAplica("");
       setSaving(false);
       setError(null);
     }
-  }, [open, type]);
+  }, [open, type, item]);
 
   function updateField(field: keyof OperationFormState, value: string): void {
     setForm((current) => ({ ...current, [field]: value }));
+    setError(null);
+  }
+
+  function updateReporteDiferencia(checked: boolean): void {
+    setForm((current) => ({ ...current, reportarDiferencia: checked }));
+    setError(null);
+  }
+
+  function updateAutorizacionDocumental(checked: boolean): void {
+    setForm((current) => ({ ...current, autorizacionDocumentalVerificada: checked }));
     setError(null);
   }
 
@@ -281,9 +432,23 @@ export function InfraccionOperacionModal({
     setError(null);
   }
 
+  function toggleNoAplicaPago(): void {
+    setNoAplicaPago((current) => !current);
+    setMotivoNoAplica("");
+    setError(null);
+  }
+
   function getValidationError(): string | null {
     if (!item || !type) {
       return "No hay expediente seleccionado.";
+    }
+
+    if (!canPerformOperationForRole(roleName, type)) {
+      return "El rol ENCIERRO solo puede registrar salidas vehiculares.";
+    }
+
+    if (isSalidaAnticipada && roleName?.toUpperCase() !== "ENCIERRO") {
+      return "Solo el rol ENCIERRO puede registrar salidas anticipadas.";
     }
 
     if (type === "retencion") {
@@ -305,6 +470,14 @@ export function InfraccionOperacionModal({
     }
 
     if (type === "pago") {
+      if (noAplicaPago) {
+        if (motivoNoAplica.trim().length < 3) {
+          return "Escribe el motivo por el que no aplica pago.";
+        }
+
+        return null;
+      }
+
       if (!form.folioPago.trim()) {
         return "Captura el folio de la linea de captura.";
       }
@@ -340,10 +513,6 @@ export function InfraccionOperacionModal({
     }
 
     if (type === "liberacion") {
-      if (!item.pago?.idPagoInfraccion) {
-        return "No se encontro el pago asociado. Actualiza el listado e intenta de nuevo.";
-      }
-
       if (!form.folioLiberacion.trim()) {
         return "Captura el folio de liberacion.";
       }
@@ -354,23 +523,140 @@ export function InfraccionOperacionModal({
     }
 
     if (type === "salida") {
-      if (
-        !item.retencion?.idRetencionVehiculo ||
-        !item.liberacion?.idLiberacionVehiculo
-      ) {
-        return "No se encontraron los datos tecnicos de retencion/liberacion. Actualiza el listado.";
+      if (!item.retencion?.idRetencionVehiculo || item.salida?.tieneSalida) {
+        return "No existe una retencion disponible para registrar salida.";
       }
-
       if (!form.validadoPor.trim() || !form.personaRecibeVehiculo.trim()) {
         return "Captura quien valida y quien recibe el vehiculo.";
       }
-
-      if (!form.estadoSalida.trim()) {
-        return "Captura el estado de salida.";
+      if (isSalidaAnticipada) {
+        if (!form.folioLiberacionPresentado.trim() ||
+            !form.nombrePropietarioDeclarado.trim()) {
+          return "Captura el folio de liberación presentado y el propietario del vehículo.";
+        }
+        if (!form.placasCotejadas.trim()) {
+          return "Escribe las placas verificadas fisicamente.";
+        }
+        if (form.anioModeloCotejado.trim() &&
+            (!/^[0-9]{4}$/u.test(form.anioModeloCotejado.trim()) ||
+              Number(form.anioModeloCotejado) < 1900 ||
+              Number(form.anioModeloCotejado) > 2100)) {
+          return "Captura un año modelo valido.";
+        }
+        if (diferenciasCotejo.length > 0) {
+          if (!form.reportarDiferencia) {
+            return "Confirma que reportarás las diferencias a Infracciones.";
+          }
+          if (!form.motivoDiferencia.trim() || !form.evidenciaDiferencia.trim()) {
+            return "Describe las diferencias y la referencia de evidencia.";
+          }
+        }
+        if (!form.autorizacionDocumentalVerificada) {
+          return "Confirma que verificaste la autorizacion documental.";
+        }
+      } else {
+        if (!item.liberacion?.idLiberacionVehiculo ||
+            !item.liberacion.folioLiberacion?.trim()) {
+          return "No se encontro la liberacion electronica vigente.";
+        }
+        if (!form.estadoSalida.trim()) {
+          return "Captura el estado de salida.";
+        }
       }
     }
 
     return null;
+  }
+
+  async function submitPago(currentItem: InfraccionListItem): Promise<boolean> {
+    if (noAplicaPago) {
+      const motivo = motivoNoAplica.trim();
+      const confirmed = await confirmAction({
+        title: "Solventar sin pago",
+        text: `La infraccion ${currentItem.folioInfraccion} quedara solventada sin linea de captura ni ingreso registrado. Motivo: ${motivo}`,
+        confirmButtonText: "Confirmar no aplica pago",
+        cancelButtonText: "Seguir editando",
+      });
+
+      if (!confirmed) {
+        return false;
+      }
+
+      setSaving(true);
+      setError(null);
+
+      const payload: RegistrarNoAplicaPagoPayload = {
+        idInfraccion: currentItem.idInfraccion,
+        motivo,
+      };
+      await createNoAplicaPago(token, payload);
+      return true;
+    }
+
+    const confirmed = await confirmAction({
+      title: "Registrar pago",
+      text: `Vas a registrar la linea de captura ${form.folioPago.trim()} del expediente ${currentItem.folioInfraccion} por ${montoTotalPago}.`,
+      confirmButtonText: "Registrar pago",
+      cancelButtonText: "Seguir editando",
+    });
+
+    if (!confirmed) {
+      return false;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    const payload: RegistrarPagoPayload = {
+      idInfraccion: currentItem.idInfraccion,
+      folioLineaCaptura: form.folioPago.trim(),
+      conceptos: pagoConceptos.map((concepto) => ({
+        claveConcepto: concepto.claveConcepto.trim().toUpperCase(),
+        monto: toMoney(concepto.monto),
+      })),
+      fechaPago: toIsoDateTime(form.fechaPago),
+      observaciones: toNullableString(form.observacionesPago),
+    };
+    await createPago(token, payload);
+    return true;
+  }
+
+  async function submitLiberacion(
+    currentItem: InfraccionListItem,
+  ): Promise<boolean> {
+    const idPagoInfraccion = currentItem.pago?.idPagoInfraccion ?? null;
+    const usingNoAplica = !idPagoInfraccion && isSolventadaSinPago(currentItem);
+    const respaldo = idPagoInfraccion
+      ? `el pago ${idPagoInfraccion}`
+      : usingNoAplica
+        ? "la solventacion No aplica pago"
+        : "el respaldo operativo disponible";
+
+    const confirmed = await confirmAction({
+      title: "Generar liberación",
+      text: `Vas a generar la liberación del expediente ${currentItem.folioInfraccion} usando ${respaldo}.`,
+      confirmButtonText: "Generar liberación",
+      cancelButtonText: "Seguir editando",
+    });
+
+    if (!confirmed) {
+      return false;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    const payload: GenerarLiberacionPayload = {
+      idInfraccion: currentItem.idInfraccion,
+      ...(idPagoInfraccion ? { idPagoInfraccion } : {}),
+      folioLiberacion: form.folioLiberacion.trim(),
+      liberadoPor: form.liberadoPor.trim(),
+      nombreRecibeLiberacion: null,
+      fechaLiberacion: toIsoDateTime(form.fechaLiberacion),
+      observacion: toNullableString(form.observacionLiberacion),
+    };
+    await createLiberacion(token, payload);
+    return true;
   }
 
   async function handleSubmit(
@@ -385,6 +671,8 @@ export function InfraccionOperacionModal({
     }
 
     try {
+      let completed = false;
+
       if (type === "retencion") {
         const confirmed = await confirmAction({
           title: "Registrar retención",
@@ -410,71 +698,70 @@ export function InfraccionOperacionModal({
           observacionesIngreso: toNullableString(form.observacionesIngreso),
         };
         await createRetencion(token, payload);
+        completed = true;
       }
 
       if (type === "pago") {
-        const confirmed = await confirmAction({
-          title: "Registrar pago",
-          text: `Vas a registrar la linea de captura ${form.folioPago.trim()} del expediente ${item.folioInfraccion} por ${montoTotalPago}.`,
-          confirmButtonText: "Registrar pago",
-          cancelButtonText: "Seguir editando",
-        });
-
-        if (!confirmed) {
-          return;
-        }
-
-        setSaving(true);
-        setError(null);
-
-        const payload: RegistrarPagoPayload = {
-          idInfraccion: item.idInfraccion,
-          folioLineaCaptura: form.folioPago.trim(),
-          conceptos: pagoConceptos.map((concepto) => ({
-            claveConcepto: concepto.claveConcepto.trim().toUpperCase(),
-            monto: toMoney(concepto.monto),
-          })),
-          fechaPago: toIsoDateTime(form.fechaPago),
-          observaciones: toNullableString(form.observacionesPago),
-        };
-        await createPago(token, payload);
+        completed = await submitPago(item);
       }
 
-      if (type === "liberacion" && item.pago?.idPagoInfraccion) {
+      if (type === "liberacion") {
+        completed = await submitLiberacion(item);
+      }
+
+      if (type === "salida" && isSalidaAnticipada && item.retencion?.idRetencionVehiculo) {
         const confirmed = await confirmAction({
-          title: "Generar liberación",
-          text: `Vas a generar la liberación del expediente ${item.folioInfraccion} usando el pago ${item.pago.idPagoInfraccion}.`,
-          confirmButtonText: "Generar liberación",
+          title: "Registrar salida anticipada",
+          text: `Vas a entregar el vehículo del expediente ${item.folioInfraccion} sin liberación electrónica. Folio presentado: ${form.folioLiberacionPresentado.trim()}.${diferenciasCotejo.length > 0 ? ` Se registrarán ${diferenciasCotejo.length} observaciones pendientes para Infracciones, sin cambiar los datos originales.` : ""}`,
+          confirmButtonText: "Registrar salida anticipada",
           cancelButtonText: "Seguir editando",
         });
-
         if (!confirmed) {
           return;
         }
-
         setSaving(true);
         setError(null);
-
-        const payload: GenerarLiberacionPayload = {
-          idInfraccion: item.idInfraccion,
-          idPagoInfraccion: item.pago.idPagoInfraccion,
-          folioLiberacion: form.folioLiberacion.trim(),
-          liberadoPor: form.liberadoPor.trim(),
-          nombreRecibeLiberacion: null,
-          fechaLiberacion: toIsoDateTime(form.fechaLiberacion),
-          observacion: toNullableString(form.observacionLiberacion),
+        const datos = form;
+        const payload: RegistrarSalidaAnticipadaPayload = {
+          idRetencionVehiculo: item.retencion.idRetencionVehiculo,
+          folioLiberacionPresentado: datos.folioLiberacionPresentado.trim(),
+          placasCotejadas: datos.placasCotejadas.trim(),
+          datosVehiculoCotejados: {
+            ...(datos.marcaCotejada.trim() && { marca: datos.marcaCotejada.trim() }),
+            ...(datos.lineaCotejada.trim() && { linea: datos.lineaCotejada.trim() }),
+            ...(datos.claseCotejada.trim() && { clase: datos.claseCotejada.trim() }),
+            ...(datos.colorCotejado.trim() && { color: datos.colorCotejado.trim() }),
+            ...(datos.anioModeloCotejado.trim() && { anioModelo: Number(datos.anioModeloCotejado.trim()) }),
+            ...(datos.estadoPlacasCotejado.trim() && { estadoPlacas: datos.estadoPlacasCotejado.trim() }),
+            ...(datos.serieCotejada.trim() && { serie: datos.serieCotejada.trim() }),
+            ...(datos.motorCotejado.trim() && { motor: datos.motorCotejado.trim() }),
+          },
+          autorizacionDocumentalVerificada: true,
+          nombrePropietarioDeclarado: datos.nombrePropietarioDeclarado.trim(),
+          validadoPor: datos.validadoPor.trim(),
+          personaRecibeVehiculo: datos.personaRecibeVehiculo.trim(),
+          fechaSalida: toIsoDateTime(datos.fechaSalida),
+          observacionesSalida: toNullableString(datos.observacionesSalida),
+          ...(diferenciasCotejo.length > 0 && {
+            discrepanciaMenor: {
+              motivo: datos.motivoDiferencia.trim(),
+              referenciaEvidencia: datos.evidenciaDiferencia.trim(),
+            },
+          }),
         };
-        await createLiberacion(token, payload);
+        await createSalidaAnticipada(token, payload);
+        completed = true;
       }
 
       if (
         type === "salida" &&
+        !isSalidaAnticipada &&
         item.retencion?.idRetencionVehiculo &&
         item.liberacion?.idLiberacionVehiculo
       ) {
         const confirmed = await confirmAction({
           title: "Registrar salida",
-          text: `Vas a registrar la salida del expediente ${item.folioInfraccion} con la retención ${item.retencion.idRetencionVehiculo} y la liberación ${item.liberacion.idLiberacionVehiculo}.`,
+          text: `Vas a registrar la salida del vehículo correspondiente al expediente de infracción ${item.folioInfraccion}, con folio de liberación ${item.liberacion.folioLiberacion}.`,
           confirmButtonText: "Registrar salida",
           cancelButtonText: "Seguir editando",
         });
@@ -496,9 +783,12 @@ export function InfraccionOperacionModal({
           observacionesSalida: toNullableString(form.observacionesSalida),
         };
         await createSalida(token, payload);
+        completed = true;
       }
 
-      onCompleted();
+      if (completed) {
+        onCompleted();
+      }
     } catch (submissionError) {
       setError(getErrorMessage(submissionError));
     } finally {
@@ -506,7 +796,26 @@ export function InfraccionOperacionModal({
     }
   }
 
+  const operationRestricted = Boolean(
+    type && !canPerformOperationForRole(roleName, type),
+  );
   const canSubmit = getValidationError() === null;
+  const submitLabel =
+    type === "pago" && noAplicaPago
+      ? "Solventar sin pago"
+      : isSalidaAnticipada
+        ? "Registrar salida anticipada"
+        : copy.submitLabel;
+  const alternateLabel =
+    type === "pago"
+      ? noAplicaPago
+        ? "Volver a registrar pago"
+        : "No aplica pago"
+      : undefined;
+
+  if (isSalidaAnticipada && roleName?.toUpperCase() !== "ENCIERRO") {
+    return null;
+  }
 
   return (
     <Modal
@@ -516,6 +825,11 @@ export function InfraccionOperacionModal({
       onClose={onClose}
     >
       {item ? <OperationSummary item={item} /> : null}
+      {operationRestricted ? (
+        <p className="notice notice-error" role="alert">
+          El rol ENCIERRO solo puede registrar salidas vehiculares.
+        </p>
+      ) : null}
 
       <form className="operation-modal-form" onSubmit={handleSubmit}>
         {type === "retencion" ? (
@@ -597,69 +911,95 @@ export function InfraccionOperacionModal({
         ) : null}
 
         {type === "pago" ? (
-          <div className="form-grid form-grid-2">
-            <Field
-              htmlFor="operacion-pago-folio"
-              label="Folio linea de captura"
-            >
-              <TextInput
-                id="operacion-pago-folio"
-                value={form.folioPago}
-                onChange={(event) =>
-                  updateField("folioPago", event.target.value)
-                }
-                required
-              />
-            </Field>
-
-            <Field htmlFor="operacion-pago-fecha" label="Fecha pago">
-              <TextInput
-                id="operacion-pago-fecha"
-                type="datetime-local"
-                value={form.fechaPago}
-                onChange={(event) =>
-                  updateField("fechaPago", event.target.value)
-                }
-              />
-            </Field>
-
-            <div className="field-span-2">
-              <PagoConceptosEditor
-                rows={pagoConceptos}
-                token={token}
-                onChange={updatePagoConceptos}
-              />
+          noAplicaPago ? (
+            <div className="form-stack">
+              <div className="notice">
+                Esta opcion solventa la infraccion sin registrar pago ni ingreso.
+                El motivo quedara asociado al usuario autenticado y al historial
+                del expediente.
+              </div>
+              <div className="field field-span-2">
+                <label htmlFor="operacion-pago-no-aplica-motivo">Motivo *</label>
+                <textarea
+                  id="operacion-pago-no-aplica-motivo"
+                  rows={5}
+                  maxLength={1000}
+                  value={motivoNoAplica}
+                  onChange={(event) => {
+                    setMotivoNoAplica(event.target.value);
+                    setError(null);
+                  }}
+                  placeholder="Describe por que la infraccion no genero linea de captura ni pago."
+                  required
+                />
+              </div>
             </div>
+          ) : (
+            <div className="form-grid form-grid-2">
+              <Field
+                htmlFor="operacion-pago-folio"
+                label="Folio linea de captura"
+              >
+                <TextInput
+                  id="operacion-pago-folio"
+                  value={form.folioPago}
+                  onChange={(event) =>
+                    updateField("folioPago", event.target.value)
+                  }
+                  required
+                />
+              </Field>
 
-            <Field htmlFor="operacion-pago-total" label="Total calculado">
-              <TextInput
-                id="operacion-pago-total"
-                value={montoTotalPago}
-                readOnly
-              />
-            </Field>
+              <Field htmlFor="operacion-pago-fecha" label="Fecha pago">
+                <TextInput
+                  id="operacion-pago-fecha"
+                  type="datetime-local"
+                  value={form.fechaPago}
+                  onChange={(event) =>
+                    updateField("fechaPago", event.target.value)
+                  }
+                />
+              </Field>
 
-            <div className="field field-span-2">
-              <label htmlFor="operacion-pago-observaciones">
-                Observaciones
-              </label>
-              <textarea
-                id="operacion-pago-observaciones"
-                rows={3}
-                value={form.observacionesPago}
-                onChange={(event) =>
-                  updateField("observacionesPago", event.target.value)
-                }
-              />
+              <div className="field-span-2">
+                <PagoConceptosEditor
+                  rows={pagoConceptos}
+                  token={token}
+                  onChange={updatePagoConceptos}
+                />
+              </div>
+
+              <Field htmlFor="operacion-pago-total" label="Total calculado">
+                <TextInput
+                  id="operacion-pago-total"
+                  value={montoTotalPago}
+                  readOnly
+                />
+              </Field>
+
+              <div className="field field-span-2">
+                <label htmlFor="operacion-pago-observaciones">
+                  Observaciones
+                </label>
+                <textarea
+                  id="operacion-pago-observaciones"
+                  rows={3}
+                  value={form.observacionesPago}
+                  onChange={(event) =>
+                    updateField("observacionesPago", event.target.value)
+                  }
+                />
+              </div>
             </div>
-          </div>
+          )
         ) : null}
 
         {type === "liberacion" ? (
           <div className="form-grid form-grid-2">
             <RequiredNote>
-              Se usara automaticamente el pago registrado del expediente. No se
-              muestra el ID tecnico.
+              {item?.pago?.idPagoInfraccion
+                ? "Se usara automaticamente el pago registrado del expediente. No se muestra el ID tecnico."
+                : "Si el expediente fue solventado con No aplica pago, la liberacion usara automaticamente esa solventacion como respaldo."}
             </RequiredNote>
 
             <Field
@@ -723,9 +1063,161 @@ export function InfraccionOperacionModal({
         {type === "salida" ? (
           <div className="form-grid form-grid-2">
             <RequiredNote>
-              Se usaran automaticamente la retencion y la liberacion vigentes
-              del expediente.
+              {isSalidaAnticipada
+                ? "Los datos del vehículo están precargados desde el expediente. Verifica físicamente cada campo y captura cualquier diferencia encontrada. Si existen discrepancias, deberás registrar el motivo y la referencia de evidencia para su revisión por Infracciones. Las diferencias no impedirán la salida anticipada si se cumplen los demás requisitos y no modificarán los datos originales del expediente."
+                : "Se usaran automaticamente la retencion y la liberacion vigentes del expediente."}
             </RequiredNote>
+
+            {isSalidaAnticipada ? (
+              <>
+                <Field htmlFor="operacion-ant-folioLiberacionPresentado" label="Folio de liberacion presentado">
+                  <TextInput
+                    id="operacion-ant-folioLiberacionPresentado"
+                    value={form.folioLiberacionPresentado}
+
+                    onChange={(event) => updateField("folioLiberacionPresentado", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-placasCotejadas" label="Placas verificadas fisicamente">
+                  <TextInput
+                    id="operacion-ant-placasCotejadas"
+                    value={form.placasCotejadas}
+                    onChange={(event) => updateField("placasCotejadas", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-marcaCotejada" label="Marca cotejada">
+                  <TextInput
+                    id="operacion-ant-marcaCotejada"
+                    value={form.marcaCotejada}
+                    onChange={(event) => updateField("marcaCotejada", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-lineaCotejada" label="Linea cotejada">
+                  <TextInput
+                    id="operacion-ant-lineaCotejada"
+                    value={form.lineaCotejada}
+                    onChange={(event) => updateField("lineaCotejada", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-claseCotejada" label="Clase cotejada">
+                  <TextInput
+                    id="operacion-ant-claseCotejada"
+                    value={form.claseCotejada}
+                    onChange={(event) => updateField("claseCotejada", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-colorCotejado" label="Color cotejado">
+                  <TextInput
+                    id="operacion-ant-colorCotejado"
+                    value={form.colorCotejado}
+                    onChange={(event) => updateField("colorCotejado", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-anioModeloCotejado" label="Año modelo cotejado (opcional)">
+                  <TextInput
+                    id="operacion-ant-anioModeloCotejado"
+                    value={form.anioModeloCotejado}
+
+                    onChange={(event) => updateField("anioModeloCotejado", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-estadoPlacasCotejado" label="Estado de placas (opcional)">
+                  <TextInput
+                    id="operacion-ant-estadoPlacasCotejado"
+                    value={form.estadoPlacasCotejado}
+                    onChange={(event) => updateField("estadoPlacasCotejado", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-serieCotejada" label="Numero de serie (opcional)">
+                  <TextInput
+                    id="operacion-ant-serieCotejada"
+                    value={form.serieCotejada}
+                    onChange={(event) => updateField("serieCotejada", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-motorCotejado" label="Numero de motor (opcional)">
+                  <TextInput
+                    id="operacion-ant-motorCotejado"
+                    value={form.motorCotejado}
+                    onChange={(event) => updateField("motorCotejado", event.target.value)}
+                  />
+                </Field>
+                <Field htmlFor="operacion-ant-nombrePropietarioDeclarado" label="Propietario del vehículo">
+                  <TextInput
+                    id="operacion-ant-nombrePropietarioDeclarado"
+                    value={form.nombrePropietarioDeclarado}
+
+                    onChange={(event) => updateField("nombrePropietarioDeclarado", event.target.value)}
+                  />
+                  <small>Captura al propietario, aunque otra persona retire físicamente el vehículo.</small>
+                </Field>
+                {diferenciasCotejo.length > 0 ? (
+                  <section className="field field-span-2" aria-label="Diferencias detectadas en el cotejo">
+                    <div className="notice">
+                      <strong>
+                        {diferenciasCotejo.length} {diferenciasCotejo.length === 1
+                          ? "diferencia detectada" : "diferencias detectadas"}
+                      </strong>
+                      <p>Estas diferencias no impiden la salida por sí mismas. Cada campo
+                        se notificará por separado a Infracciones; la ficha original no se modifica.</p>
+                      <ul>
+                        {diferenciasCotejo.map((diferencia) => (
+                          <li key={diferencia.campo}>
+                            <div className="table-cell-stack">
+                              <strong>{diferencia.etiqueta}</strong>
+                              <span>Registrado: {diferencia.registrado}</span>
+                              <span>Cotejado por Encierros: {diferencia.reportado}</span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <label className="operation-modal-checkbox-label" htmlFor="operacion-ant-reportar-diferencia">
+                      <input
+                        id="operacion-ant-reportar-diferencia"
+                        type="checkbox"
+                        checked={form.reportarDiferencia}
+                        onChange={(event) => updateReporteDiferencia(event.target.checked)}
+                      />
+                      {" "}Reportar diferencias a Infracciones
+                    </label>
+                    {form.reportarDiferencia ? (
+                      <>
+                        <label htmlFor="operacion-ant-motivo-diferencia">Motivo de las diferencias</label>
+                        <textarea
+                          id="operacion-ant-motivo-diferencia"
+                          rows={3}
+                          maxLength={1000}
+                          value={form.motivoDiferencia}
+                          onChange={(event) => updateField("motivoDiferencia", event.target.value)}
+                          required
+                        />
+                        <label htmlFor="operacion-ant-evidencia-diferencia">Referencia de evidencia</label>
+                        <TextInput
+                          id="operacion-ant-evidencia-diferencia"
+                          maxLength={255}
+                          placeholder="Documento o constancia consultada"
+                          value={form.evidenciaDiferencia}
+                          onChange={(event) => updateField("evidenciaDiferencia", event.target.value)}
+                          required
+                        />
+                      </>
+                    ) : null}
+                  </section>
+                ) : null}
+                <div className="field field-span-2">
+                  <label className="operation-modal-checkbox-label" htmlFor="operacion-ant-autorizacion">
+                    <input
+                      type="checkbox"
+                      id="operacion-ant-autorizacion"
+                      checked={form.autorizacionDocumentalVerificada}
+                      onChange={(event) => updateAutorizacionDocumental(event.target.checked)}
+                    />
+                    {" "}Confirmo que verifiqué físicamente el vehículo contra los datos del expediente y revisé el documento de liberación presentado.
+                  </label>
+                </div>
+              </>
+            ) : null}
 
             <Field htmlFor="operacion-salida-validado" label="Validado por">
               <TextInput
@@ -763,16 +1255,18 @@ export function InfraccionOperacionModal({
               />
             </Field>
 
-            <Field htmlFor="operacion-salida-estado" label="Estado salida">
-              <TextInput
-                id="operacion-salida-estado"
-                value={form.estadoSalida}
-                onChange={(event) =>
-                  updateField("estadoSalida", event.target.value)
-                }
-                required
-              />
-            </Field>
+            {!isSalidaAnticipada ? (
+              <Field htmlFor="operacion-salida-estado" label="Estado salida">
+                <TextInput
+                  id="operacion-salida-estado"
+                  value={form.estadoSalida}
+                  onChange={(event) =>
+                    updateField("estadoSalida", event.target.value)
+                  }
+                  required
+                />
+              </Field>
+            ) : null}
 
             <div className="field field-span-2">
               <label htmlFor="operacion-salida-observaciones">
@@ -793,10 +1287,12 @@ export function InfraccionOperacionModal({
         {error ? <div className="notice notice-error">{error}</div> : null}
 
         <FormActions
+          alternateLabel={alternateLabel}
           disabled={!canSubmit}
+          onAlternate={type === "pago" ? toggleNoAplicaPago : undefined}
           onClose={onClose}
           saving={saving}
-          submitLabel={copy.submitLabel}
+          submitLabel={submitLabel}
         />
       </form>
     </Modal>

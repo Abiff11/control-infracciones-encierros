@@ -84,3 +84,29 @@ export interface RegistrarSalidaPayload {
   observacionesSalida?: string | null;
   estadoSalida: string;
 }
+
+export interface RegistrarSalidaAnticipadaPayload {
+  idRetencionVehiculo: number;
+  folioLiberacionPresentado: string;
+  placasCotejadas: string;
+  datosVehiculoCotejados: {
+    marca?: string;
+    linea?: string;
+    clase?: string;
+    color?: string;
+    anioModelo?: number;
+    estadoPlacas?: string;
+    serie?: string;
+    motor?: string;
+  };
+  autorizacionDocumentalVerificada: true;
+  nombrePropietarioDeclarado: string;
+  validadoPor: string;
+  personaRecibeVehiculo: string;
+  fechaSalida?: string;
+  observacionesSalida?: string | null;
+  discrepanciaMenor?: {
+    motivo: string;
+    referenciaEvidencia: string;
+  };
+}

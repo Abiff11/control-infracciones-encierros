@@ -34,6 +34,58 @@
   font-weight: 700;
 }
 
+.report-date-filter {
+  display: grid;
+  gap: 16px;
+}
+
+.report-date-filter-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.report-date-filter-copy h2,
+.report-date-filter-copy p {
+  margin: 0;
+}
+
+.report-date-filter-copy p:last-child {
+  color: var(--slate-600);
+  font-size: 13px;
+}
+
+.report-date-filter-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.report-date-filter-field {
+  display: grid;
+  gap: 6px;
+  color: var(--slate-700);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.report-date-filter-field input {
+  min-height: 40px;
+}
+
+.report-date-filter-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.report-date-filter-status {
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+  padding-top: 12px;
+  color: var(--slate-600);
+  font-size: 13px;
+}
+
 @media (max-width: 980px) {
   .report-page-header {
     align-items: stretch;
@@ -45,6 +97,14 @@
 
   .report-page-chips {
     justify-content: flex-start;
+  }
+
+  .report-date-filter-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-date-filter-buttons {
+    grid-column: 1 / -1;
   }
 }
 
@@ -69,5 +129,17 @@
   .report-page-chips span {
     flex: 1 1 auto;
     text-align: center;
+  }
+
+  .report-date-filter-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .report-date-filter-buttons {
+    grid-column: auto;
+  }
+
+  .report-date-filter-buttons > button {
+    flex: 1 1 100%;
   }
 }

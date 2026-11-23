@@ -33,6 +33,7 @@ import RetencionCreatePage from "../modules/encierros/RetencionCreatePage";
 import SalidaCreatePage from "../modules/encierros/SalidaCreatePage";
 import type { PageKey } from "./app.types";
 import { NAV_ITEMS } from "./navigation";
+import { canAccessPageForRole, getDefaultPageForRole } from "./navigation-access";
 import type {
   CreateInfraccionCompletaPayload,
   InfraccionFlujoResponse,
@@ -66,7 +67,33 @@ function App() {
   } = useCatalogos({
     enabled: authStatus === "authenticated",
   });
-  const [currentPage, setCurrentPage] = useState<PageKey>("dashboard");
+  const roleName = session?.user.rol?.nombreRol?.toUpperCase();
+  const isAdmin = roleName === "ADMIN";
+  const [navigationState, setNavigationState] = useState<{
+    roleName: string | undefined;
+    page: PageKey;
+  }>(() => ({
+    roleName,
+    page: getDefaultPageForRole(roleName),
+  }));
+  const currentPage =
+    navigationState.roleName === roleName &&
+    canAccessPageForRole(roleName, navigationState.page)
+      ? navigationState.page
+      : getDefaultPageForRole(roleName);
+
+  function setCurrentPage(page: PageKey): void {
+    if (!canAccessPageForRole(roleName, page)) {
+      return;
+    }
+
+    setNavigationState({ roleName, page });
+  }
+
+  function handleLogout(): Promise<void> {
+    setNavigationState({ roleName: undefined, page: "dashboard" });
+    return logout();
+  }
   const [refreshKey, setRefreshKey] = useState(0);
   const [pagoInitialId, setPagoInitialId] = useState<number | null>(null);
   const [liberacionInitialId, setLiberacionInitialId] = useState<number | null>(
@@ -75,9 +102,6 @@ function App() {
   const [salidaInitialId, setSalidaInitialId] = useState<number | null>(null);
   const [operationReturnPage, setOperationReturnPage] =
     useState<PageKey>("infracciones");
-  const roleName = session?.user.rol?.nombreRol?.toUpperCase();
-  const isAdmin = roleName === "ADMIN";
-
   useEffect(() => {
     if (authStatus === "unauthenticated") {
       resetCatalogs();
@@ -89,17 +113,6 @@ function App() {
   }
 
   function handleNavigate(page: PageKey): void {
-    if (["admin-expedientes", "admin-operaciones"].includes(page) && !isAdmin) {
-      return;
-    }
-
-    if (
-      roleName === "INFRACCIONES" &&
-      ["encierros-vehiculos", "importaciones", "catalogos"].includes(page)
-    ) {
-      return;
-    }
-
     setCurrentPage(page);
   }
 
@@ -236,7 +249,7 @@ function App() {
         <Sidebar
           currentPage={currentPage}
           items={NAV_ITEMS}
-          onLogout={logout}
+          onLogout={handleLogout}
           onNavigate={handleNavigate}
           swaggerUrl={getSwaggerUrl()}
           user={session.user}
@@ -261,7 +274,7 @@ function App() {
               <p className="session-label">Rol</p>
               <strong>{session.user.rol?.nombreRol ?? "Sin rol"}</strong>
             </div>
-            <Button variant="secondary" type="button" onClick={logout}>
+            <Button variant="secondary" type="button" onClick={handleLogout}>
               Cerrar sesion
             </Button>
           </div>
@@ -288,6 +301,7 @@ function App() {
           catalogs={catalogs}
           refreshKey={refreshKey}
           token={session.token}
+          roleName={roleName}
           onNavigateCreate={() => setCurrentPage("nueva-infraccion")}
         />
       ) : null}

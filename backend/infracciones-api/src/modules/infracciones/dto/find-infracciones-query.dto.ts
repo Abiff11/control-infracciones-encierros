@@ -1,6 +1,9 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsIn,
+  IsArray,
+  ArrayMaxSize,
+  ArrayUnique,
   IsDateString,
   IsInt,
   IsOptional,
@@ -32,6 +35,14 @@ export class FindInfraccionesQueryDto {
   @IsString()
   @MaxLength(30)
   claveOficial?: string;
+
+  @IsOptional()
+  @Transform(({ value }): unknown =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
+  @IsString()
+  @MaxLength(50)
+  claveConcepto?: string;
 
   @IsOptional()
   @IsDateString()
@@ -72,6 +83,15 @@ export class FindInfraccionesQueryDto {
   @IsInt()
   @Min(1)
   idTipoProcedimiento?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @ArrayUnique()
+  @Type(() => Number)
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  idInfracciones?: number[];
 
   @IsOptional()
   @Type(() => Number)

@@ -1,0 +1,135 @@
+/* El modal de atención conserva su diseño sin alterar otros modales. */
+.modal-card-wide.observacion-atencion-modal {
+  width: min(940px, 100%);
+}
+
+.observacion-atencion-modal .modal-header {
+  padding: 20px 24px;
+}
+
+.modal-card-wide.observacion-atencion-modal .modal-body {
+  display: block;
+  min-height: 0;
+  padding: 22px 24px 24px;
+  overflow-y: auto;
+}
+
+.observacion-form {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 18px;
+}
+
+.observacion-resumen {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.observacion-dato {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  align-content: start;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--slate-050);
+}
+
+.observacion-dato > strong,
+.observacion-evidencia > strong {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.observacion-dato > span:first-of-type {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.observacion-dato > span:not(:first-of-type) {
+  font-size: 12px;
+}
+
+.observacion-evidencia {
+  display: grid;
+  gap: 7px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.observacion-evidencia > p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.observacion-reporte-meta {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.observacion-aviso {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.observacion-decision {
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--slate-050);
+}
+
+.observacion-decision > strong {
+  font-size: 14px;
+}
+
+.observacion-decision-actions {
+  gap: 10px;
+}
+
+.observacion-form > .field textarea {
+  min-height: 116px;
+}
+
+.observacion-hint {
+  margin: -12px 0 0;
+  font-size: 12px;
+}
+
+.observacion-actions {
+  justify-content: flex-end;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 680px) {
+  .observacion-atencion-modal .modal-header {
+    padding: 16px;
+  }
+
+  .modal-card-wide.observacion-atencion-modal .modal-body {
+    padding: 16px;
+  }
+
+  .observacion-resumen {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .observacion-actions > button {
+    flex: 1 1 150px;
+  }
+}

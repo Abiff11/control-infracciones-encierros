@@ -1,8 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
-import type { InfraccionListItem } from '../../types/infracciones.types';
+import { getErrorMessage } from '../../services/api/apiClient';
+import type {
+  ExportInfraccionesExcelPayload,
+  InfraccionListItem,
+  InfraccionesQuery,
+  PdfReportAvailability,
+} from '../../types/infracciones.types';
+import { confirmAction } from '../../utils/sweetAlert';
 import {
   DEFAULT_INFRACCIONES_FIELD_IDS,
   INFRACCIONES_FIELD_GROUPS,
@@ -14,18 +21,26 @@ import {
 } from './infracciones-report-fields';
 import {
   buildInfraccionesReportTable,
-  downloadInfraccionesExcelReport,
+  buildInfraccionesExcelFileName,
+  downloadBlob,
   downloadInfraccionesPdfReport,
 } from './infracciones-report-export';
+import { getPdfLimitMessage } from './pdf-report-limit';
 import './InfraccionesReportModal.css';
 
-type ReportScope = 'page' | 'selected';
+type ReportScope = 'all' | 'selected';
 type ReportFormat = 'excel' | 'pdf';
 
 interface InfraccionesReportModalProps {
   open: boolean;
   items: InfraccionListItem[];
   selectedRowIds: Set<number>;
+  dateRangeLabel: string;
+  reportQuery: InfraccionesQuery;
+  pdfAvailability: PdfReportAvailability | null;
+  onGetReportAvailability: (query: InfraccionesQuery) => Promise<PdfReportAvailability>;
+  onExportExcel: (payload: ExportInfraccionesExcelPayload) => Promise<Blob>;
+  onGeneratePdf: (query: InfraccionesQuery) => Promise<InfraccionListItem[]>;
   onClose: () => void;
 }
 
@@ -263,21 +278,49 @@ function getPreviewMessage(canExport: boolean, selectedFieldIdsLength: number, e
   return exportCount === 0 ? 'No hay registros para exportar con el alcance actual.' : '';
 }
 
+function buildReportQuery(
+  query: InfraccionesQuery,
+  filters: ReportFilters,
+  scope: ReportScope,
+  selectedRowIds: Set<number>,
+): InfraccionesQuery {
+  return {
+    ...query,
+    idDelegacion: filters.delegacion ? Number(filters.delegacion) : undefined,
+    idEstatusInfraccion: filters.estatus ? Number(filters.estatus) : undefined,
+    idRegion: filters.region ? Number(filters.region) : undefined,
+    idTipoProcedimiento: filters.tipoProcedimiento
+      ? Number(filters.tipoProcedimiento)
+      : undefined,
+    idInfracciones:
+      scope === 'selected' ? Array.from(selectedRowIds) : undefined,
+  };
+}
+
 export function InfraccionesReportModal({
+  dateRangeLabel,
   items,
+  onExportExcel,
+  onGeneratePdf,
+  onGetReportAvailability,
   onClose,
   open,
+  pdfAvailability,
+  reportQuery,
   selectedRowIds,
 }: InfraccionesReportModalProps) {
-  const [scope, setScope] = useState<ReportScope>('page');
+  const [scope, setScope] = useState<ReportScope>('all');
   const [fieldSearch, setFieldSearch] = useState('');
   const [activeTab, setActiveTab] = useState<ActiveTab>('scope');
   const [reportFilters, setReportFilters] = useState<ReportFilters>(INITIAL_REPORT_FILTERS);
   const [selectedFieldIds, setSelectedFieldIds] = useState<InfraccionesReportFieldId[]>(
     readStoredReportFieldIds,
   );
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<PdfReportAvailability | null>(pdfAvailability);
+  const [exporting, setExporting] = useState<ReportFormat | null>(null);
 
-  const effectiveScope = selectedRowIds.size === 0 && scope === 'selected' ? 'page' : scope;
+  const effectiveScope = selectedRowIds.size === 0 && scope === 'selected' ? 'all' : scope;
   const scopeItems = useMemo(
     () => getExportItems(items, selectedRowIds, effectiveScope),
     [effectiveScope, items, selectedRowIds],
@@ -286,12 +329,18 @@ export function InfraccionesReportModal({
     () => applyReportFilters(scopeItems, reportFilters),
     [reportFilters, scopeItems],
   );
+  const effectiveQuery = useMemo(
+    () => buildReportQuery(reportQuery, reportFilters, effectiveScope, selectedRowIds),
+    [effectiveScope, reportFilters, reportQuery, selectedRowIds],
+  );
   const reportTable = useMemo(
     () => buildInfraccionesReportTable(exportItems, selectedFieldIds),
     [exportItems, selectedFieldIds],
   );
   const previewRows = reportTable.rows.slice(0, PREVIEW_ROW_LIMIT);
-  const canExport = exportItems.length > 0 && selectedFieldIds.length > 0;
+  const reportTotal = availability?.total ?? 0;
+  const canExport = reportTotal > 0 && selectedFieldIds.length > 0;
+  const canGeneratePdf = canExport && availability?.permitido === true;
   const previewMessage = getPreviewMessage(canExport, selectedFieldIds.length, exportItems.length);
   const preset = getExactPreset(selectedFieldIds);
   const selectedSummary = getSelectedFieldSummary(selectedFieldIds);
@@ -362,14 +411,42 @@ export function InfraccionesReportModal({
   const payload = {
     title: 'Reporte de infracciones',
     contextLines: [
-      `Alcance: ${effectiveScope === 'selected' ? 'Seleccionadas' : 'Página actual'}`,
-      `Registros visibles: ${items.length}`,
-      `Registros a exportar: ${exportItems.length}`,
+      `Alcance: ${effectiveScope === 'selected' ? 'Seleccionadas' : 'Todos los resultados'}`,
+      `Rango de fecha: ${dateRangeLabel}`,
+      `Registros disponibles: ${reportTotal}`,
+      `Registros a exportar: ${reportTotal}`,
       `Campos incluidos: ${selectedFieldIds.length}`,
     ],
     columns: reportTable.columns,
     rows: reportTable.rows,
   };
+
+  useEffect(() => {
+    let mounted = true;
+
+    if (!open) {
+      return () => {
+        mounted = false;
+      };
+    }
+
+    void onGetReportAvailability(effectiveQuery)
+      .then((nextAvailability) => {
+        if (mounted) {
+          setAvailability(nextAvailability);
+        }
+      })
+      .catch((error) => {
+        if (mounted) {
+          setPdfError(getErrorMessage(error));
+          setAvailability(null);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [effectiveQuery, onGetReportAvailability, open]);
 
   function updateSelectedFieldIds(fieldIds: InfraccionesReportFieldId[]): void {
     setSelectedFieldIds(fieldIds);
@@ -411,17 +488,59 @@ export function InfraccionesReportModal({
     updateSelectedFieldIds(toggleField(selectedFieldIds, fieldId, checked));
   }
 
-  function handleExport(format: ReportFormat): void {
+  async function handleExport(format: ReportFormat): Promise<void> {
     if (!canExport) {
       return;
     }
 
     if (format === 'excel') {
-      downloadInfraccionesExcelReport(payload);
+      if (!effectiveQuery.fechaInicio && !effectiveQuery.fechaFin) {
+        const confirmed = await confirmAction({
+          title: 'Exportar historial completo',
+          text: `Este reporte incluirá todo el historial disponible: ${reportTotal} registros. ¿Deseas continuar?`,
+          confirmButtonText: 'Exportar todo el historial',
+          cancelButtonText: 'Cancelar',
+        });
+
+        if (!confirmed) {
+          return;
+        }
+      }
+
+      try {
+        setExporting('excel');
+        const blob = await onExportExcel({ ...effectiveQuery, campos: selectedFieldIds });
+        downloadBlob(blob, buildInfraccionesExcelFileName(effectiveQuery));
+      } catch (error) {
+        setPdfError(getErrorMessage(error));
+      } finally {
+        setExporting(null);
+      }
       return;
     }
 
-    downloadInfraccionesPdfReport(payload);
+    if (!availability?.permitido) {
+      setPdfError(
+        availability
+          ? getPdfLimitMessage(availability)
+          : 'No se pudo verificar el límite de registros para PDF.',
+      );
+      return;
+    }
+
+    try {
+      setExporting('pdf');
+      const pdfItems = await onGeneratePdf(effectiveQuery);
+      setPdfError(null);
+      downloadInfraccionesPdfReport({
+        ...payload,
+        rows: buildInfraccionesReportTable(pdfItems, selectedFieldIds).rows,
+      });
+    } catch (error) {
+      setPdfError(getErrorMessage(error));
+    } finally {
+      setExporting(null);
+    }
   }
 
   function renderTabPanel() {
@@ -439,18 +558,18 @@ export function InfraccionesReportModal({
                 <p className="section-label">Alcance</p>
                 <h3>Qué registros se exportarán</h3>
               </div>
-              <p className="report-inline-note">Se exportarán {exportItems.length} registros.</p>
+              <p className="report-inline-note">Se exportarán {reportTotal} registros.</p>
             </div>
 
             <div className="report-scope-switch" role="group" aria-label="Alcance del reporte">
               <button
                 type="button"
-                className={`report-scope-option ${effectiveScope === 'page' ? 'is-active' : ''}`}
-                aria-pressed={effectiveScope === 'page'}
-                onClick={() => setScope('page')}
+                className={`report-scope-option ${effectiveScope === 'all' ? 'is-active' : ''}`}
+                aria-pressed={effectiveScope === 'all'}
+                onClick={() => setScope('all')}
               >
-                <strong>Página actual</strong>
-                <span>Exporta lo que ves con los filtros actuales.</span>
+                <strong>Todos los resultados</strong>
+                <span>Exporta todos los registros que cumplen el rango de fecha y los filtros del reporte.</span>
               </button>
               <button
                 type="button"
@@ -756,18 +875,28 @@ export function InfraccionesReportModal({
     <Modal
       open={open}
       title="Generar reporte"
-      description="Elige el alcance y los campos del archivo. La tabla principal no cambia."
+      description="Elige el alcance y los campos del archivo. El reporte usa todos los resultados del rango aplicado."
       eyebrowLabel="Reportes"
       size="wide"
       onClose={onClose}
     >
       <div className="report-modal-shell">
         <header className="report-modal-summary" aria-label="Resumen del reporte">
-          <span>{items.length} visibles</span>
+          <span>{items.length} disponibles</span>
           <span>{selectedRowIds.size} seleccionadas</span>
           <span>{selectedFieldIds.length} campos</span>
           <span>{exportItems.length} a exportar</span>
         </header>
+        {pdfAvailability && !pdfAvailability.permitido ? (
+          <div className="notice notice-error" role="alert">
+            {getPdfLimitMessage(pdfAvailability)}
+          </div>
+        ) : null}
+        {pdfError ? (
+          <div className="notice notice-error" role="alert">
+            {pdfError}
+          </div>
+        ) : null}
         <nav className="report-modal-tabs" role="tablist" aria-label="Secciones del reporte">
           <button
             type="button"
@@ -819,11 +948,11 @@ export function InfraccionesReportModal({
             <Button type="button" variant="secondary" onClick={onClose}>
               Cancelar
             </Button>
-            <Button type="button" variant="secondary" disabled={!canExport} onClick={() => handleExport('excel')}>
-              Exportar Excel
+            <Button type="button" variant="secondary" disabled={!canExport || exporting !== null} onClick={() => void handleExport('excel')}>
+              {exporting === 'excel' ? 'Exportando Excel...' : 'Exportar Excel'}
             </Button>
-            <Button type="button" variant="primary" disabled={!canExport} onClick={() => handleExport('pdf')}>
-              Generar PDF
+            <Button type="button" variant="primary" disabled={!canGeneratePdf || exporting !== null} onClick={() => void handleExport('pdf')}>
+              {exporting === 'pdf' ? 'Generando PDF...' : 'Generar PDF'}
             </Button>
           </div>
         </footer>
