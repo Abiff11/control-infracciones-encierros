@@ -28,6 +28,7 @@ Este documento es una matriz interna de evidencia y pendientes. **No representa 
 | Imágenes de contenedor | Verificado en CI | Trivy HIGH/CRITICAL sobre imágenes finales; runtime mínimo del backend. |
 | Aislamiento de contenedores | Verificado en CI | usuario no root de imagen, `no-new-privileges`, `cap_drop: ALL`, filesystem read-only, tmpfs y `pids_limit`. |
 | Migraciones | Verificado en CI | PostgreSQL desechable, schema assertions, rollback y reaplicación de las migraciones de la feature. |
+| Integridad de escrituras concurrentes | Verificado en CI | Pruebas del interceptor por expediente y smoke con dos usuarios en PostgreSQL desechable. [Validación de la fase 5](../pruebas/validacion-fase-5.md). |
 | Correlación de incidentes | Verificado | `X-Request-Id` generado por servidor, persistido en auditoría y comprobado en security smoke. |
 
 ## Pendientes que requieren infraestructura o decisión de producto
