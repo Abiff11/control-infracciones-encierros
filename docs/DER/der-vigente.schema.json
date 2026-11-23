@@ -1,0 +1,2202 @@
+{
+  "title": "Diagrama Entidad-Relación vigente · Control de infracciones vs encierros",
+  "status": "Modelo versionado de referencia: no certifica esquema físico de PostgreSQL",
+  "baseCommit": "d65ad6c8547df5e943513d8abfdc5f95329d0d94",
+  "modelCommit": "ecab15095b896cc8c5f056a41b4532256b407d8c",
+  "dictionaryBlob": "a360de4f2cefcd21a88c114df4d84dad0e3d1eff",
+  "version": "4B.2",
+  "groups": [
+    {
+      "name": "Registro y seguimiento",
+      "key": "registro",
+      "tables": [
+        "INFRACCIONES",
+        "INFRACTOR",
+        "INFRACCION_MOTIVO",
+        "MOTIVO",
+        "INFRACCION_MOVIMIENTO",
+        "TIPO_PROCEDIMIENTO",
+        "LUGAR_INFRACCION",
+        "OPERATIVO",
+        "ESTATUS_INFRACCION"
+      ],
+      "color": "#174C6A"
+    },
+    {
+      "name": "Vehículos y catálogos",
+      "key": "vehiculos",
+      "tables": [
+        "VEHICULO",
+        "CLASE_VEHICULO",
+        "MARCA_VEHICULO",
+        "LINEA_VEHICULO",
+        "SERVICIO",
+        "REGION",
+        "DELEGACION",
+        "SEXO"
+      ],
+      "color": "#197C83"
+    },
+    {
+      "name": "Encierros y salidas",
+      "key": "encierros",
+      "tables": [
+        "ENCIERRO",
+        "RETENCION_VEHICULO",
+        "SALIDA_VEHICULO",
+        "OBSERVACION_EXPEDIENTE"
+      ],
+      "color": "#A6683A"
+    },
+    {
+      "name": "Pagos y liberaciones",
+      "key": "pagos",
+      "tables": [
+        "PAGO_INFRACCION",
+        "LIBERACION_VEHICULO",
+        "SOLVENTACION_SIN_PAGO",
+        "CONCEPTO_PAGO",
+        "PAGO_CONCEPTO"
+      ],
+      "color": "#65579C"
+    },
+    {
+      "name": "Importaciones",
+      "key": "importaciones",
+      "tables": [
+        "IMPORTACION_INFRACCIONES",
+        "IMPORTACION_INFRACCION_ERROR"
+      ],
+      "color": "#327B55"
+    },
+    {
+      "name": "Usuarios y auditoría",
+      "key": "seguridad",
+      "tables": [
+        "ROL",
+        "USUARIOS",
+        "AUDITORIA",
+        "AUTH_LOGIN_ATTEMPTS"
+      ],
+      "color": "#45536D"
+    }
+  ],
+  "tables": [
+    {
+      "name": "INFRACCIONES",
+      "fields": [
+        {
+          "name": "id_infraccion",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "folio_infraccion",
+          "type": "varchar(50)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "fecha_infraccion",
+          "type": "date",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "hora_infraccion",
+          "type": "time",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "observaciones",
+          "type": "text",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "clave_policia",
+          "type": "varchar(50)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "num_parte_informativo",
+          "type": "varchar(50)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "tipo_documento_referencia",
+          "type": "varchar(30)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "folio_documento_referencia",
+          "type": "varchar(50)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "id_infractor",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_delegacion",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_vehiculo",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_lugar_infraccion",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_tipo_procedimiento",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_operativo",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": false
+        },
+        {
+          "name": "id_encierro",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": false
+        },
+        {
+          "name": "id_estatus_infraccion",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_usuario_captura",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        }
+      ],
+      "pk": "id_infraccion"
+    },
+    {
+      "name": "INFRACTOR",
+      "fields": [
+        {
+          "name": "id_infractor",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "apellido_paterno",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "apellido_materno",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "licencia",
+          "type": "varchar(30)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "curp",
+          "type": "varchar(18)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "id_sexo",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        }
+      ],
+      "pk": "id_infractor"
+    },
+    {
+      "name": "REGION",
+      "fields": [
+        {
+          "name": "id_region",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre_region",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        }
+      ],
+      "pk": "id_region"
+    },
+    {
+      "name": "DELEGACION",
+      "fields": [
+        {
+          "name": "id_delegacion",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre_delegacion",
+          "type": "varchar(120)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "id_region",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        }
+      ],
+      "pk": "id_delegacion"
+    },
+    {
+      "name": "SEXO",
+      "fields": [
+        {
+          "name": "id_sexo",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre_sexo",
+          "type": "varchar(30)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        }
+      ],
+      "pk": "id_sexo"
+    },
+    {
+      "name": "SERVICIO",
+      "fields": [
+        {
+          "name": "id_servicio",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre_servicio",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        }
+      ],
+      "pk": "id_servicio"
+    },
+    {
+      "name": "VEHICULO",
+      "fields": [
+        {
+          "name": "id_vehiculo",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "anio_modelo",
+          "type": "int",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "sitio_servicio_publico",
+          "type": "text",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "color",
+          "type": "text",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "placas",
+          "type": "text",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "estado_placas",
+          "type": "text",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "serie",
+          "type": "text",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "motor",
+          "type": "text",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "id_clase_vehiculo",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_linea_vehiculo",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_servicio",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        }
+      ],
+      "pk": "id_vehiculo"
+    },
+    {
+      "name": "CLASE_VEHICULO",
+      "fields": [
+        {
+          "name": "id_clase_vehiculo",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre_clase_vehiculo",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        }
+      ],
+      "pk": "id_clase_vehiculo"
+    },
+    {
+      "name": "MARCA_VEHICULO",
+      "fields": [
+        {
+          "name": "id_marca_vehiculo",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre_marca_vehiculo",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        }
+      ],
+      "pk": "id_marca_vehiculo"
+    },
+    {
+      "name": "LINEA_VEHICULO",
+      "fields": [
+        {
+          "name": "id_linea_vehiculo",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre_linea_vehiculo",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "id_marca_vehiculo",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        }
+      ],
+      "pk": "id_linea_vehiculo"
+    },
+    {
+      "name": "LUGAR_INFRACCION",
+      "fields": [
+        {
+          "name": "id_lugar_infraccion",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre_lugar_infraccion",
+          "type": "varchar(200)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        }
+      ],
+      "pk": "id_lugar_infraccion"
+    },
+    {
+      "name": "MOTIVO",
+      "fields": [
+        {
+          "name": "id_motivo",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre_motivo",
+          "type": "varchar(255)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "descripcion_motivo",
+          "type": "varchar(255)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        }
+      ],
+      "pk": "id_motivo"
+    },
+    {
+      "name": "INFRACCION_MOTIVO",
+      "fields": [
+        {
+          "name": "id_infraccion_motivo",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "id_infraccion",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_motivo",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        }
+      ],
+      "pk": "id_infraccion_motivo"
+    },
+    {
+      "name": "TIPO_PROCEDIMIENTO",
+      "fields": [
+        {
+          "name": "id_tipo_procedimiento",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "clave_tipo_procedimiento",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre_tipo_procedimiento",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "es_tipo_expediente",
+          "type": "boolean",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "requiere_folio_infraccion",
+          "type": "boolean",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "requiere_num_parte_informativo",
+          "type": "boolean",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "requiere_motivos",
+          "type": "boolean",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "permite_retencion",
+          "type": "boolean",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "activo",
+          "type": "boolean",
+          "pk": false,
+          "fk": false,
+          "required": true
+        }
+      ],
+      "pk": "id_tipo_procedimiento"
+    },
+    {
+      "name": "ENCIERRO",
+      "fields": [
+        {
+          "name": "id_encierro",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre_encierro",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        }
+      ],
+      "pk": "id_encierro"
+    },
+    {
+      "name": "OPERATIVO",
+      "fields": [
+        {
+          "name": "id_operativo",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre_operativo",
+          "type": "varchar(120)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        }
+      ],
+      "pk": "id_operativo"
+    },
+    {
+      "name": "RETENCION_VEHICULO",
+      "fields": [
+        {
+          "name": "id_retencion_vehiculo",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "fecha_ingreso",
+          "type": "timestamp",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "recibido_por",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "folio_resguardo",
+          "type": "varchar(30)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "observaciones_ingreso",
+          "type": "text",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "estado_ingreso",
+          "type": "varchar(50)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "id_infraccion",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_encierro",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        }
+      ],
+      "pk": "id_retencion_vehiculo"
+    },
+    {
+      "name": "PAGO_INFRACCION",
+      "fields": [
+        {
+          "name": "id_pago_infraccion",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "folio_linea_captura",
+          "type": "varchar(50)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "monto",
+          "type": "decimal(10,2)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "monto_infraccion",
+          "type": "decimal(10,2)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "dias_piso_cobrados",
+          "type": "int",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "monto_dias_piso",
+          "type": "decimal(10,2)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "fecha_pago",
+          "type": "timestamp",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "observaciones",
+          "type": "text",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "id_infraccion",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_usuario_registra_pago",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        }
+      ],
+      "pk": "id_pago_infraccion"
+    },
+    {
+      "name": "LIBERACION_VEHICULO",
+      "fields": [
+        {
+          "name": "id_liberacion_vehiculo",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "folio_liberacion",
+          "type": "varchar(50)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "fecha_liberacion",
+          "type": "timestamp",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "liberado_por",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre_recibe_liberacion",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "observacion",
+          "type": "text",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "id_infraccion",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_pago_infraccion",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": false
+        },
+        {
+          "name": "id_solventacion_sin_pago",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": false
+        },
+        {
+          "name": "id_usuario_libera",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        }
+      ],
+      "pk": "id_liberacion_vehiculo"
+    },
+    {
+      "name": "SALIDA_VEHICULO",
+      "fields": [
+        {
+          "name": "id_salida_vehiculo",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "fecha_salida",
+          "type": "timestamp",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "validado_por",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "persona_recibe_vehiculo",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "observaciones_salida",
+          "type": "text",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "estado_salida",
+          "type": "varchar(50)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "modalidad_salida",
+          "type": "varchar(20)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "folio_liberacion_presentado",
+          "type": "varchar(50)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "placas_cotejadas",
+          "type": "varchar(30)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "datos_vehiculo_cotejados",
+          "type": "jsonb",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "nombre_propietario_declarado",
+          "type": "varchar(150)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "autorizacion_documental_verificada",
+          "type": "boolean",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "referencia_documento_liberacion",
+          "type": "varchar(255)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "id_retencion_vehiculo",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_liberacion_vehiculo",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": false
+        },
+        {
+          "name": "id_usuario_valida_salida",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        }
+      ],
+      "pk": "id_salida_vehiculo"
+    },
+    {
+      "name": "ESTATUS_INFRACCION",
+      "fields": [
+        {
+          "name": "id_estatus_infraccion",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre_estatus",
+          "type": "varchar(50)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        }
+      ],
+      "pk": "id_estatus_infraccion"
+    },
+    {
+      "name": "USUARIOS",
+      "fields": [
+        {
+          "name": "id_usuario",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre_usuario",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "email",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "password_hash",
+          "type": "varchar(255)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "activo",
+          "type": "boolean",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "auth_session_version",
+          "type": "int",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "refresh_token_hash",
+          "type": "varchar(255)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "refresh_token_expires_at",
+          "type": "timestamptz",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "failed_login_attempts",
+          "type": "int",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "locked_until",
+          "type": "timestamptz",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "last_login_at",
+          "type": "timestamptz",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "password_changed_at",
+          "type": "timestamptz",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "id_rol",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        }
+      ],
+      "pk": "id_usuario"
+    },
+    {
+      "name": "ROL",
+      "fields": [
+        {
+          "name": "id_rol",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre_rol",
+          "type": "varchar(50)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        }
+      ],
+      "pk": "id_rol"
+    },
+    {
+      "name": "INFRACCION_MOVIMIENTO",
+      "fields": [
+        {
+          "name": "id_infraccion_movimiento",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "accion",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "observaciones",
+          "type": "text",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "fecha_movimiento",
+          "type": "timestamp",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "id_infraccion",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_estatus_infraccion",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_usuario",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        }
+      ],
+      "pk": "id_infraccion_movimiento"
+    },
+    {
+      "name": "AUDITORIA",
+      "fields": [
+        {
+          "name": "id_auditoria",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "id_usuario",
+          "type": "int",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "accion",
+          "type": "varchar(80)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "entidad",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "entidad_id",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "antes_json",
+          "type": "jsonb",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "despues_json",
+          "type": "jsonb",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "ip",
+          "type": "varchar(80)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "severity",
+          "type": "varchar(20)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "request_id",
+          "type": "varchar(64)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "http_method",
+          "type": "varchar(10)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "request_path",
+          "type": "varchar(512)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "user_agent",
+          "type": "varchar(512)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "pk": false,
+          "fk": false,
+          "required": true
+        }
+      ],
+      "pk": "id_auditoria"
+    },
+    {
+      "name": "AUTH_LOGIN_ATTEMPTS",
+      "fields": [
+        {
+          "name": "id_auth_login_attempt",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "email",
+          "type": "varchar(150)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "id_usuario",
+          "type": "int",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "success",
+          "type": "boolean",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "reason",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "ip",
+          "type": "varchar(80)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "user_agent",
+          "type": "varchar(500)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "pk": false,
+          "fk": false,
+          "required": true
+        }
+      ],
+      "pk": "id_auth_login_attempt"
+    },
+    {
+      "name": "OBSERVACION_EXPEDIENTE",
+      "fields": [
+        {
+          "name": "id_observacion",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "campo_observado",
+          "type": "varchar(30)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "valor_original",
+          "type": "varchar(150)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "valor_reportado",
+          "type": "varchar(150)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "motivo_reporte",
+          "type": "text",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "referencia_evidencia",
+          "type": "varchar(255)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "estatus",
+          "type": "varchar(20)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "fecha_reporte",
+          "type": "timestamptz",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "resolucion",
+          "type": "text",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "fecha_resolucion",
+          "type": "timestamptz",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "id_infraccion",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_salida_vehiculo",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_usuario_reporta",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_usuario_resuelve",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": false
+        }
+      ],
+      "pk": "id_observacion"
+    },
+    {
+      "name": "IMPORTACION_INFRACCION_ERROR",
+      "fields": [
+        {
+          "name": "id_importacion_infraccion_error",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "numero_fila",
+          "type": "int",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "tipo",
+          "type": "varchar(20)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "campo",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "valor",
+          "type": "varchar(255)",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "mensaje",
+          "type": "text",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "raw_row",
+          "type": "jsonb",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "fecha_creacion",
+          "type": "timestamp",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "id_importacion_infracciones",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        }
+      ],
+      "pk": "id_importacion_infraccion_error"
+    },
+    {
+      "name": "IMPORTACION_INFRACCIONES",
+      "fields": [
+        {
+          "name": "id_importacion_infracciones",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "anio",
+          "type": "int",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre_archivo",
+          "type": "varchar(255)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "nombre_hoja",
+          "type": "varchar(100)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "total_filas",
+          "type": "int",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "filas_validas",
+          "type": "int",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "filas_importadas",
+          "type": "int",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "filas_con_error",
+          "type": "int",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "filas_omitidas",
+          "type": "int",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "estado",
+          "type": "varchar(30)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "modo_duplicados",
+          "type": "varchar(20)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "crear_catalogos_faltantes",
+          "type": "boolean",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "crear_delegaciones_faltantes",
+          "type": "boolean",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "fecha_creacion",
+          "type": "timestamp",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "fecha_importacion",
+          "type": "timestamp",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "observaciones",
+          "type": "text",
+          "pk": false,
+          "fk": false,
+          "required": false
+        },
+        {
+          "name": "id_region",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_delegacion_default",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": false
+        },
+        {
+          "name": "creado_por_usuario_id",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        }
+      ],
+      "pk": "id_importacion_infracciones"
+    },
+    {
+      "name": "CONCEPTO_PAGO",
+      "fields": [
+        {
+          "name": "id_concepto_pago",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "clave_concepto",
+          "type": "varchar(50)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "activo",
+          "type": "boolean",
+          "pk": false,
+          "fk": false,
+          "required": true
+        }
+      ],
+      "pk": "id_concepto_pago"
+    },
+    {
+      "name": "PAGO_CONCEPTO",
+      "fields": [
+        {
+          "name": "id_pago_concepto",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "monto",
+          "type": "decimal(10,2)",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "orden",
+          "type": "int",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "id_pago_infraccion",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_concepto_pago",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        }
+      ],
+      "pk": "id_pago_concepto"
+    },
+    {
+      "name": "SOLVENTACION_SIN_PAGO",
+      "fields": [
+        {
+          "name": "id_solventacion_sin_pago",
+          "type": "int",
+          "pk": true,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "motivo",
+          "type": "text",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "fecha_solventacion",
+          "type": "timestamp",
+          "pk": false,
+          "fk": false,
+          "required": true
+        },
+        {
+          "name": "id_infraccion",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        },
+        {
+          "name": "id_usuario_registra",
+          "type": "int",
+          "pk": false,
+          "fk": true,
+          "required": true
+        }
+      ],
+      "pk": "id_solventacion_sin_pago"
+    }
+  ],
+  "relations": [
+    {
+      "id": 1,
+      "parent": "INFRACTOR",
+      "child": "INFRACCIONES",
+      "field": "id_infractor",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 2,
+      "parent": "DELEGACION",
+      "child": "INFRACCIONES",
+      "field": "id_delegacion",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 3,
+      "parent": "VEHICULO",
+      "child": "INFRACCIONES",
+      "field": "id_vehiculo",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 4,
+      "parent": "LUGAR_INFRACCION",
+      "child": "INFRACCIONES",
+      "field": "id_lugar_infraccion",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 5,
+      "parent": "TIPO_PROCEDIMIENTO",
+      "child": "INFRACCIONES",
+      "field": "id_tipo_procedimiento",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 6,
+      "parent": "OPERATIVO",
+      "child": "INFRACCIONES",
+      "field": "id_operativo",
+      "parentCard": "0..1",
+      "childCard": "0..N",
+      "required": false
+    },
+    {
+      "id": 7,
+      "parent": "ENCIERRO",
+      "child": "INFRACCIONES",
+      "field": "id_encierro",
+      "parentCard": "0..1",
+      "childCard": "0..N",
+      "required": false
+    },
+    {
+      "id": 8,
+      "parent": "ESTATUS_INFRACCION",
+      "child": "INFRACCIONES",
+      "field": "id_estatus_infraccion",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 9,
+      "parent": "USUARIOS",
+      "child": "INFRACCIONES",
+      "field": "id_usuario_captura",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 10,
+      "parent": "SEXO",
+      "child": "INFRACTOR",
+      "field": "id_sexo",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 11,
+      "parent": "REGION",
+      "child": "DELEGACION",
+      "field": "id_region",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 12,
+      "parent": "CLASE_VEHICULO",
+      "child": "VEHICULO",
+      "field": "id_clase_vehiculo",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 13,
+      "parent": "LINEA_VEHICULO",
+      "child": "VEHICULO",
+      "field": "id_linea_vehiculo",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 14,
+      "parent": "SERVICIO",
+      "child": "VEHICULO",
+      "field": "id_servicio",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 15,
+      "parent": "MARCA_VEHICULO",
+      "child": "LINEA_VEHICULO",
+      "field": "id_marca_vehiculo",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 16,
+      "parent": "INFRACCIONES",
+      "child": "INFRACCION_MOTIVO",
+      "field": "id_infraccion",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 17,
+      "parent": "MOTIVO",
+      "child": "INFRACCION_MOTIVO",
+      "field": "id_motivo",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 18,
+      "parent": "INFRACCIONES",
+      "child": "RETENCION_VEHICULO",
+      "field": "id_infraccion",
+      "parentCard": "1",
+      "childCard": "0..1",
+      "required": true
+    },
+    {
+      "id": 19,
+      "parent": "ENCIERRO",
+      "child": "RETENCION_VEHICULO",
+      "field": "id_encierro",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 20,
+      "parent": "INFRACCIONES",
+      "child": "PAGO_INFRACCION",
+      "field": "id_infraccion",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 21,
+      "parent": "USUARIOS",
+      "child": "PAGO_INFRACCION",
+      "field": "id_usuario_registra_pago",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 22,
+      "parent": "INFRACCIONES",
+      "child": "LIBERACION_VEHICULO",
+      "field": "id_infraccion",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 23,
+      "parent": "PAGO_INFRACCION",
+      "child": "LIBERACION_VEHICULO",
+      "field": "id_pago_infraccion",
+      "parentCard": "0..1",
+      "childCard": "0..N",
+      "required": false
+    },
+    {
+      "id": 24,
+      "parent": "SOLVENTACION_SIN_PAGO",
+      "child": "LIBERACION_VEHICULO",
+      "field": "id_solventacion_sin_pago",
+      "parentCard": "0..1",
+      "childCard": "0..N",
+      "required": false
+    },
+    {
+      "id": 25,
+      "parent": "USUARIOS",
+      "child": "LIBERACION_VEHICULO",
+      "field": "id_usuario_libera",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 26,
+      "parent": "RETENCION_VEHICULO",
+      "child": "SALIDA_VEHICULO",
+      "field": "id_retencion_vehiculo",
+      "parentCard": "1",
+      "childCard": "0..1",
+      "required": true
+    },
+    {
+      "id": 27,
+      "parent": "LIBERACION_VEHICULO",
+      "child": "SALIDA_VEHICULO",
+      "field": "id_liberacion_vehiculo",
+      "parentCard": "0..1",
+      "childCard": "0..N",
+      "required": false
+    },
+    {
+      "id": 28,
+      "parent": "USUARIOS",
+      "child": "SALIDA_VEHICULO",
+      "field": "id_usuario_valida_salida",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 29,
+      "parent": "ROL",
+      "child": "USUARIOS",
+      "field": "id_rol",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 30,
+      "parent": "INFRACCIONES",
+      "child": "INFRACCION_MOVIMIENTO",
+      "field": "id_infraccion",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 31,
+      "parent": "ESTATUS_INFRACCION",
+      "child": "INFRACCION_MOVIMIENTO",
+      "field": "id_estatus_infraccion",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 32,
+      "parent": "USUARIOS",
+      "child": "INFRACCION_MOVIMIENTO",
+      "field": "id_usuario",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 33,
+      "parent": "INFRACCIONES",
+      "child": "OBSERVACION_EXPEDIENTE",
+      "field": "id_infraccion",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 34,
+      "parent": "SALIDA_VEHICULO",
+      "child": "OBSERVACION_EXPEDIENTE",
+      "field": "id_salida_vehiculo",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 35,
+      "parent": "USUARIOS",
+      "child": "OBSERVACION_EXPEDIENTE",
+      "field": "id_usuario_reporta",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 36,
+      "parent": "USUARIOS",
+      "child": "OBSERVACION_EXPEDIENTE",
+      "field": "id_usuario_resuelve",
+      "parentCard": "0..1",
+      "childCard": "0..N",
+      "required": false
+    },
+    {
+      "id": 37,
+      "parent": "IMPORTACION_INFRACCIONES",
+      "child": "IMPORTACION_INFRACCION_ERROR",
+      "field": "id_importacion_infracciones",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 38,
+      "parent": "REGION",
+      "child": "IMPORTACION_INFRACCIONES",
+      "field": "id_region",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 39,
+      "parent": "DELEGACION",
+      "child": "IMPORTACION_INFRACCIONES",
+      "field": "id_delegacion_default",
+      "parentCard": "0..1",
+      "childCard": "0..N",
+      "required": false
+    },
+    {
+      "id": 40,
+      "parent": "USUARIOS",
+      "child": "IMPORTACION_INFRACCIONES",
+      "field": "creado_por_usuario_id",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 41,
+      "parent": "PAGO_INFRACCION",
+      "child": "PAGO_CONCEPTO",
+      "field": "id_pago_infraccion",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 42,
+      "parent": "CONCEPTO_PAGO",
+      "child": "PAGO_CONCEPTO",
+      "field": "id_concepto_pago",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 43,
+      "parent": "INFRACCIONES",
+      "child": "SOLVENTACION_SIN_PAGO",
+      "field": "id_infraccion",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    },
+    {
+      "id": 44,
+      "parent": "USUARIOS",
+      "child": "SOLVENTACION_SIN_PAGO",
+      "field": "id_usuario_registra",
+      "parentCard": "1",
+      "childCard": "0..N",
+      "required": true
+    }
+  ]
+}
