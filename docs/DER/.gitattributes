@@ -1,0 +1,3 @@
+# Mantener los PDF del directorio DER como binarios.
+# Evita interpretar espacios de los registros xref como errores de formato.
+*.pdf binary
