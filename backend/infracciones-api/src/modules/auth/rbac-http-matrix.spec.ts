@@ -390,8 +390,11 @@ describe('RBAC HTTP: siete roles y rutas operativas críticas', () => {
       .set('x-test-role', ROLES.CONSULTA)
       .expect(200);
 
-    expect(response.body.vehiculo.serie).toBe('[REDACTED]');
-    expect(response.body.vehiculo.placas).toBe('[REDACTED]1234');
+    const body = response.body as {
+      vehiculo: { serie: string; placas: string };
+    };
+    expect(body.vehiculo.serie).toBe('[REDACTED]');
+    expect(body.vehiculo.placas).toBe('[REDACTED]1234');
     expect(infracciones.findDetalleCompletoByInfraccion).toHaveBeenCalledTimes(
       1,
     );
