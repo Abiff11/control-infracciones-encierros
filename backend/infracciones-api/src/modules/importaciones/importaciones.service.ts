@@ -387,9 +387,11 @@ export class ImportacionesService {
   async findAll(
     query: ImportacionInfraccionesQueryDto,
   ): Promise<ImportacionInfracciones[]> {
-    const where: FindOptionsWhere<ImportacionInfracciones> = {
-      anio: query.anio,
-    };
+    const where: FindOptionsWhere<ImportacionInfracciones> = {};
+
+    if (query.anio !== undefined) {
+      where.anio = query.anio;
+    }
 
     if (query.estado) {
       where.estado = query.estado;

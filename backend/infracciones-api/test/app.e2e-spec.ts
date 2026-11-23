@@ -7,19 +7,33 @@ import { AppModule } from './../src/app.module';
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.setGlobalPrefix('api');
     await app.init();
   });
 
-  it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
+  afterAll(async () => {
+    await app?.close();
+  });
+
+  it('reports application and database health without a session', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/health')
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      status: 'ok',
+      database: 'ok',
+      service: 'control-infracciones-api',
+    });
+  });
+
+  it('requires a session to access the API root', async () => {
+    await request(app.getHttpServer()).get('/api').expect(401);
   });
 });
