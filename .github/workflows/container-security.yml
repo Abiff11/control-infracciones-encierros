@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Build production backend image
         run: docker build --target api-production -t control-infracciones-backend:security-scan .
@@ -60,7 +60,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Build production frontend image
         run: docker build --target web-production -t control-infracciones-frontend:security-scan .
