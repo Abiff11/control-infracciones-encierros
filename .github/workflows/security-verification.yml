@@ -69,7 +69,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -198,7 +198,7 @@ jobs:
 
       - name: Upload API security log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: api-security-verification-log
           path: ${{ runner.temp }}/security-api.log
@@ -212,7 +212,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Build production frontend image
         run: docker build --target web-production -t control-infracciones-frontend:dast .
@@ -273,7 +273,7 @@ jobs:
 
       - name: Upload ZAP baseline report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: zap-baseline-report
           path: zap-results/
