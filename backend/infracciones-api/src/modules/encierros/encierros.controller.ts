@@ -14,6 +14,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { InfraccionWriteLock } from '../../common/concurrency/infraccion-write-lock.interceptor';
 import {
+  INVENTORY_READ_ROLES,
   READ_ROLES,
   ROLES,
   YARD_ENTRY_ROLES,
@@ -47,6 +48,7 @@ export class EncierrosController {
     return this.encierrosService.findRetencionByIdOrFail(idRetencionVehiculo);
   }
 
+  @Roles(...INVENTORY_READ_ROLES)
   @Get('vehiculos/resumen')
   @ApiOperation({
     summary: 'Obtener resumen operativo de vehiculos en encierro',
@@ -55,6 +57,7 @@ export class EncierrosController {
     return this.encierrosService.getVehiculosEnEncierroResumen(query);
   }
 
+  @Roles(...INVENTORY_READ_ROLES)
   @Get('vehiculos')
   @ApiOperation({
     summary: 'Listar vehiculos retenidos con su estado operativo',
