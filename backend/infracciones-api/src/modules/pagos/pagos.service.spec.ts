@@ -5,10 +5,16 @@ import { ESTATUS_INFRACCION } from '../infracciones/constants/estatus-infraccion
 import { PagosService } from './pagos.service';
 
 function createRepositoryMock() {
+  let lastCreatedValue: Record<string, unknown> | null = null;
+
   return {
-    create: jest.fn((value: Record<string, unknown>) => value),
+    create: jest.fn((value: Record<string, unknown>) => {
+      lastCreatedValue = value;
+      return value;
+    }),
     findOne: jest.fn(),
     find: jest.fn(),
+    getLastCreatedValue: () => lastCreatedValue,
     save: jest.fn((value: Record<string, unknown>) => Promise.resolve(value)),
   };
 }
@@ -52,6 +58,8 @@ function createServiceFixture() {
       if (options?.where?.idSolventacionSinPago) {
         return Promise.resolve({
           idSolventacionSinPago: options.where.idSolventacionSinPago,
+          infraccion: { idInfraccion: 10 },
+          usuarioRegistra: { idUsuario: 5 },
           motivo: 'No se genero linea de captura',
           fechaSolventacion: solventacionFecha,
         });
@@ -128,6 +136,7 @@ function createServiceFixture() {
     pagoConceptoRepository,
     pagosRepository,
     service,
+    solventacionFecha,
     solventacionesRepository,
     transactionPagosRepository,
   };
@@ -281,10 +290,24 @@ describe('PagosService registrarNoAplicaPago', () => {
       motivo: ' No se genero linea de captura ',
     });
 
-    expect(fixture.solventacionesRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        motivo: 'No se genero linea de captura',
-      }),
+    const createdSolventacion =
+      fixture.solventacionesRepository.getLastCreatedValue();
+
+    expect(createdSolventacion).not.toBeNull();
+    expect(createdSolventacion).toHaveProperty('infraccion', {
+      idInfraccion: 10,
+    });
+    expect(createdSolventacion).toHaveProperty('usuarioRegistra', {
+      idUsuario: 5,
+    });
+    expect(createdSolventacion).toHaveProperty(
+      'motivo',
+      'No se genero linea de captura',
+    );
+    expect(createdSolventacion).toHaveProperty('fechaSolventacion');
+    expect(createdSolventacion?.fechaSolventacion).toBeInstanceOf(Date);
+    expect(fixture.solventacionesRepository.save).toHaveBeenCalledWith(
+      createdSolventacion,
     );
     expect(fixture.dataSource.transaction).not.toHaveBeenCalled();
     expect(
@@ -302,6 +325,10 @@ describe('PagosService registrarNoAplicaPago', () => {
       }),
     );
     expect(result.idSolventacionSinPago).toBe(77);
+    expect(result.infraccion).toEqual({ idInfraccion: 10 });
+    expect(result.usuarioRegistra).toEqual({ idUsuario: 5 });
+    expect(result.motivo).toBe('No se genero linea de captura');
+    expect(result.fechaSolventacion).toBe(fixture.solventacionFecha);
   });
 
   it('rechaza No aplica pago cuando ya existe un pago real', async () => {
