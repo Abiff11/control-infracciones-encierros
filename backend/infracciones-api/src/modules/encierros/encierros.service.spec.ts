@@ -84,6 +84,42 @@ describe('EncierrosService registrarRetencion', () => {
     expect(retencionesRepository.save).toHaveBeenCalled();
   });
 
+  it('rechaza una segunda retencion para la misma infraccion', async () => {
+    const encierrosRepository = createRepositoryMock();
+    const retencionesRepository = createRepositoryMock();
+    retencionesRepository.findOne.mockResolvedValue({
+      idRetencionVehiculo: 21,
+    });
+    const salidasRepository = createRepositoryMock();
+    const infraccionesService = {
+      findByIdOrFail: jest.fn().mockResolvedValue({
+        tipoProcedimiento: {
+          nombreTipoProcedimiento: 'INFRACCION',
+          permiteRetencion: true,
+        },
+      }),
+    };
+
+    const service = new EncierrosService(
+      {} as never,
+      encierrosRepository as never,
+      retencionesRepository as never,
+      salidasRepository as never,
+      { registrar: jest.fn() } as never,
+      infraccionesService as never,
+    );
+
+    await expect(
+      service.registrarRetencion({
+        idInfraccion: 11,
+        idEncierro: 7,
+        recibidoPor: 'Operador',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(retencionesRepository.save).not.toHaveBeenCalled();
+  });
+
   it('rechaza salida cuando la liberacion no corresponde a la retencion seleccionada', async () => {
     const encierrosRepository = createRepositoryMock();
     const retencionesRepository = createRepositoryMock();
@@ -131,6 +167,43 @@ describe('EncierrosService registrarRetencion', () => {
         estadoSalida: 'ENTREGADO',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rechaza salida cuando la liberacion indicada no existe', async () => {
+    const retencionesRepository = createRepositoryMock();
+    retencionesRepository.findOne.mockResolvedValue({
+      idRetencionVehiculo: 14,
+      infraccion: { idInfraccion: 11 },
+      encierro: { idEncierro: 7 },
+    });
+    const salidasRepository = createRepositoryMock();
+    salidasRepository.findOne.mockResolvedValue(null);
+    const dataSource = {
+      getRepository: jest.fn(() => ({
+        findOne: jest.fn().mockResolvedValue(null),
+      })),
+    };
+    const service = new EncierrosService(
+      dataSource as never,
+      createRepositoryMock() as never,
+      retencionesRepository as never,
+      salidasRepository as never,
+      { registrar: jest.fn() } as never,
+      { actualizarEstatusYRegistrarMovimiento: jest.fn() } as never,
+    );
+
+    await expect(
+      service.registrarSalida({
+        idRetencionVehiculo: 14,
+        idLiberacionVehiculo: 99,
+        idUsuarioValidaSalida: 3,
+        validadoPor: 'Operador',
+        personaRecibeVehiculo: 'Propietario',
+        estadoSalida: 'ENTREGADO',
+      }),
+    ).rejects.toThrow('Liberacion vehicular 99 no encontrada');
+
+    expect(salidasRepository.save).not.toHaveBeenCalled();
   });
 });
 
