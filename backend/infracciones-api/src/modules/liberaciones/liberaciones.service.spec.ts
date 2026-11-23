@@ -174,6 +174,70 @@ describe('LiberacionesService generarLiberacion', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it('rechaza una liberacion respaldada a la vez por pago y solventacion', async () => {
+    const fixture = createServiceFixture();
+
+    await expect(
+      fixture.service.generarLiberacion({
+        idInfraccion: 10,
+        idPagoInfraccion: 99,
+        idSolventacionSinPago: 77,
+        idUsuarioLibera: 4,
+        folioLiberacion: 'LIB-DOBLE-RESPALDO',
+        liberadoPor: 'Operador',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(fixture.pagosRepository.findOne).not.toHaveBeenCalled();
+    expect(fixture.solventacionesRepository.findOne).not.toHaveBeenCalled();
+  });
+
+  it('rechaza un pago que no pertenece a la infraccion', async () => {
+    const fixture = createServiceFixture();
+    fixture.pagosRepository.findOne.mockResolvedValue(null);
+
+    await expect(
+      fixture.service.generarLiberacion({
+        idInfraccion: 10,
+        idPagoInfraccion: 99,
+        idUsuarioLibera: 4,
+        folioLiberacion: 'LIB-PAGO-AJENO',
+        liberadoPor: 'Operador',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(fixture.pagosRepository.findOne).toHaveBeenCalledWith({
+      where: {
+        idPagoInfraccion: 99,
+        infraccion: { idInfraccion: 10 },
+      },
+    });
+    expect(fixture.liberacionesRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rechaza una solventacion que no pertenece a la infraccion', async () => {
+    const fixture = createServiceFixture();
+    fixture.solventacionesRepository.findOne.mockResolvedValue(null);
+
+    await expect(
+      fixture.service.generarLiberacion({
+        idInfraccion: 10,
+        idSolventacionSinPago: 77,
+        idUsuarioLibera: 4,
+        folioLiberacion: 'LIB-SOLVENTACION-AJENA',
+        liberadoPor: 'Operador',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(fixture.solventacionesRepository.findOne).toHaveBeenCalledWith({
+      where: {
+        idSolventacionSinPago: 77,
+        infraccion: { idInfraccion: 10 },
+      },
+    });
+    expect(fixture.liberacionesRepository.save).not.toHaveBeenCalled();
+  });
 });
 
 describe('LiberacionesService conciliacion de salida anticipada', () => {

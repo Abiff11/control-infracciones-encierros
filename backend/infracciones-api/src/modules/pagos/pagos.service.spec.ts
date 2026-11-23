@@ -265,6 +265,21 @@ describe('PagosService registrarPago', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('rechaza conceptos con monto negativo', async () => {
+    const fixture = createServiceFixture();
+
+    await expect(
+      fixture.service.registrarPago({
+        idInfraccion: 10,
+        idUsuarioRegistraPago: 5,
+        folioLineaCaptura: 'LC-NEGATIVO',
+        conceptos: [{ claveConcepto: '101', monto: '-1.00' }],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(fixture.dataSource.transaction).not.toHaveBeenCalled();
+  });
+
   it('rechaza registrar pago si ya existe una solventacion No aplica pago', async () => {
     const fixture = createServiceFixture();
     fixture.solventacionesRepository.findOne.mockResolvedValue({
@@ -350,6 +365,38 @@ describe('PagosService registrarNoAplicaPago', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(fixture.solventacionesRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rechaza una segunda solventacion No aplica pago', async () => {
+    const fixture = createServiceFixture();
+    fixture.solventacionesRepository.findOne.mockResolvedValue({
+      idSolventacionSinPago: 77,
+    });
+
+    await expect(
+      fixture.service.registrarNoAplicaPago({
+        idInfraccion: 10,
+        idUsuarioRegistra: 5,
+        motivo: 'No se genero linea de captura',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(fixture.dataSource.transaction).not.toHaveBeenCalled();
+  });
+
+  it('rechaza un motivo insuficiente antes de consultar persistencia', async () => {
+    const fixture = createServiceFixture();
+
+    await expect(
+      fixture.service.registrarNoAplicaPago({
+        idInfraccion: 10,
+        idUsuarioRegistra: 5,
+        motivo: '  x  ',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(fixture.pagosRepository.findOne).not.toHaveBeenCalled();
+    expect(fixture.solventacionesRepository.findOne).not.toHaveBeenCalled();
   });
 });
 
