@@ -20,6 +20,12 @@ export const READ_ROLES: RoleName[] = [
   ROLES.OPERADOR,
 ];
 
+// El inventario queda restringido a todos los roles de lectura excepto INFRACCIONES.
+// No modificar READ_ROLES: las consultas operativas y observaciones lo requieren.
+export const INVENTORY_READ_ROLES: RoleName[] = READ_ROLES.filter(
+  (role) => role !== ROLES.INFRACCIONES,
+);
+
 export const CAPTURE_ROLES: RoleName[] = [
   ROLES.ADMIN,
   ROLES.SECCION_PRIMERA,

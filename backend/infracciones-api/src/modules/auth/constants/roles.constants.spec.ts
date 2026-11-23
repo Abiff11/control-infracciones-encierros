@@ -1,5 +1,6 @@
 import {
   CAPTURE_ROLES,
+  INVENTORY_READ_ROLES,
   READ_ROLES,
   ROLES,
   YARD_ENTRY_ROLES,
@@ -9,6 +10,15 @@ import {
 describe('CAPTURE_ROLES', () => {
   it('permite capturar infracciones al rol INFRACCIONES', () => {
     expect(CAPTURE_ROLES).toContain(ROLES.INFRACCIONES);
+  });
+});
+
+describe('INVENTORY_READ_ROLES', () => {
+  it('bloquea a INFRACCIONES sin quitar acceso a los otros roles de lectura', () => {
+    expect(INVENTORY_READ_ROLES).not.toContain(ROLES.INFRACCIONES);
+    expect(INVENTORY_READ_ROLES).toEqual(
+      READ_ROLES.filter((role) => role !== ROLES.INFRACCIONES),
+    );
   });
 });
 
