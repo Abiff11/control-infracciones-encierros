@@ -1,8 +1,10 @@
 # Matriz de correspondencia — DER histórico vs. modelo vigente (bloque 4B.1)
 
-**Estado:** revisión documental previa al rediseño del DER (bloque 4B.2). Este archivo **no reemplaza** el diagrama histórico ni el diccionario vigente.  
-**Corte de repositorio:** `main` en `c8ba798da7b969d83e89c43ce91485c36563b0bf` (22 de noviembre de 2026).  
-**Referencia de modelado:** `ecab15095b896cc8c5f056a41b4532256b407d8c`. Se verificó que entre esta referencia y el corte actual no cambiaron las entidades `*.entity.ts` ni las migraciones.  
+**Estado:** revisión documental previa al rediseño del DER (bloque 4B.2). Este archivo **no reemplaza** el diagrama histórico ni el diccionario vigente.
+
+**Corte de repositorio:** `main` en `c8ba798da7b969d83e89c43ce91485c36563b0bf` (22 de noviembre de 2026).
+
+**Referencia de modelado:** `ecab15095b896cc8c5f056a41b4532256b407d8c`. Se verificó que entre esta referencia y el corte actual no cambiaron las entidades `*.entity.ts` ni las migraciones.
 
 ## 1. Fuentes y método
 
