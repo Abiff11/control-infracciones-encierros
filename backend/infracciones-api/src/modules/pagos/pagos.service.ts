@@ -117,8 +117,12 @@ export class PagosService {
 
   async findNoAplicaByIdOrFail(
     idSolventacionSinPago: number,
+    manager?: EntityManager,
   ): Promise<SolventacionSinPago> {
-    const solventacion = await this.solventacionesRepository.findOne({
+    const repository =
+      manager?.getRepository(SolventacionSinPago) ??
+      this.solventacionesRepository;
+    const solventacion = await repository.findOne({
       where: { idSolventacionSinPago },
       relations: {
         infraccion: true,
@@ -312,34 +316,42 @@ export class PagosService {
       fechaSolventacion: new Date(),
     });
 
-    const savedSolventacion =
-      await this.solventacionesRepository.save(solventacion);
+    return this.dataSource.transaction(async (manager) => {
+      const savedSolventacion = await manager
+        .getRepository(SolventacionSinPago)
+        .save(solventacion);
+      const { idSolventacionSinPago, fechaSolventacion } = savedSolventacion;
 
-    await this.infraccionesService.actualizarEstatusYRegistrarMovimiento({
-      idInfraccion: params.idInfraccion,
-      nombreEstatus: ESTATUS_INFRACCION.SOLVENTADA_SIN_PAGO,
-      idUsuario: params.idUsuarioRegistra,
-      accion: ACCION_MOVIMIENTO.NO_APLICA_PAGO,
-      observaciones: `No aplica pago: ${motivo}`,
-      fechaMovimiento: savedSolventacion.fechaSolventacion,
+      await this.infraccionesService.actualizarEstatusYRegistrarMovimiento(
+        {
+          idInfraccion: params.idInfraccion,
+          nombreEstatus: ESTATUS_INFRACCION.SOLVENTADA_SIN_PAGO,
+          idUsuario: params.idUsuarioRegistra,
+          accion: ACCION_MOVIMIENTO.NO_APLICA_PAGO,
+          observaciones: `No aplica pago: ${motivo}`,
+          fechaMovimiento: fechaSolventacion,
+        },
+        manager,
+      );
+
+      await this.auditoriaService.registrar(
+        {
+          idUsuario: params.idUsuarioRegistra,
+          accion: 'NO_APLICA_PAGO',
+          entidad: 'solventacion_sin_pago',
+          entidadId: idSolventacionSinPago,
+          despuesJson: {
+            idSolventacionSinPago,
+            idInfraccion: params.idInfraccion,
+            motivo,
+            fechaSolventacion,
+          },
+        },
+        manager,
+      );
+
+      return this.findNoAplicaByIdOrFail(idSolventacionSinPago, manager);
     });
-
-    await this.auditoriaService.registrar({
-      idUsuario: params.idUsuarioRegistra,
-      accion: 'NO_APLICA_PAGO',
-      entidad: 'solventacion_sin_pago',
-      entidadId: savedSolventacion.idSolventacionSinPago,
-      despuesJson: {
-        idSolventacionSinPago: savedSolventacion.idSolventacionSinPago,
-        idInfraccion: params.idInfraccion,
-        motivo,
-        fechaSolventacion: savedSolventacion.fechaSolventacion,
-      },
-    });
-
-    return this.findNoAplicaByIdOrFail(
-      savedSolventacion.idSolventacionSinPago,
-    );
   }
 
   private normalizeConceptos(

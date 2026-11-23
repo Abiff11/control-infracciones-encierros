@@ -70,6 +70,10 @@ function createServiceFixture() {
         return transactionPagosRepository;
       }
 
+      if (entity?.name === 'SolventacionSinPago') {
+        return solventacionesRepository;
+      }
+
       if (entity?.name === 'PagoConcepto') {
         return pagoConceptoRepository;
       }
@@ -309,7 +313,7 @@ describe('PagosService registrarNoAplicaPago', () => {
     expect(fixture.solventacionesRepository.save).toHaveBeenCalledWith(
       createdSolventacion,
     );
-    expect(fixture.dataSource.transaction).not.toHaveBeenCalled();
+    expect(fixture.dataSource.transaction).toHaveBeenCalledTimes(1);
     expect(
       fixture.infraccionesService.actualizarEstatusYRegistrarMovimiento,
     ).toHaveBeenCalledWith(
@@ -317,12 +321,14 @@ describe('PagosService registrarNoAplicaPago', () => {
         nombreEstatus: ESTATUS_INFRACCION.SOLVENTADA_SIN_PAGO,
         accion: ACCION_MOVIMIENTO.NO_APLICA_PAGO,
       }),
+      fixture.manager,
     );
     expect(fixture.auditoriaService.registrar).toHaveBeenCalledWith(
       expect.objectContaining({
         accion: 'NO_APLICA_PAGO',
         entidad: 'solventacion_sin_pago',
       }),
+      fixture.manager,
     );
     expect(result.idSolventacionSinPago).toBe(77);
     expect(result.infraccion).toEqual({ idInfraccion: 10 });

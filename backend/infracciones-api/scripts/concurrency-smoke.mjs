@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 
 import argon2 from 'argon2';
@@ -140,13 +141,14 @@ function dbClient() {
   });
 }
 
-async function seedSecondAdmin(client) {
+async function seedTestActor(client, actor) {
   const role = await client.query(
-    `SELECT id_rol FROM rol WHERE nombre_rol = 'ADMIN' LIMIT 1`,
+    'SELECT id_rol FROM rol WHERE nombre_rol = $1',
+    [actor.role],
   );
-  assert(role.rowCount === 1, 'No existe el rol ADMIN');
+  assert(role.rowCount === 1, `No existe el rol ${actor.role}`);
 
-  const passwordHash = await argon2.hash(secondAdminPassword, {
+  const passwordHash = await argon2.hash(actor.password, {
     type: argon2.argon2id,
     memoryCost: 19456,
     timeCost: 2,
@@ -181,7 +183,7 @@ async function seedSecondAdmin(client) {
         locked_until = NULL,
         password_changed_at = NOW()
     `,
-    [role.rows[0].id_rol, 'Concurrency Admin B', secondAdminEmail, passwordHash],
+    [role.rows[0].id_rol, actor.label, actor.email, passwordHash],
   );
 }
 
@@ -211,6 +213,7 @@ async function readFixtureIds(client) {
 
 async function createInfraccion(actor, ids) {
   const suffix = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  const placas = `CONC-${suffix}`.slice(0, 20);
   const response = await authPost(actor, '/api/infracciones', {
     infractor: {
       idSexo: ids.idSexo,
@@ -221,7 +224,7 @@ async function createInfraccion(actor, ids) {
       idClaseVehiculo: ids.idClaseVehiculo,
       idLineaVehiculo: ids.idLineaVehiculo,
       idServicio: ids.idServicio,
-      placas: `CONC-${suffix}`.slice(0, 20),
+      placas,
       color: 'PRUEBA',
     },
     lugarInfraccion: {
@@ -247,7 +250,7 @@ async function createInfraccion(actor, ids) {
   const idInfraccion = Number(payload?.infraccion?.idInfraccion);
   assert(Number.isInteger(idInfraccion) && idInfraccion > 0, 'Respuesta sin idInfraccion');
 
-  return { idInfraccion, suffix };
+  return { idInfraccion, suffix, placas };
 }
 
 async function runRace(label, requestA, requestB) {
@@ -491,6 +494,296 @@ async function runPaymentRollbackCases(client, actor, ids) {
   assert(failures.length === 0, failures.join('\n'));
 }
 
+async function postCreated(actor, endpoint, payload) {
+  const response = await authPost(actor, endpoint, payload);
+  const result = await parseResponse(response);
+  assert(
+    response.status === 201,
+    `${endpoint}: HTTP ${response.status}: ${JSON.stringify(result)}`,
+  );
+  return result;
+}
+
+async function createRetainedInfraccion(actor, ids) {
+  const infraccion = await createInfraccion(actor, ids);
+  const retencion = await postCreated(actor, '/api/encierros/retenciones', {
+    idInfraccion: infraccion.idInfraccion,
+    idEncierro: ids.idEncierro,
+    recibidoPor: 'PRUEBA DE ROLLBACK',
+  });
+  return { ...infraccion, idRetencionVehiculo: retencion.idRetencionVehiculo };
+}
+
+async function readOperationState(client, fixture, operation) {
+  const { idInfraccion, idRetencionVehiculo } = fixture;
+  const { movement, audit, auditKey } = operation;
+  const auditId =
+    auditKey === 'idRetencionVehiculo' ? idRetencionVehiculo : idInfraccion;
+  const {
+    rows: [state],
+  } = await client.query(
+    `
+      SELECT i.folio_infraccion AS folio, e.nombre_estatus AS status,
+        (SELECT id_solventacion_sin_pago FROM solventacion_sin_pago
+          WHERE id_infraccion = i.id_infraccion) AS solventacion,
+        (SELECT id_liberacion_vehiculo FROM liberacion_vehiculo
+          WHERE id_infraccion = i.id_infraccion) AS liberacion,
+        (SELECT jsonb_build_object(
+                  'id', s.id_salida_vehiculo, 'liberacion', s.id_liberacion_vehiculo,
+                  'modalidad', s.modalidad_salida, 'folioPresentado', s.folio_liberacion_presentado)
+          FROM salida_vehiculo s WHERE s.id_retencion_vehiculo = $2) AS salida,
+        ARRAY(SELECT me.nombre_estatus FROM infraccion_movimiento m
+          JOIN estatus_infraccion me USING (id_estatus_infraccion)
+          WHERE m.id_infraccion = i.id_infraccion AND m.accion = $3
+          ORDER BY m.id_infraccion_movimiento) AS movements,
+        (SELECT COUNT(*)::int FROM auditoria a
+          WHERE a.accion = $4 AND a.despues_json ->> $5::text = $6::text) AS audits
+      FROM infracciones i
+      JOIN estatus_infraccion e USING (id_estatus_infraccion)
+      WHERE i.id_infraccion = $1
+    `,
+    [idInfraccion, idRetencionVehiculo, movement, audit, auditKey, auditId],
+  );
+  assert(
+    state?.folio === `CONC-${fixture.suffix}`,
+    'La API y PostgreSQL deben usar el mismo expediente de prueba',
+  );
+  return state;
+}
+
+async function assertOperationRollback(client, actor, fixture, operation) {
+  const { audit, auditKey, endpoint, payload, expectedStatus } = operation;
+  const before = await readOperationState(client, fixture, operation);
+  const auditId =
+    auditKey === 'idRetencionVehiculo'
+      ? fixture.idRetencionVehiculo
+      : fixture.idInfraccion;
+  const constraint = client.escapeIdentifier(
+    `operation_rollback_fixture_${fixture.idInfraccion}`,
+  );
+  await client.query(
+    `ALTER TABLE auditoria ADD CONSTRAINT ${constraint}
+      CHECK (accion <> ${client.escapeLiteral(audit)}
+        OR despues_json ->> ${client.escapeLiteral(auditKey)}
+          IS DISTINCT FROM ${client.escapeLiteral(String(auditId))}) NOT VALID`,
+  );
+  try {
+    const response = await authPost(actor, endpoint, payload);
+    const result = await parseResponse(response);
+    assert(
+      response.status === 500,
+      `${audit}: se esperaba HTTP 500: ${JSON.stringify(result)}`,
+    );
+  } finally {
+    await client.query(`ALTER TABLE auditoria DROP CONSTRAINT ${constraint}`);
+  }
+
+  const after = await readOperationState(client, fixture, operation);
+  assert(
+    isDeepStrictEqual(after, before),
+    `${audit}: persistieron cambios tras fallar la auditoria: ${JSON.stringify({ before, after })}`,
+  );
+
+  const response = await postCreated(actor, endpoint, payload);
+  const committed = await readOperationState(client, fixture, operation);
+  assert(
+    committed.status === expectedStatus &&
+      isDeepStrictEqual(committed.movements, [
+        ...before.movements,
+        expectedStatus,
+      ]) &&
+      committed.audits === before.audits + 1,
+    `${audit}: el reintento no guardo estatus, movimiento y auditoria: ${JSON.stringify(committed)}`,
+  );
+  return { response, committed };
+}
+
+function noPaymentPayload(idInfraccion) {
+  return {
+    idInfraccion,
+    motivo: 'Solventacion de prueba sin linea de captura',
+  };
+}
+
+async function testNoPaymentRollback(client, actor, ids) {
+  const fixture = await createRetainedInfraccion(actor, ids);
+  const { response, committed } = await assertOperationRollback(
+    client,
+    actor,
+    fixture,
+    {
+      movement: 'NO_APLICA_PAGO',
+      audit: 'NO_APLICA_PAGO',
+      auditKey: 'idInfraccion',
+      endpoint: '/api/pagos/no-aplica',
+      payload: noPaymentPayload(fixture.idInfraccion),
+      expectedStatus: 'SOLVENTADA_SIN_PAGO',
+    },
+  );
+  assert(
+    committed.solventacion === response.idSolventacionSinPago &&
+      response.infraccion.idInfraccion === fixture.idInfraccion,
+    'El reintento debe guardar y devolver la solventacion del expediente',
+  );
+}
+
+async function testReleaseRollback(client, actor, ids, yardActor) {
+  const fixture = await createRetainedInfraccion(actor, ids);
+  const { idInfraccion, idRetencionVehiculo, suffix, placas } = fixture;
+  const folioLiberacion = `LIB-ROLLBACK-${suffix}`;
+  const earlyExit = yardActor
+    ? await postCreated(yardActor, '/api/encierros/salidas/anticipadas', {
+        idRetencionVehiculo,
+        folioLiberacionPresentado: folioLiberacion,
+        placasCotejadas: placas,
+        datosVehiculoCotejados: {},
+        autorizacionDocumentalVerificada: true,
+        nombrePropietarioDeclarado: 'PERSONA DE PRUEBA',
+        validadoPor: 'ENCIERRO DE PRUEBA',
+        personaRecibeVehiculo: 'PERSONA DE PRUEBA',
+      })
+    : null;
+  const solventacion = await postCreated(
+    actor,
+    '/api/pagos/no-aplica',
+    noPaymentPayload(idInfraccion),
+  );
+  const payload = {
+    idInfraccion,
+    folioLiberacion,
+    liberadoPor: 'PRUEBA DE ROLLBACK',
+  };
+  const operation = {
+    movement: 'LIBERACION_GENERADA',
+    audit: 'LIBERACION_GENERADA',
+    auditKey: 'idInfraccion',
+    endpoint: '/api/liberaciones',
+    payload,
+    expectedStatus: earlyExit ? 'VEHICULO_ENTREGADO' : 'LIBERACION_GENERADA',
+  };
+
+  if (earlyExit) {
+    const before = await readOperationState(client, fixture, operation);
+    assert(
+      before.salida?.liberacion === null &&
+        before.status === 'VEHICULO_ENTREGADO',
+      'La salida anticipada debe existir sin liberacion electronica',
+    );
+    const mismatch = await authPost(actor, operation.endpoint, {
+      ...payload,
+      folioLiberacion: `OTRO-${suffix}`,
+    });
+    await parseResponse(mismatch);
+    assert(
+      mismatch.status === 400,
+      'Debe rechazarse la conciliacion con un folio discordante',
+    );
+    assert(
+      isDeepStrictEqual(
+        await readOperationState(client, fixture, operation),
+        before,
+      ),
+      'El folio discordante cambio el expediente',
+    );
+  }
+
+  const { response, committed } = await assertOperationRollback(
+    client,
+    actor,
+    fixture,
+    operation,
+  );
+  assert(
+    committed.liberacion === response.idLiberacionVehiculo &&
+      response.solventacionSinPago.idSolventacionSinPago ===
+        solventacion.idSolventacionSinPago,
+    'La liberacion debe quedar respaldada por la solventacion sin pago',
+  );
+  if (earlyExit) {
+    assert(
+      isDeepStrictEqual(committed.salida, {
+        id: earlyExit.idSalidaVehiculo,
+        liberacion: response.idLiberacionVehiculo,
+        modalidad: 'ANTICIPADA',
+        folioPresentado: folioLiberacion,
+      }),
+      'La conciliacion debe vincular la misma salida anticipada y conservar su folio',
+    );
+  }
+}
+
+async function testExitRollback(client, actor, ids) {
+  const fixture = await createRetainedInfraccion(actor, ids);
+  const { idInfraccion, idRetencionVehiculo, suffix } = fixture;
+  await postCreated(
+    actor,
+    '/api/pagos/no-aplica',
+    noPaymentPayload(idInfraccion),
+  );
+  const liberacion = await postCreated(actor, '/api/liberaciones', {
+    idInfraccion,
+    folioLiberacion: `LIB-ROLLBACK-${suffix}`,
+    liberadoPor: 'PRUEBA DE ROLLBACK',
+  });
+  const { response, committed } = await assertOperationRollback(
+    client,
+    actor,
+    fixture,
+    {
+      movement: 'VEHICULO_ENTREGADO',
+      audit: 'SALIDA_ENCIERRO_REGISTRADA',
+      auditKey: 'idRetencionVehiculo',
+      endpoint: '/api/encierros/salidas',
+      payload: {
+        idRetencionVehiculo,
+        idLiberacionVehiculo: liberacion.idLiberacionVehiculo,
+        validadoPor: 'PRUEBA DE ROLLBACK',
+        personaRecibeVehiculo: 'PERSONA DE PRUEBA',
+        estadoSalida: 'ENTREGADO',
+      },
+      expectedStatus: 'VEHICULO_ENTREGADO',
+    },
+  );
+  assert(
+    committed.salida?.id === response.idSalidaVehiculo &&
+      committed.salida.liberacion === liberacion.idLiberacionVehiculo &&
+      committed.salida.modalidad === 'ORDINARIA',
+    'El reintento debe guardar una salida ordinaria vinculada a la liberacion',
+  );
+}
+
+async function runOperationRollbackCases(client, actor, ids) {
+  const yard = {
+    role: 'ENCIERRO',
+    label: 'Encierro de prueba',
+    email: `concurrency-yard-${randomUUID()}@example.test`,
+    password: randomUUID(),
+  };
+  await seedTestActor(client, yard);
+  const yardActor = await login(yard.email, yard.password, yard.label);
+  const cases = [
+    ['No aplica pago', () => testNoPaymentRollback(client, actor, ids)],
+    ['liberacion', () => testReleaseRollback(client, actor, ids)],
+    ['salida ordinaria', () => testExitRollback(client, actor, ids)],
+    [
+      'conciliacion de salida anticipada',
+      () => testReleaseRollback(client, actor, ids, yardActor),
+    ],
+  ];
+  const failures = [];
+  for (const [label, test] of cases) {
+    try {
+      await test();
+      console.log(`rollback de ${label} y reintento: OK`);
+    } catch (error) {
+      failures.push(
+        `${label}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+  assert(failures.length === 0, failures.join('\n'));
+}
+
 async function main() {
   assert(
     isDisposablePaymentDatabase(),
@@ -500,13 +793,19 @@ async function main() {
   await client.connect();
 
   try {
-    await seedSecondAdmin(client);
+    await seedTestActor(client, {
+      role: 'ADMIN',
+      label: 'Concurrency Admin B',
+      email: secondAdminEmail,
+      password: secondAdminPassword,
+    });
     const ids = await readFixtureIds(client);
 
     const actorA = await login(adminEmail, adminPassword, 'admin A');
     const actorB = await login(secondAdminEmail, secondAdminPassword, 'admin B');
 
     await runPaymentRollbackCases(client, actorA, ids);
+    await runOperationRollbackCases(client, actorA, ids);
 
     await runParallelReads(actorA, actorB);
 

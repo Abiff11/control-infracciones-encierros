@@ -65,6 +65,7 @@ function createServiceFixture() {
     auditoriaService,
     infraccionesService,
     liberacionesRepository,
+    manager,
     managerQuery,
     transaction,
     pagosRepository,
@@ -203,11 +204,19 @@ describe('LiberacionesService conciliacion de salida anticipada', () => {
       expect.stringContaining('UPDATE salida_vehiculo'),
       [55, 80],
     );
-    expect(f.infraccionesService.actualizarEstatusYRegistrarMovimiento)
-      .toHaveBeenCalledWith(expect.objectContaining({
+    expect(
+      f.infraccionesService.actualizarEstatusYRegistrarMovimiento,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
         nombreEstatus: 'LIBERACION_GENERADA',
         accion: 'LIBERACION_GENERADA',
-      }));
+      }),
+      f.manager,
+    );
+    expect(f.auditoriaService.registrar).toHaveBeenCalledWith(
+      expect.objectContaining({ accion: 'LIBERACION_GENERADA' }),
+      f.manager,
+    );
   });
 
   it('rechaza una conciliacion sin filas actualizadas y no registra movimiento', async () => {
