@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 
+import type { AuditoriaService } from '../auditoria/auditoria.service';
 import { ACCION_MOVIMIENTO } from '../infracciones/constants/accion-movimiento.constants';
 import { ESTATUS_INFRACCION } from '../infracciones/constants/estatus-infraccion.constants';
 import { PagosService } from './pagos.service';
@@ -31,18 +32,12 @@ function createServiceFixture() {
       Promise.resolve({ ...value, idPagoInfraccion: 91 }),
   );
 
-  pagosRepository.findOne.mockImplementation(
-    (options?: { where?: { idPagoInfraccion?: number } }) => {
-      if (options?.where?.idPagoInfraccion) {
-        return Promise.resolve({
-          idPagoInfraccion: options.where.idPagoInfraccion,
-          conceptos: [],
-        });
-      }
+  transactionPagosRepository.findOne.mockResolvedValue({
+    idPagoInfraccion: 91,
+    conceptos: [],
+  });
 
-      return Promise.resolve(null);
-    },
-  );
+  pagosRepository.findOne.mockResolvedValue(null);
 
   const solventacionFecha = new Date('2026-08-25T20:00:00.000Z');
   solventacionesRepository.save.mockImplementation(
@@ -100,7 +95,7 @@ function createServiceFixture() {
 
   const dataSource = {
     transaction: jest.fn(
-      (callback: (entityManager: typeof manager) => Promise<number>) =>
+      (callback: (entityManager: typeof manager) => Promise<unknown>) =>
         callback(manager),
     ),
   };
@@ -115,7 +110,9 @@ function createServiceFixture() {
     actualizarEstatusYRegistrarMovimiento: jest.fn().mockResolvedValue({}),
   };
   const auditoriaService = {
-    registrar: jest.fn().mockResolvedValue({}),
+    registrar: jest
+      .fn<Promise<unknown>, Parameters<AuditoriaService['registrar']>>()
+      .mockResolvedValue({}),
   };
 
   const service = new PagosService(
@@ -174,19 +171,21 @@ describe('PagosService registrarPago', () => {
       expect.objectContaining({
         nombreEstatus: ESTATUS_INFRACCION.PAGADA,
       }),
+      fixture.manager,
     );
-    const [auditoriaPayload] = fixture.auditoriaService.registrar.mock
-      .calls[0] as [
-      {
-        despuesJson: {
-          folioLineaCaptura: string;
-          monto: string;
-        };
-      },
-    ];
-
-    expect(auditoriaPayload.despuesJson.folioLineaCaptura).toBe('LC-123');
-    expect(auditoriaPayload.despuesJson.monto).toBe('200.00');
+    expect(fixture.auditoriaService.registrar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accion: 'PAGO_REGISTRADO',
+        entidad: 'pagos',
+      }),
+      fixture.manager,
+    );
+    expect(fixture.auditoriaService.registrar.mock.calls[0][0]).toMatchObject({
+      despuesJson: { folioLineaCaptura: 'LC-123', monto: '200.00' },
+    });
+    expect(fixture.transactionPagosRepository.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { idPagoInfraccion: 91 } }),
+    );
   });
 
   it('cierra una INFRACCION_SIN_RETENCION como PAGADA_SIN_RETENCION', async () => {
@@ -211,6 +210,7 @@ describe('PagosService registrarPago', () => {
       expect.objectContaining({
         nombreEstatus: ESTATUS_INFRACCION.PAGADA_SIN_RETENCION,
       }),
+      fixture.manager,
     );
   });
 

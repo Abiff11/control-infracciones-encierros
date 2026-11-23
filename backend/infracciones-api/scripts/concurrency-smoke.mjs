@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from 'node:util';
+
 import argon2 from 'argon2';
 import pg from 'pg';
 
@@ -316,7 +318,184 @@ async function runParallelReads(actorA, actorB) {
   );
 }
 
+async function readPaymentState(client, idInfraccion) {
+  const { rows } = await client.query(
+    `
+      SELECT i.folio_infraccion AS folio,
+        i.id_estatus_infraccion AS "statusId",
+        e.nombre_estatus AS status,
+        (SELECT COUNT(*)::int FROM pago_infraccion p
+          WHERE p.id_infraccion = i.id_infraccion) AS payments,
+        (SELECT COUNT(*)::int FROM pago_concepto pc
+          JOIN pago_infraccion p ON p.id_pago_infraccion = pc.id_pago_infraccion
+          WHERE p.id_infraccion = i.id_infraccion) AS "conceptLinks",
+        (SELECT COUNT(*)::int FROM infraccion_movimiento m
+          WHERE m.id_infraccion = i.id_infraccion
+            AND m.accion = 'PAGO_REGISTRADO') AS movements,
+        (SELECT COUNT(*)::int FROM auditoria a
+          WHERE a.accion = 'PAGO_REGISTRADO' AND a.entidad = 'pagos'
+            AND a.despues_json ->> 'idInfraccion' = i.id_infraccion::text) AS audits
+      FROM infracciones i
+      JOIN estatus_infraccion e USING (id_estatus_infraccion)
+      WHERE i.id_infraccion = $1
+    `,
+    [idInfraccion],
+  );
+
+  assert(
+    rows.length === 1,
+    'No se encontro el expediente de prueba en PostgreSQL',
+  );
+  return rows[0];
+}
+
+async function assertCommittedPayment(client, idInfraccion, conceptCount) {
+  const { status, payments, conceptLinks, movements, audits } =
+    await readPaymentState(client, idInfraccion);
+  const actual = { status, payments, conceptLinks, movements, audits };
+  const expected = {
+    status: 'PAGADA',
+    payments: 1,
+    conceptLinks: conceptCount,
+    movements: 1,
+    audits: 1,
+  };
+  assert(
+    isDeepStrictEqual(actual, expected),
+    `Pago incompleto: ${JSON.stringify(actual)}`,
+  );
+}
+
+function isDisposablePaymentDatabase() {
+  return (
+    process.env.NODE_ENV === 'test' &&
+    process.env.DB_HOST === '127.0.0.1' &&
+    new URL(baseUrl).hostname === '127.0.0.1' &&
+    (/^control_infracciones_pagos_test_[a-z0-9]+$/.test(
+      process.env.DB_DATABASE ?? '',
+    ) ||
+      (process.env.GITHUB_ACTIONS === 'true' &&
+        process.env.DB_DATABASE === 'control_infracciones_db'))
+  );
+}
+
+async function runPaymentRollbackCase(client, actor, ids, stage) {
+  const { idInfraccion, suffix } = await createInfraccion(actor, ids);
+  const before = await readPaymentState(client, idInfraccion);
+  assert(
+    before.folio === `CONC-${suffix}` && before.status === 'CAPTURADA',
+    'La API y el cliente SQL deben apuntar al mismo expediente de prueba',
+  );
+
+  const newKey = `ROLLBACK-NEW-${suffix}`;
+  const inactiveKey = `ROLLBACK-INACTIVE-${suffix}`;
+  const {
+    rows: [inactive],
+  } = await client.query(
+    'INSERT INTO concepto_pago (clave_concepto, activo) VALUES ($1, FALSE) RETURNING id_concepto_pago',
+    [inactiveKey],
+  );
+  const payload = {
+    idInfraccion,
+    folioLineaCaptura: `ROLLBACK-${suffix}`,
+    conceptos: [
+      { claveConcepto: newKey, monto: '50.50' },
+      { claveConcepto: inactiveKey, monto: '49.50' },
+    ],
+  };
+
+  const faults = {
+    conceptos: [
+      'pago_concepto',
+      `id_concepto_pago <> ${inactive.id_concepto_pago}`,
+    ],
+    estatus: [
+      'infracciones',
+      `id_infraccion <> ${idInfraccion} OR id_estatus_infraccion = ${before.statusId}`,
+    ],
+    movimiento: [
+      'infraccion_movimiento',
+      `id_infraccion <> ${idInfraccion} OR accion <> 'PAGO_REGISTRADO'`,
+    ],
+    auditoria: [
+      'auditoria',
+      `accion <> 'PAGO_REGISTRADO' OR entidad <> 'pagos' OR despues_json ->> 'idInfraccion' IS DISTINCT FROM '${idInfraccion}'`,
+    ],
+  };
+  const [table, condition] = faults[stage];
+  const constraint = `payment_rollback_fixture_${idInfraccion}`;
+  await client.query(
+    `ALTER TABLE ${table} ADD CONSTRAINT ${constraint} CHECK (${condition}) NOT VALID`,
+  );
+  try {
+    const response = await authPost(actor, '/api/pagos', payload);
+    const body = await parseResponse(response);
+    assert(
+      response.status === 500,
+      `${stage}: se esperaba HTTP 500: ${JSON.stringify(body)}`,
+    );
+  } finally {
+    await client.query(`ALTER TABLE ${table} DROP CONSTRAINT ${constraint}`);
+  }
+
+  const after = await readPaymentState(client, idInfraccion);
+  const { rows: catalog } = await client.query(
+    'SELECT clave_concepto, activo FROM concepto_pago WHERE clave_concepto = ANY($1)',
+    [[newKey, inactiveKey]],
+  );
+  assert(
+    isDeepStrictEqual(after, before) &&
+      isDeepStrictEqual(catalog, [
+        { clave_concepto: inactiveKey, activo: false },
+      ]),
+    `${stage}: persistieron cambios tras el error: ${JSON.stringify({ after, catalog })}`,
+  );
+
+  const retry = await authPost(actor, '/api/pagos', payload);
+  const payment = await parseResponse(retry);
+  assert(
+    retry.status === 201,
+    `${stage}: reintento HTTP ${retry.status}: ${JSON.stringify(payment)}`,
+  );
+  assert(
+    payment.folioLineaCaptura === payload.folioLineaCaptura &&
+      payment.monto === '100.00' &&
+      isDeepStrictEqual(
+        payment.conceptos.map(({ conceptoPago, monto, orden }) => [
+          conceptoPago.claveConcepto,
+          conceptoPago.activo,
+          monto,
+          orden,
+        ]),
+        [
+          [newKey, true, '50.50', 1],
+          [inactiveKey, true, '49.50', 2],
+        ],
+      ),
+    `${stage}: respuesta de pago inesperada`,
+  );
+  await assertCommittedPayment(client, idInfraccion, 2);
+  console.log(`rollback de pago (${stage}) y reintento: OK`);
+}
+
+async function runPaymentRollbackCases(client, actor, ids) {
+  const failures = [];
+  for (const stage of ['conceptos', 'estatus', 'movimiento', 'auditoria']) {
+    try {
+      await runPaymentRollbackCase(client, actor, ids, stage);
+    } catch (error) {
+      failures.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  assert(failures.length === 0, failures.join('\n'));
+}
+
 async function main() {
+  assert(
+    isDisposablePaymentDatabase(),
+    'El smoke requiere NODE_ENV=test, API y PostgreSQL en 127.0.0.1 y una base desechable (control_infracciones_pagos_test_* en local).',
+  );
   const client = dbClient();
   await client.connect();
 
@@ -326,6 +505,8 @@ async function main() {
 
     const actorA = await login(adminEmail, adminPassword, 'admin A');
     const actorB = await login(secondAdminEmail, secondAdminPassword, 'admin B');
+
+    await runPaymentRollbackCases(client, actorA, ids);
 
     await runParallelReads(actorA, actorB);
 
@@ -382,6 +563,8 @@ async function main() {
       'pago',
       'id',
     );
+
+    await assertCommittedPayment(client, idInfraccion, 1);
 
     await runRace(
       'liberacion concurrente',
@@ -478,6 +661,42 @@ async function main() {
         `${action}: se esperaba exactamente 1 movimiento y existen ${movementCounts.get(action) ?? 0}`,
       );
     }
+
+    const paymentAfterExit = await authPost(actorA, '/api/pagos', {
+      idInfraccion,
+      folioLineaCaptura: `LC-POST-SALIDA-${suffix}`,
+      conceptos: [{ claveConcepto: 'CONCURRENCY', monto: '25.00' }],
+    });
+    await parseResponse(paymentAfterExit);
+    assert(
+      paymentAfterExit.status === 201,
+      `pago posterior a la salida: HTTP ${paymentAfterExit.status}`,
+    );
+    const { status, movements, audits } = await readPaymentState(
+      client,
+      idInfraccion,
+    );
+    const {
+      rows: [lastPaymentMovement],
+    } = await client.query(
+      `
+        SELECT e.nombre_estatus AS status
+        FROM infraccion_movimiento m
+        JOIN estatus_infraccion e USING (id_estatus_infraccion)
+        WHERE m.id_infraccion = $1 AND m.accion = 'PAGO_REGISTRADO'
+        ORDER BY m.id_infraccion_movimiento DESC
+        LIMIT 1
+      `,
+      [idInfraccion],
+    );
+    assert(
+      status === 'VEHICULO_ENTREGADO' &&
+        lastPaymentMovement?.status === status &&
+        movements === 2 &&
+        audits === 2,
+      'El pago posterior debe registrar movimiento y auditoria y conservar la entrega',
+    );
+    console.log('Pago posterior a la salida conserva VEHICULO_ENTREGADO');
 
     console.log('CONCURRENCY_SMOKE_OK');
   } finally {
