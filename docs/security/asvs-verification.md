@@ -9,7 +9,7 @@ Este documento es una matriz interna de evidencia y pendientes. **No representa 
 | Dominio | Estado | Evidencia principal |
 |---|---|---|
 | Autenticación por defecto | Verificado | `JwtAuthGuard` global; solo excepciones explícitas mediante `@Public()`; smoke test anónimo espera 401 en `/api/usuarios`. |
-| Autorización por rol | Verificado | `RoleAuthGuard` + `@Roles`; smoke test autentica un usuario `CONSULTA` y exige 403 en `/api/usuarios`. |
+| Autorización por rol | Verificado | `RoleAuthGuard` + `@Roles`; smoke test autentica un usuario `CONSULTA` y exige 403 en `/api/usuarios`. Matriz HTTP con los siete roles: 16 rutas de consultas y operaciones, 401/403/200/201 y verificación de no invocación de servicios ante denegaciones. |
 | Gestión de sesión | Verificado | JWT con `auth_session_version`, refresh rotatorio, logout y cambios sensibles revocan sesión; smoke test comprueba que el access token anterior devuelve 401 tras logout. |
 | Protección CSRF | Verificado | Cookie firmada HMAC + double submit cookie/header; smoke test exige 403 para login mutante sin token CSRF. |
 | Hash de contraseñas | Verificado | Argon2id para hashes nuevos; compatibilidad y rehash progresivo de bcrypt heredado; pruebas unitarias. |
@@ -58,3 +58,9 @@ Una modificación no debe integrarse a `main` si falla cualquiera de estas barre
 7. reglas DAST configuradas como `FAIL`.
 
 Los warnings de ZAP que no están configurados como `FAIL` deben conservarse en el artefacto del workflow y revisarse; no deben convertirse automáticamente en excepciones permanentes sin justificación.
+
+### Alcance de la matriz HTTP de roles (bloque 5A)
+
+La prueba `backend/infracciones-api/src/modules/auth/rbac-http-matrix.spec.ts` ejecuta los decoradores `@Roles` y el `RoleAuthGuard` **reales** sobre seis controladores, con los siete roles definidos en código y servicios simulados. Incluye acceso anónimo (401), denegaciones (403), accesos autorizados (200/201) y ocultamiento de datos sensibles a `CONSULTA`.
+
+**Límite:** para aislar la autorización, `JwtAuthGuard` se sustituye por un guard de prueba que recibe `x-test-role`. **No se agrega ningún encabezado de prueba al runtime de producción**. Esta prueba no verifica firma JWT, credenciales ni una base de datos real: esas propiedades continúan verificándose en las pruebas y el smoke test de seguridad existentes. No equivale a un pentest o certificación ASVS.
