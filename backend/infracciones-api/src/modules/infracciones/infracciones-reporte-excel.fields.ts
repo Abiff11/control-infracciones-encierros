@@ -61,9 +61,14 @@ function motivosResumen(row: InfraccionExportRow): string {
     .join(', ') || EMPTY_VALUE;
 }
 
+function esSolventadaSinPago(row: InfraccionExportRow): boolean {
+  return row.estatusInfraccion.nombreEstatus === 'SOLVENTADA_SIN_PAGO' &&
+    !row.pago.tienePago;
+}
+
 function pagoResumen(row: InfraccionExportRow): string {
   if (!row.pago.tienePago) {
-    return 'Sin pago';
+    return esSolventadaSinPago(row) ? 'Solventada sin pago' : 'Sin pago';
   }
 
   return [nullableValue(row.pago.montoPagado), nullableValue(row.pago.fechaUltimoPago)].join(' | ');
@@ -77,6 +82,42 @@ function liberacionResumen(row: InfraccionExportRow): string {
 
 function salidaResumen(row: InfraccionExportRow): string {
   return row.salida.tieneSalida ? nullableValue(row.salida.fechaSalida) : 'Sin salida';
+}
+
+function estadoOperativoReporte(row: InfraccionExportRow): string {
+  // La salida fisica prevalece, aunque el expediente requiera regularizacion.
+  if (row.salida.tieneSalida) {
+    return 'VEHICULO_ENTREGADO';
+  }
+
+  if (!esSolventadaSinPago(row)) {
+    return row.estadoOperativoCalculado;
+  }
+
+  if (!row.retencion) {
+    return 'Solventada sin pago';
+  }
+
+  if (!row.liberacion.tieneLiberacion) {
+    return 'Solventada, pendiente de liberacion';
+  }
+
+  return 'LIBERADO_PENDIENTE_SALIDA';
+}
+
+function validacionPagoEncierro(row: InfraccionExportRow): string {
+  const pago = row.pago.tienePago
+    ? 'Pago confirmado'
+    : esSolventadaSinPago(row)
+      ? 'Solventada sin pago'
+      : 'Pago pendiente';
+  const encierro = row.salida.tieneSalida
+    ? 'Vehiculo entregado'
+    : row.retencion
+      ? 'Vehiculo en encierro'
+      : 'Sin encierro';
+
+  return `${pago} | ${encierro}`;
 }
 
 export const INFRACCIONES_EXCEL_FIELDS: Record<string, ExcelFieldDefinition> = {
@@ -137,9 +178,9 @@ export const INFRACCIONES_EXCEL_FIELDS: Record<string, ExcelFieldDefinition> = {
   tieneSalida: { label: 'Tiene salida', getValue: (row) => booleanLabel(row.salida.tieneSalida, 'Con salida', 'Sin salida') },
   fechaSalida: { label: 'Fecha salida', getValue: (row) => nullableValue(row.salida.fechaSalida) },
   salidaResumen: { label: 'Resumen salida', getValue: salidaResumen },
-  estadoOperativo: { label: 'Estado operativo', getValue: (row) => row.estadoOperativoCalculado },
+  estadoOperativo: { label: 'Estado operativo', getValue: estadoOperativoReporte },
   estadoVehiculoEncierro: { label: 'Estado vehiculo en encierro', getValue: (row) => row.salida.tieneSalida ? 'Ya salio' : row.retencion ? 'Permanece en encierro' : 'Sin retencion' },
-  validacionPagoEncierro: { label: 'Validacion pago/encierro', getValue: (row) => `${row.pago.tienePago ? 'Pago confirmado' : 'Pago pendiente'} | ${row.salida.tieneSalida ? 'Vehiculo entregado' : row.retencion ? 'Vehiculo en encierro' : 'Sin encierro'}` },
+  validacionPagoEncierro: { label: 'Validacion pago/encierro', getValue: validacionPagoEncierro },
   expedienteResumen: { label: 'Resumen expediente', getValue: (row) => `${row.folioInfraccion} | ${fullName(row)} | ${nullableValue(row.vehiculo.placas)}` },
 };
 
