@@ -12,6 +12,7 @@ import { Field, TextInput } from "../../components/ui/Field";
 import { Modal } from "../../components/ui/Modal";
 import { SelectField } from "../../components/ui/SelectField";
 import { StatusBadge } from "../../components/ui/StatusBadge";
+import { getEstadoVisualListado } from "./estado-visual-infraccion";
 import { getErrorMessage } from "../../services/api/apiClient";
 import {
   createRetencion,
@@ -290,6 +291,8 @@ function getVehicleLabel(item: InfraccionListItem): string {
 }
 
 function OperationSummary({ item }: { item: InfraccionListItem }) {
+  const estadoVisual = getEstadoVisualListado(item);
+
   return (
     <section className="operation-modal-summary">
       <div>
@@ -307,7 +310,7 @@ function OperationSummary({ item }: { item: InfraccionListItem }) {
         <span>Año modelo: {formatEmptyValue(item.vehiculo.anioModelo == null ? null : String(item.vehiculo.anioModelo))}</span>
       </div>
 
-      <StatusBadge value={item.estadoOperativoCalculado} />
+      <StatusBadge label={estadoVisual.label} value={estadoVisual.value} />
     </section>
   );
 }

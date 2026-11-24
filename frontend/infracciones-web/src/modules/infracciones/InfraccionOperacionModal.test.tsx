@@ -631,3 +631,105 @@ describe("InfraccionOperacionModal rol ENCIERRO", () => {
     expect(apiMocks.createSalida).not.toHaveBeenCalled();
   });
 });
+
+describe("InfraccionOperacionModal estado visual del expediente", () => {
+  it("muestra solventada sin pago en el expediente sin retencion", () => {
+    renderModal(
+      "pago",
+      createItem({
+        estatusInfraccion: {
+          idEstatusInfraccion: 99,
+          nombreEstatus: "SOLVENTADA_SIN_PAGO",
+        },
+        tipoProcedimiento: {
+          ...createItem().tipoProcedimiento,
+          permiteRetencion: false,
+        },
+        estadoOperativoCalculado: "SIN_RETENCION",
+      }),
+    );
+
+    expect(screen.getByText("Solventada sin pago", { selector: ".status-badge" }))
+      .toBeInTheDocument();
+  });
+
+  it("muestra la liberacion pendiente sin llamar pago a la solventacion", () => {
+    renderModal(
+      "liberacion",
+      createItem({
+        estatusInfraccion: {
+          idEstatusInfraccion: 99,
+          nombreEstatus: "SOLVENTADA_SIN_PAGO",
+        },
+        retencion: {
+          idRetencionVehiculo: 50,
+          encierro: "Encierro Central",
+          fechaIngreso: "2026-08-26T08:00:00.000Z",
+          folioResguardo: "RES-1",
+          estadoIngreso: "CAPTURADO",
+        },
+        estadoOperativoCalculado: "EN_ENCIERRO_SIN_PAGO",
+      }),
+    );
+
+    const badge = screen.getByText("Solventada, pendiente de liberacion", {
+      selector: ".status-badge",
+    });
+    expect(badge).toHaveClass("status-badge-info");
+    expect(screen.queryByText("Pagado, pendiente de liberacion", {
+      selector: ".status-badge",
+    })).not.toBeInTheDocument();
+  });
+
+  it("conserva el estado de pago registrado cuando existe un pago real", () => {
+    renderModal(
+      "liberacion",
+      createItem({
+        estatusInfraccion: {
+          idEstatusInfraccion: 2,
+          nombreEstatus: "PAGADA",
+        },
+        pago: {
+          tienePago: true,
+          idPagoInfraccion: 70,
+          fechaUltimoPago: "2026-08-26T12:00:00.000Z",
+          montoPagado: "1200.00",
+          clavesConcepto: "1EAAA002",
+        },
+        estadoOperativoCalculado: "PAGADO_PENDIENTE_LIBERACION",
+      }),
+    );
+
+    expect(screen.getByText("Pagado, pendiente de liberacion", {
+      selector: ".status-badge",
+    })).toBeInTheDocument();
+  });
+
+  it("prioriza la entrega fisica aun cuando falte liberar", () => {
+    renderModal(
+      "liberacion",
+      createItem({
+        estatusInfraccion: {
+          idEstatusInfraccion: 99,
+          nombreEstatus: "SOLVENTADA_SIN_PAGO",
+        },
+        retencion: {
+          idRetencionVehiculo: 50,
+          encierro: "Encierro Central",
+          fechaIngreso: "2026-08-26T08:00:00.000Z",
+          folioResguardo: "RES-1",
+          estadoIngreso: "CAPTURADO",
+        },
+        salida: {
+          tieneSalida: true,
+          fechaSalida: "2026-08-26T14:00:00.000Z",
+        },
+        estadoOperativoCalculado: "EN_ENCIERRO_SIN_PAGO",
+      }),
+    );
+
+    expect(screen.getByText("Vehiculo entregado", {
+      selector: ".status-badge",
+    })).toBeInTheDocument();
+  });
+});
