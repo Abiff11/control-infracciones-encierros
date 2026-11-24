@@ -34,6 +34,11 @@ interface NextAction {
   description: string;
 }
 
+interface FlowStatus {
+  value: string;
+  label?: string;
+}
+
 function isRecord(value: unknown): value is AnyRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -145,6 +150,39 @@ function getFirst(items: unknown[]): unknown | null {
   return items.length > 0 ? items[0] : null;
 }
 
+function isSolventadaSinPago(result: InfraccionFlujoResponse): boolean {
+  return getEstatus(result) === "SOLVENTADA_SIN_PAGO" && asArray(result.pagos).length === 0;
+}
+
+function getFlowStatus(result: InfraccionFlujoResponse): FlowStatus | null {
+  const retenciones = asArray(result.retenciones);
+  const liberaciones = asArray(result.liberaciones);
+  const salidas = asArray(result.salidas);
+
+  if (salidas.length > 0) {
+    return { value: "VEHICULO_ENTREGADO" };
+  }
+
+  if (isSolventadaSinPago(result)) {
+    if (retenciones.length === 0) {
+      return {
+        value: "PAGADA_SIN_RETENCION",
+        label: "Solventada sin pago",
+      };
+    }
+
+    return liberaciones.length > 0
+      ? { value: "LIBERADO_PENDIENTE_SALIDA" }
+      : {
+          value: "PAGADO_PENDIENTE_LIBERACION",
+          label: "Solventada, pendiente de liberacion",
+        };
+  }
+
+  const estadoOperativo = getEstadoOperativo(result);
+  return estadoOperativo ? { value: estadoOperativo } : null;
+}
+
 function buildFlowSteps(result: InfraccionFlujoResponse): FlowStep[] {
   const permiteRetencion = getPermiteRetencion(result);
   const retenciones = asArray(result.retenciones);
@@ -155,6 +193,7 @@ function buildFlowSteps(result: InfraccionFlujoResponse): FlowStep[] {
   const pago = getFirst(pagos);
   const liberacion = getFirst(liberaciones);
   const salida = getFirst(salidas);
+  const solventadaSinPago = isSolventadaSinPago(result);
   const capturaStep: FlowStep = {
     label: "Captura",
     title: getFolio(result),
@@ -164,17 +203,27 @@ function buildFlowSteps(result: InfraccionFlujoResponse): FlowStep[] {
     state: "done",
   };
   const pagoStep: FlowStep = {
-    label: "Pago",
-    title: pago
-      ? (readString(pago, ["folioPago"]) ?? "Registrado")
-      : "Pendiente",
-    description: pago
-      ? formatDateTime(readString(pago, ["fechaPago"]))
-      : "Registrar pago",
-    state: pago ? "done" : permiteRetencion && !retencion ? "pending" : "current",
+    label: solventadaSinPago ? "Solventacion" : "Pago",
+    title: solventadaSinPago
+      ? "Sin pago"
+      : pago
+        ? (readString(pago, ["folioPago"]) ?? "Registrado")
+        : "Pendiente",
+    description: solventadaSinPago
+      ? "Solventacion sin pago registrada"
+      : pago
+        ? formatDateTime(readString(pago, ["fechaPago"]))
+        : "Registrar pago",
+    state: solventadaSinPago
+      ? "done"
+      : pago
+        ? "done"
+        : permiteRetencion && !retencion
+          ? "pending"
+          : "current",
   };
 
-  if (!permiteRetencion) {
+  if (!permiteRetencion || (solventadaSinPago && !retencion)) {
     return [capturaStep, pagoStep];
   }
 
@@ -200,7 +249,11 @@ function buildFlowSteps(result: InfraccionFlujoResponse): FlowStep[] {
       description: liberacion
         ? formatDateTime(readString(liberacion, ["fechaLiberacion"]))
         : "Generar liberacion",
-      state: liberacion ? "done" : pago ? "current" : "pending",
+      state: liberacion
+        ? "done"
+        : pago || solventadaSinPago
+          ? "current"
+          : "pending",
     },
     {
       label: "Salida",
@@ -219,6 +272,36 @@ function getNextAction(result: InfraccionFlujoResponse): NextAction {
   const pagos = asArray(result.pagos);
   const liberaciones = asArray(result.liberaciones);
   const salidas = asArray(result.salidas);
+  const solventadaSinPago = isSolventadaSinPago(result);
+  const tieneRespaldoAdministrativo = pagos.length > 0 || solventadaSinPago;
+
+  if (salidas.length > 0) {
+    if (!tieneRespaldoAdministrativo) {
+      return {
+        title: "Pago pendiente",
+        description: "El vehiculo ya fue entregado; falta regularizar el pago.",
+      };
+    }
+
+    if (liberaciones.length === 0) {
+      return {
+        title: "Autorizar liberacion pendiente",
+        description: "El vehiculo ya fue entregado; falta regularizar la liberacion.",
+      };
+    }
+
+    return {
+      title: "Flujo completo",
+      description: "El vehiculo fue entregado y su regularizacion esta completa.",
+    };
+  }
+
+  if (solventadaSinPago && retenciones.length === 0) {
+    return {
+      title: "Flujo completo",
+      description: "Expediente solventado sin pago y sin retencion vehicular.",
+    };
+  }
 
   if (!permiteRetencion) {
     if (pagos.length === 0) {
@@ -241,7 +324,7 @@ function getNextAction(result: InfraccionFlujoResponse): NextAction {
     };
   }
 
-  if (pagos.length === 0) {
+  if (pagos.length === 0 && !solventadaSinPago) {
     return {
       title: "Registrar pago",
       description: "El vehiculo esta retenido y no tiene pago registrado.",
@@ -251,20 +334,15 @@ function getNextAction(result: InfraccionFlujoResponse): NextAction {
   if (liberaciones.length === 0) {
     return {
       title: "Generar liberacion",
-      description: "Ya existe pago; falta liberar el vehiculo.",
-    };
-  }
-
-  if (salidas.length === 0) {
-    return {
-      title: "Registrar salida",
-      description: "El vehiculo esta liberado; falta registrar la entrega.",
+      description: solventadaSinPago
+        ? "La infraccion esta solventada sin pago; falta liberar el vehiculo."
+        : "Ya existe pago; falta liberar el vehiculo.",
     };
   }
 
   return {
-    title: "Flujo completo",
-    description: "El vehiculo ya fue entregado.",
+    title: "Registrar salida",
+    description: "El vehiculo esta liberado; falta registrar la entrega.",
   };
 }
 
@@ -355,7 +433,7 @@ function FlujoOperativoPage({ onSubmit }: FlujoOperativoPageProps) {
   }
 
   const motivos = result ? asArray(result.motivos) : [];
-  const estadoOperativo = result ? getEstadoOperativo(result) : null;
+  const flowStatus = result ? getFlowStatus(result) : null;
   const nextAction = result ? getNextAction(result) : null;
 
   return (
@@ -430,8 +508,8 @@ function FlujoOperativoPage({ onSubmit }: FlujoOperativoPageProps) {
 
               <div className="flow-hero-status">
                 <p className="section-label">Estado actual</p>
-                {estadoOperativo ? (
-                  <StatusBadge value={estadoOperativo} />
+                {flowStatus ? (
+                  <StatusBadge label={flowStatus.label} value={flowStatus.value} />
                 ) : (
                   <strong>{getEstatus(result)}</strong>
                 )}
