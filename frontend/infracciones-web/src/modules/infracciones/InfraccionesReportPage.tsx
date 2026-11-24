@@ -31,6 +31,8 @@ import type {
   PdfReportAvailability,
 } from '../../types/infracciones.types';
 import { InfraccionesReportModal } from './InfraccionesReportModal';
+import { getEstadoVisualListado } from './estado-visual-infraccion';
+import { esSolventadaSinPago } from './infracciones-report-fields';
 import { getPdfLimitMessage } from './pdf-report-limit';
 import './InfraccionesReportPage.css';
 
@@ -494,7 +496,7 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
                       <td>
                         <div className="table-cell-stack">
                           <strong>{getPagoLabel(item)}</strong>
-                          <span>{item.pago?.tienePago ? 'Pago registrado' : 'Sin pago registrado'}</span>
+                          <span>{item.pago?.tienePago ? 'Pago registrado' : esSolventadaSinPago(item) ? 'Solventada sin pago' : 'Sin pago registrado'}</span>
                         </div>
                       </td>
                       <td>
@@ -510,7 +512,7 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
                         </div>
                       </td>
                       <td>
-                        <StatusBadge value={item.estadoOperativoCalculado} />
+                        <StatusBadge {...getEstadoVisualListado(item)} />
                       </td>
                     </tr>
                   ))
