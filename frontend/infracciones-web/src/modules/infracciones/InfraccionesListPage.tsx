@@ -203,6 +203,18 @@ function getEstadoOperativoEfectivo(
   return item.estadoOperativoCalculado;
 }
 
+function getMainStatusLabel(item: InfraccionListItem): string | undefined {
+  const solventadaSinPago =
+    item.estatusInfraccion.nombreEstatus === "SOLVENTADA_SIN_PAGO";
+  const sinPagoReal = item.pago?.tienePago !== true;
+  const sinRetencion = !item.retencion;
+  const sinSalida = item.salida?.tieneSalida !== true;
+
+  return solventadaSinPago && sinPagoReal && sinRetencion && sinSalida
+    ? "Solventada sin pago"
+    : undefined;
+}
+
 function getOperationalDetail(item: InfraccionListItem): string {
   const estadoOperativo = getEstadoOperativoEfectivo(item);
   const solventadaSinPago =
@@ -1116,7 +1128,10 @@ function InfraccionesListPage({
                       </td>
                       <td>
                         <div className="table-cell-stack">
-                          <StatusBadge value={getEstadoOperativoEfectivo(item)} />
+                          <StatusBadge
+                            label={getMainStatusLabel(item)}
+                            value={getEstadoOperativoEfectivo(item)}
+                          />
                           <span>{getOperationalDetail(item)}</span>
                         </div>
                       </td>

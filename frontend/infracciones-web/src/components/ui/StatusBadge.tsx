@@ -2,6 +2,7 @@ import type { EstadoOperativoVehiculo } from "../../types/infracciones.types";
 
 interface StatusBadgeProps {
   value: EstadoOperativoVehiculo | string;
+  label?: string;
   compact?: boolean;
 }
 
@@ -39,10 +40,12 @@ function getStatusLabel(value: string): string {
   return value.replaceAll("_", " ");
 }
 
-export function StatusBadge({ compact, value }: StatusBadgeProps) {
+export function StatusBadge({ compact, label, value }: StatusBadgeProps) {
+  const displayLabel = label ?? getStatusLabel(value);
+
   return (
-    <span className={getStatusClass(value)} title={value}>
-      {compact ? getStatusLabel(value) : getStatusLabel(value)}
+    <span className={getStatusClass(value)} title={displayLabel}>
+      {compact ? displayLabel : displayLabel}
     </span>
   );
 }
