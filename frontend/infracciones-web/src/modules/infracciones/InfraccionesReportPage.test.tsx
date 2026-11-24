@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { InfraccionListItem } from '../../types/infracciones.types';
@@ -211,4 +211,91 @@ describe('InfraccionesReportPage', () => {
     ).toBeInTheDocument();
     expect(apiMocks.getAllInfracciones).not.toHaveBeenCalled();
   });
+
+  it('distingue solventacion sin pago real en la tabla', async () => {
+    apiMocks.getInfracciones.mockResolvedValueOnce({
+      data: [createItem({
+        estatusInfraccion: {
+          idEstatusInfraccion: 99,
+          nombreEstatus: 'SOLVENTADA_SIN_PAGO',
+        },
+      })],
+      meta: { page: 1, limit: 30, total: 1, totalPages: 1 },
+    });
+
+    render(<InfraccionesReportPage refreshKey={0} token="token-test" />);
+
+    const folio = await screen.findByText('INF-10');
+    const row = folio.closest('tr');
+    expect(row).not.toBeNull();
+    expect(within(row!).getByText('Solventada sin pago', {
+      selector: '.status-badge',
+    })).toBeInTheDocument();
+    expect(within(row!).getByText('Solventada sin pago', {
+      selector: '.table-cell-stack span',
+    })).toBeInTheDocument();
+    expect(within(row!).queryByText('Pago registrado')).not.toBeInTheDocument();
+  });
+
+  it('muestra solventacion y liberacion pendiente con vehiculo retenido', async () => {
+    apiMocks.getInfracciones.mockResolvedValueOnce({
+      data: [createItem({
+        estatusInfraccion: {
+          idEstatusInfraccion: 99,
+          nombreEstatus: 'SOLVENTADA_SIN_PAGO',
+        },
+        tipoProcedimiento: { ...createItem().tipoProcedimiento, permiteRetencion: true },
+        retencion: {
+          idRetencionVehiculo: 20,
+          encierro: 'Encierro Central',
+          fechaIngreso: '2026-11-24T09:00:00.000Z',
+          folioResguardo: 'RES-1',
+          estadoIngreso: 'CAPTURADO',
+        },
+        estadoOperativoCalculado: 'EN_ENCIERRO_SIN_PAGO',
+      })],
+      meta: { page: 1, limit: 30, total: 1, totalPages: 1 },
+    });
+
+    render(<InfraccionesReportPage refreshKey={0} token="token-test" />);
+
+    const folio = await screen.findByText('INF-10');
+    const row = folio.closest('tr');
+    expect(row).not.toBeNull();
+    expect(within(row!).getByText('Solventada, pendiente de liberacion', {
+      selector: '.status-badge',
+    })).toBeInTheDocument();
+    expect(within(row!).getByText('Solventada sin pago', {
+      selector: '.table-cell-stack span',
+    })).toBeInTheDocument();
+  });
+
+  it('prioriza el vehiculo entregado sin inventar un pago', async () => {
+    apiMocks.getInfracciones.mockResolvedValueOnce({
+      data: [createItem({
+        estatusInfraccion: {
+          idEstatusInfraccion: 99,
+          nombreEstatus: 'SOLVENTADA_SIN_PAGO',
+        },
+        tipoProcedimiento: { ...createItem().tipoProcedimiento, permiteRetencion: true },
+        salida: { tieneSalida: true, fechaSalida: '2026-11-24T10:00:00.000Z' },
+        estadoOperativoCalculado: 'EN_ENCIERRO_SIN_PAGO',
+      })],
+      meta: { page: 1, limit: 30, total: 1, totalPages: 1 },
+    });
+
+    render(<InfraccionesReportPage refreshKey={0} token="token-test" />);
+
+    const folio = await screen.findByText('INF-10');
+    const row = folio.closest('tr');
+    expect(row).not.toBeNull();
+    expect(within(row!).getByText('Vehiculo entregado', {
+      selector: '.status-badge',
+    })).toBeInTheDocument();
+    expect(within(row!).getByText('Solventada sin pago', {
+      selector: '.table-cell-stack span',
+    })).toBeInTheDocument();
+    expect(within(row!).queryByText('Pago registrado')).not.toBeInTheDocument();
+  });
+
 });

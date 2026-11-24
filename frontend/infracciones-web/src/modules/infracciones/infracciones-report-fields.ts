@@ -1,4 +1,5 @@
 import type { InfraccionListItem } from '../../types/infracciones.types';
+import { getEstadoVisualListado } from './estado-visual-infraccion';
 import {
   formatCurrencyMxn,
   formatDate,
@@ -63,9 +64,16 @@ function getMotivos(item: InfraccionListItem): string {
     .join(', ') || EMPTY_VALUE;
 }
 
+export function esSolventadaSinPago(item: InfraccionListItem): boolean {
+  return (
+    item.estatusInfraccion.nombreEstatus === 'SOLVENTADA_SIN_PAGO' &&
+    item.pago?.tienePago !== true
+  );
+}
+
 function getPagoResumen(item: InfraccionListItem): string {
   if (!item.pago?.tienePago) {
-    return 'Sin pago';
+    return esSolventadaSinPago(item) ? 'Solventada sin pago' : 'Sin pago';
   }
 
   return [
@@ -88,6 +96,26 @@ function getSalidaResumen(item: InfraccionListItem): string {
   }
 
   return formatDateTime(item.salida.fechaSalida);
+}
+
+function getEstadoOperativoReporte(item: InfraccionListItem): string {
+  const estadoVisual = getEstadoVisualListado(item);
+  return estadoVisual.label ?? estadoVisual.value;
+}
+
+function getValidacionPagoEncierro(item: InfraccionListItem): string {
+  const pago = item.pago?.tienePago
+    ? 'Pago confirmado'
+    : esSolventadaSinPago(item)
+      ? 'Solventada sin pago'
+      : 'Pago pendiente';
+  const encierro = item.salida?.tieneSalida
+    ? 'Vehiculo entregado'
+    : item.retencion
+      ? 'Vehiculo en encierro'
+      : 'Sin encierro';
+
+  return `${pago} | ${encierro}`;
 }
 
 export const INFRACCIONES_FIELD_GROUPS: InfraccionesReportFieldGroup[] = [
@@ -170,9 +198,9 @@ export const INFRACCIONES_REPORT_FIELDS = [
   { id: 'fechaSalida', label: 'Fecha salida', group: 'Salida', getValue: (item) => formatDateTime(item.salida?.fechaSalida) },
   { id: 'salidaResumen', label: 'Resumen salida', group: 'Salida', getValue: getSalidaResumen },
 
-  { id: 'estadoOperativo', label: 'Estado operativo', group: 'Control', getValue: (item) => value(item.estadoOperativoCalculado) },
+  { id: 'estadoOperativo', label: 'Estado operativo', group: 'Control', getValue: getEstadoOperativoReporte },
   { id: 'estadoVehiculoEncierro', label: 'Estado vehiculo en encierro', group: 'Control', getValue: (item) => item.salida?.tieneSalida ? 'Ya salio' : item.retencion ? 'Permanece en encierro' : 'Sin retencion' },
-  { id: 'validacionPagoEncierro', label: 'Validacion pago/encierro', group: 'Control', getValue: (item) => `${item.pago?.tienePago ? 'Pago confirmado' : 'Pago pendiente'} | ${item.salida?.tieneSalida ? 'Vehiculo entregado' : item.retencion ? 'Vehiculo en encierro' : 'Sin encierro'}` },
+  { id: 'validacionPagoEncierro', label: 'Validacion pago/encierro', group: 'Control', getValue: getValidacionPagoEncierro },
   { id: 'expedienteResumen', label: 'Resumen expediente', group: 'Control', getValue: (item) => `${item.folioInfraccion} | ${getInfractorFullName(item)} | ${formatEmptyValue(item.vehiculo.placas)}` },
 ] satisfies InfraccionesReportFieldDefinition[];
 
