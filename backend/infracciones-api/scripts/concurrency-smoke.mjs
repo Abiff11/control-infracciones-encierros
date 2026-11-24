@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 
 import argon2 from 'argon2';
 import pg from 'pg';
+import XLSX from 'xlsx';
 
 const { Client } = pg;
 
@@ -784,6 +785,305 @@ async function runOperationRollbackCases(client, actor, ids) {
   assert(failures.length === 0, failures.join('\n'));
 }
 
+
+const E2E_REPORT_FIELDS = [
+  'folioInfraccion',
+  'estatusInfraccionNombre',
+  'pagoAccion',
+  'tienePago',
+  'idPagoInfraccion',
+  'montoPagado',
+  'pagoResumen',
+  'estadoOperativo',
+  'validacionPagoEncierro',
+];
+
+async function readOperationalStage(actor, fixture, expected) {
+  const { idInfraccion, suffix } = fixture;
+  const detailResponse = await authGet(
+    actor,
+    `/api/infracciones/${idInfraccion}/detalle`,
+  );
+  const detail = await parseResponse(detailResponse);
+  assert(
+    detailResponse.status === 200,
+    `E2E ${expected.label}: detalle HTTP ${detailResponse.status}: ${JSON.stringify(detail)}`,
+  );
+
+  const listResponse = await authGet(
+    actor,
+    `/api/infracciones?folioInfraccion=${encodeURIComponent(`CONC-${suffix}`)}`,
+  );
+  const list = await parseResponse(listResponse);
+  assert(
+    listResponse.status === 200 && list?.meta?.total === 1 &&
+      list?.data?.length === 1,
+    `E2E ${expected.label}: listado inconsistente: HTTP ${listResponse.status}: ${JSON.stringify(list)}`,
+  );
+
+  const item = list.data[0];
+  const context = `E2E ${expected.label} / infraccion ${idInfraccion}`;
+  assert(
+    detail.infraccion?.idInfraccion === idInfraccion &&
+      item.idInfraccion === idInfraccion &&
+      detail.infraccion.folioInfraccion === `CONC-${suffix}`,
+    `${context}: detalle y listado no corresponden al mismo expediente`,
+  );
+  assert(
+    detail.estatusInfraccion.nombreEstatus === expected.status &&
+      item.estatusInfraccion.nombreEstatus === expected.status,
+    `${context}: estatus de detalle/listado distintos a ${expected.status}`,
+  );
+  assert(
+    Boolean(detail.retencionVehiculo) === expected.retencion &&
+      Boolean(item.retencion) === expected.retencion &&
+      detail.pagos.length === 0 &&
+      item.pago.tienePago === false &&
+      detail.liberaciones.length === expected.liberaciones &&
+      item.liberacion.tieneLiberacion === (expected.liberaciones > 0) &&
+      detail.salidas.length === expected.salidas &&
+      item.salida.tieneSalida === (expected.salidas > 0),
+    `${context}: pagos, retencion, liberacion o salida incongruentes`,
+  );
+  assert(
+    item.pago.tieneSolventacionSinPago === expected.solventada,
+    `${context}: bandera de solventacion sin pago inesperada`,
+  );
+
+  return { detail, item };
+}
+
+async function readOperationalExcel(actor, fixture, stage) {
+  const response = await authPost(actor, '/api/infracciones/reportes/excel', {
+    idInfracciones: [fixture.idInfraccion],
+    campos: E2E_REPORT_FIELDS,
+  });
+  if (response.status !== 200) {
+    const errorBody = await parseResponse(response);
+    throw new Error(
+      `E2E ${stage}: Excel HTTP ${response.status}: ${JSON.stringify(errorBody)}`,
+    );
+  }
+  assert(
+    response.headers.get('content-type')?.includes('spreadsheetml.sheet'),
+    `E2E ${stage}: el servidor no respondio con un XLSX`,
+  );
+
+  const bytes = Buffer.from(await response.arrayBuffer());
+  assert(bytes.subarray(0, 2).toString() === 'PK', `E2E ${stage}: XLSX invalido`);
+  const workbook = XLSX.read(bytes, { type: 'buffer' });
+  const worksheet = workbook.Sheets.Infracciones;
+  assert(worksheet, `E2E ${stage}: falta la hoja Infracciones`);
+  const rows = XLSX.utils.sheet_to_json(worksheet, {
+    header: 1,
+    raw: true,
+    defval: '',
+  });
+  assert(
+    rows.length === 2,
+    `E2E ${stage}: se esperaba una sola infraccion en Excel, obtenido ${rows.length - 1}`,
+  );
+  const cells = Object.fromEntries(
+    E2E_REPORT_FIELDS.map((field, index) => [
+      field,
+      String(rows[1][index] ?? ''),
+    ]),
+  );
+  assert(
+    cells.folioInfraccion === `CONC-${fixture.suffix}`,
+    `E2E ${stage}: XLSX exporto otro expediente`,
+  );
+
+  return cells;
+}
+
+function collectExcelDifferences(stage, cells, expected, problems) {
+  for (const [field, expectedValue] of Object.entries(expected)) {
+    if (cells[field] !== expectedValue) {
+      problems.push(
+        `${stage} / ${field}: esperado ${JSON.stringify(expectedValue)}, recibido ${JSON.stringify(cells[field])}`,
+      );
+    }
+  }
+}
+
+async function runOperationalE2e(client, actor, ids) {
+  // La prueba utiliza exclusivamente la API y la base desechable del workflow.
+  const fixture = await createInfraccion(actor, ids);
+  const { idInfraccion, suffix } = fixture;
+  const expectedZeroPayment = {
+    tienePago: 'Sin pago',
+    idPagoInfraccion: 'Sin informacion registrada',
+    montoPagado: 'Sin informacion registrada',
+  };
+  const problems = [];
+
+  await readOperationalStage(actor, fixture, {
+    label: 'captura',
+    status: 'CAPTURADA',
+    retencion: false,
+    solventada: false,
+    liberaciones: 0,
+    salidas: 0,
+  });
+
+  const retencion = await postCreated(actor, '/api/encierros/retenciones', {
+    idInfraccion,
+    idEncierro: ids.idEncierro,
+    recibidoPor: 'E2E OPERATIVO',
+    folioResguardo: `RES-E2E-${suffix}`,
+    estadoIngreso: 'INGRESADO',
+  });
+  assert(Number(retencion.idRetencionVehiculo) > 0, 'E2E: retencion sin ID');
+  const retained = await readOperationalStage(actor, fixture, {
+    label: 'retencion',
+    status: 'CAPTURADA',
+    retencion: true,
+    solventada: false,
+    liberaciones: 0,
+    salidas: 0,
+  });
+  assert(
+    retained.detail.retencionVehiculo.idRetencionVehiculo ===
+      retencion.idRetencionVehiculo,
+    'E2E: expediente contiene otra retencion',
+  );
+
+  const solventacion = await postCreated(actor, '/api/pagos/no-aplica', {
+    idInfraccion,
+    motivo: 'Solventacion E2E documentada; no se registro pago',
+  });
+  assert(Number(solventacion.idSolventacionSinPago) > 0, 'E2E: solventacion sin ID');
+  await readOperationalStage(actor, fixture, {
+    label: 'solventacion',
+    status: 'SOLVENTADA_SIN_PAGO',
+    retencion: true,
+    solventada: true,
+    liberaciones: 0,
+    salidas: 0,
+  });
+  collectExcelDifferences(
+    'solventacion',
+    await readOperationalExcel(actor, fixture, 'solventacion'),
+    {
+      estatusInfraccionNombre: 'SOLVENTADA_SIN_PAGO',
+      ...expectedZeroPayment,
+      pagoAccion: 'Solventada sin pago',
+      pagoResumen: 'Solventada sin pago',
+      estadoOperativo: 'Solventada, pendiente de liberacion',
+      validacionPagoEncierro: 'Solventada sin pago | Vehiculo en encierro',
+    },
+    problems,
+  );
+
+  const liberacion = await postCreated(actor, '/api/liberaciones', {
+    idInfraccion,
+    idSolventacionSinPago: solventacion.idSolventacionSinPago,
+    folioLiberacion: `LIB-E2E-${suffix}`,
+    liberadoPor: 'E2E OPERATIVO',
+  });
+  assert(Number(liberacion.idLiberacionVehiculo) > 0, 'E2E: liberacion sin ID');
+  const released = await readOperationalStage(actor, fixture, {
+    label: 'liberacion',
+    status: 'LIBERACION_GENERADA',
+    retencion: true,
+    solventada: true,
+    liberaciones: 1,
+    salidas: 0,
+  });
+  assert(
+    released.detail.liberaciones[0].idLiberacionVehiculo ===
+      liberacion.idLiberacionVehiculo,
+    'E2E: detalle contiene otra liberacion',
+  );
+  collectExcelDifferences(
+    'liberacion',
+    await readOperationalExcel(actor, fixture, 'liberacion'),
+    {
+      estatusInfraccionNombre: 'LIBERACION_GENERADA',
+      ...expectedZeroPayment,
+      pagoAccion: 'Solventada sin pago',
+      pagoResumen: 'Solventada sin pago',
+      estadoOperativo: 'LIBERADO_PENDIENTE_SALIDA',
+      validacionPagoEncierro: 'Solventada sin pago | Vehiculo en encierro',
+    },
+    problems,
+  );
+
+  const salida = await postCreated(actor, '/api/encierros/salidas', {
+    idRetencionVehiculo: retencion.idRetencionVehiculo,
+    idLiberacionVehiculo: liberacion.idLiberacionVehiculo,
+    validadoPor: 'E2E OPERATIVO',
+    personaRecibeVehiculo: 'PROPIETARIO E2E',
+    estadoSalida: 'ENTREGADO',
+  });
+  assert(Number(salida.idSalidaVehiculo) > 0, 'E2E: salida sin ID');
+  const delivered = await readOperationalStage(actor, fixture, {
+    label: 'salida',
+    status: 'VEHICULO_ENTREGADO',
+    retencion: true,
+    solventada: true,
+    liberaciones: 1,
+    salidas: 1,
+  });
+  assert(
+    delivered.detail.salidas[0].idSalidaVehiculo === salida.idSalidaVehiculo,
+    'E2E: detalle contiene otra salida',
+  );
+  collectExcelDifferences(
+    'salida',
+    await readOperationalExcel(actor, fixture, 'salida'),
+    {
+      estatusInfraccionNombre: 'VEHICULO_ENTREGADO',
+      ...expectedZeroPayment,
+      pagoAccion: 'Solventada sin pago',
+      pagoResumen: 'Solventada sin pago',
+      estadoOperativo: 'VEHICULO_ENTREGADO',
+      validacionPagoEncierro: 'Solventada sin pago | Vehiculo entregado',
+    },
+    problems,
+  );
+
+  const [payments, solventaciones] = await Promise.all([
+    client.query(
+      'SELECT COUNT(*)::int AS total FROM pago_infraccion WHERE id_infraccion = $1',
+      [idInfraccion],
+    ),
+    client.query(
+      'SELECT COUNT(*)::int AS total FROM solventacion_sin_pago WHERE id_infraccion = $1',
+      [idInfraccion],
+    ),
+  ]);
+  const paymentCount = Number(payments.rows[0]?.total);
+  const noPaymentCount = Number(solventaciones.rows[0]?.total);
+  assert(
+    paymentCount === 0 && noPaymentCount === 1,
+    'E2E: la solventacion creo pagos o duplico el respaldo administrativo',
+  );
+  const { rows: releaseBacking } = await client.query(
+    `SELECT id_pago_infraccion AS "idPago",
+            id_solventacion_sin_pago AS "idSolventacion"
+     FROM liberacion_vehiculo WHERE id_liberacion_vehiculo = $1`,
+    [liberacion.idLiberacionVehiculo],
+  );
+  assert(
+    releaseBacking.length === 1 &&
+      releaseBacking[0].idPago === null &&
+      Number(releaseBacking[0].idSolventacion) === solventacion.idSolventacionSinPago,
+    'E2E: la liberacion no conserva el respaldo exclusivo de solventacion',
+  );
+  const movements = delivered.detail.movimientos.map((movement) => movement.accion);
+  for (const action of ['NO_APLICA_PAGO', 'LIBERACION_GENERADA', 'VEHICULO_ENTREGADO']) {
+    assert(movements.includes(action), `E2E: falta movimiento ${action}`);
+  }
+
+  assert(
+    problems.length === 0,
+    `E2E: el XLSX no conserva la solventacion durante el flujo completo:\n${problems.join('\n')}`,
+  );
+  console.log('FLUJO_EXPEDIENTE_E2E_OK');
+}
+
 async function main() {
   assert(
     isDisposablePaymentDatabase(),
@@ -997,6 +1297,7 @@ async function main() {
     );
     console.log('Pago posterior a la salida conserva VEHICULO_ENTREGADO');
 
+    await runOperationalE2e(client, actorA, ids);
     console.log('CONCURRENCY_SMOKE_OK');
   } finally {
     await client.end();
