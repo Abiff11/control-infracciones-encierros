@@ -4,6 +4,7 @@ import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
 import { StatusBadge } from '../../components/ui/StatusBadge';
+import { getEstadoVisualDetalle } from './estado-visual-infraccion';
 import { Timeline } from '../../components/ui/Timeline';
 import {
   formatCurrencyMxn,
@@ -218,6 +219,7 @@ export function InfraccionDetalleModal({
   open,
 }: InfraccionDetalleModalProps) {
   const tabs = useMemo(() => (data ? getAvailableTabs(data) : []), [data]);
+  const estadoVisual = data ? getEstadoVisualDetalle(data) : null;
   const [activeTab, setActiveTab] = useState<DetailTab>('resumen');
 
   const safeActiveTab =
@@ -251,7 +253,7 @@ export function InfraccionDetalleModal({
 
               <div className="detail-hero-status detail-hero-status-card">
                 <p className="detail-hero-status-label">Estado operativo</p>
-                <StatusBadge value={data.estadoOperativoCalculado} />
+                <StatusBadge label={estadoVisual?.label} value={estadoVisual?.value ?? data.estadoOperativoCalculado} />
               </div>
             </div>
 
