@@ -187,4 +187,96 @@ describe('Campos de reportes y PDF: solventacion sin pago', () => {
     expect(values.estadoOperativo).toBe('PAGADA_SIN_RETENCION');
     expect(values.validacionPagoEncierro).toBe('Pago confirmado | Sin encierro');
   });
+
+  it('conserva solventacion en tabla/PDF despues de generar liberacion', () => {
+    const base = createItem();
+    const values = getSelectedValues(createItem({
+      estatusInfraccion: { idEstatusInfraccion: 88, nombreEstatus: 'LIBERACION_GENERADA' },
+      tipoProcedimiento: { ...base.tipoProcedimiento, permiteRetencion: true },
+      retencion: {
+        idRetencionVehiculo: 20,
+        encierro: 'Encierro Central',
+        fechaIngreso: '2026-11-24T09:00:00.000Z',
+        folioResguardo: 'RES-1',
+        estadoIngreso: 'CAPTURADO',
+      },
+      pago: {
+        tienePago: false,
+        tieneSolventacionSinPago: true,
+        idPagoInfraccion: null,
+        fechaUltimoPago: null,
+        montoPagado: null,
+        clavesConcepto: null,
+      },
+      liberacion: {
+        tieneLiberacion: true,
+        idLiberacionVehiculo: 33,
+        fechaLiberacion: '2026-11-24T11:00:00.000Z',
+      },
+      estadoOperativoCalculado: 'LIBERADO_PENDIENTE_SALIDA',
+    }));
+
+    expect(values).toEqual(expect.objectContaining({
+      pagoAccion: 'Solventada sin pago',
+      tienePago: 'Sin pago',
+      idPagoInfraccion: 'Sin informacion registrada',
+      pagoResumen: 'Solventada sin pago',
+      estadoOperativo: 'LIBERADO_PENDIENTE_SALIDA',
+      validacionPagoEncierro: 'Solventada sin pago | Vehiculo en encierro',
+    }));
+  });
+
+  it('conserva solventacion en tabla/PDF despues de entregar el vehiculo', () => {
+    const values = getSelectedValues(createItem({
+      estatusInfraccion: { idEstatusInfraccion: 89, nombreEstatus: 'VEHICULO_ENTREGADO' },
+      pago: {
+        tienePago: false,
+        tieneSolventacionSinPago: true,
+        idPagoInfraccion: null,
+        fechaUltimoPago: null,
+        montoPagado: null,
+        clavesConcepto: null,
+      },
+      retencion: {
+        idRetencionVehiculo: 20,
+        encierro: 'Encierro Central',
+        fechaIngreso: '2026-11-24T09:00:00.000Z',
+        folioResguardo: 'RES-1',
+        estadoIngreso: 'CAPTURADO',
+      },
+      salida: { tieneSalida: true, fechaSalida: '2026-11-24T12:00:00.000Z' },
+      estadoOperativoCalculado: 'VEHICULO_ENTREGADO',
+    }));
+
+    expect(values).toEqual(expect.objectContaining({
+      pagoAccion: 'Solventada sin pago',
+      tienePago: 'Sin pago',
+      pagoResumen: 'Solventada sin pago',
+      estadoOperativo: 'VEHICULO_ENTREGADO',
+      validacionPagoEncierro: 'Solventada sin pago | Vehiculo entregado',
+    }));
+  });
+
+  it('da prioridad al pago real aun con bandera de solventacion y salida', () => {
+    const values = getSelectedValues(createItem({
+      estatusInfraccion: { idEstatusInfraccion: 89, nombreEstatus: 'VEHICULO_ENTREGADO' },
+      pago: {
+        tienePago: true,
+        tieneSolventacionSinPago: true,
+        idPagoInfraccion: 44,
+        fechaUltimoPago: '2026-11-24T11:00:00.000Z',
+        montoPagado: '1200.00',
+        clavesConcepto: '1EAAA002',
+      },
+      salida: { tieneSalida: true, fechaSalida: '2026-11-24T12:00:00.000Z' },
+      estadoOperativoCalculado: 'VEHICULO_ENTREGADO',
+    }));
+
+    expect(values.tienePago).toBe('Pagada');
+    expect(values.idPagoInfraccion).toBe('44');
+    expect(values.pagoAccion).toContain('1,200');
+    expect(values.estadoOperativo).toBe('VEHICULO_ENTREGADO');
+    expect(values.validacionPagoEncierro).toBe('Pago confirmado | Vehiculo entregado');
+  });
+
 });

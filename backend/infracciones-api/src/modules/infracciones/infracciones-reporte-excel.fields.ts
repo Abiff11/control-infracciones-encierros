@@ -62,8 +62,12 @@ function motivosResumen(row: InfraccionExportRow): string {
 }
 
 function esSolventadaSinPago(row: InfraccionExportRow): boolean {
-  return row.estatusInfraccion.nombreEstatus === 'SOLVENTADA_SIN_PAGO' &&
-    !row.pago.tienePago;
+  // La solventacion persiste aunque el estatus avance a liberacion o entrega.
+  // Solo consultamos el estatus para registros sin esta bandera informativa.
+  return !row.pago.tienePago && (
+    row.pago.tieneSolventacionSinPago ??
+    (row.estatusInfraccion.nombreEstatus === 'SOLVENTADA_SIN_PAGO')
+  );
 }
 
 function pagoResumen(row: InfraccionExportRow): string {
