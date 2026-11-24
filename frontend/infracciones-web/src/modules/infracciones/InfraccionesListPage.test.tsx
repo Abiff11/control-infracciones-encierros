@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { InfraccionListItem } from "../../types/infracciones.types";
@@ -161,6 +161,15 @@ async function renderWithItem(item: InfraccionListItem, roleName?: string) {
   expect(await screen.findByText("INF-10")).toBeInTheDocument();
 }
 
+function getMainStatusBadge(): HTMLElement {
+  const row = screen.getByText("INF-10").closest("tr");
+  expect(row).not.toBeNull();
+
+  return within(row as HTMLTableRowElement).getByText(/./, {
+    selector: ".status-badge",
+  });
+}
+
 describe("InfraccionesListPage notificaciones por expediente", () => {
   const observacion = {
     idObservacion: 12,
@@ -272,10 +281,32 @@ describe("InfraccionesListPage solventacion sin pago", () => {
   it("marca como completada una infraccion sin retencion solventada sin pago", async () => {
     await renderWithItem(createItem());
 
+    expect(getMainStatusBadge()).toHaveTextContent("Solventada sin pago");
     expect(screen.getByRole("button", { name: "Completado" })).toBeDisabled();
     expect(
       screen.getByText("Infraccion solventada sin pago"),
     ).toBeInTheDocument();
+  });
+
+  it("conserva pagada sin retencion cuando existe un pago real", async () => {
+    await renderWithItem(
+      createItem({
+        estatusInfraccion: {
+          idEstatusInfraccion: 2,
+          nombreEstatus: "PAGADA",
+        },
+        pago: {
+          tienePago: true,
+          idPagoInfraccion: 60,
+          fechaUltimoPago: "2026-08-26T12:00:00.000Z",
+          montoPagado: "1200.00",
+          clavesConcepto: "1EAAA002",
+        },
+        estadoOperativoCalculado: "PAGADA_SIN_RETENCION",
+      }),
+    );
+
+    expect(getMainStatusBadge()).toHaveTextContent("Pagada sin retencion");
   });
 
   it("habilita liberacion para una infraccion retenida solventada sin pago", async () => {
@@ -306,6 +337,9 @@ describe("InfraccionesListPage solventacion sin pago", () => {
     expect(
       screen.getByRole("button", { name: "Autorizar liberacion" }),
     ).toBeEnabled();
+    expect(getMainStatusBadge()).toHaveTextContent(
+      "Pagado, pendiente de liberacion",
+    );
     expect(screen.getByText("Expediente solventado sin pago")).toBeInTheDocument();
   });
 
@@ -487,7 +521,7 @@ describe("InfraccionesListPage regularizacion de entregas anticipadas", () => {
           fechaUltimoPago: null, montoPagado: null, clavesConcepto: null } }),
       "INFRACCIONES",
     );
-    expect(screen.getByText("INF-10").closest("tr")).toHaveTextContent("Vehiculo entregado");
+    expect(getMainStatusBadge()).toHaveTextContent("Vehiculo entregado");
     expect(screen.getByRole("button", { name: "Autorizar liberacion pendiente" })).toBeEnabled();
   });
 
