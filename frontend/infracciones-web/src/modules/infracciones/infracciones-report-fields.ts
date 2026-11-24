@@ -65,9 +65,11 @@ function getMotivos(item: InfraccionListItem): string {
 }
 
 export function esSolventadaSinPago(item: InfraccionListItem): boolean {
-  return (
-    item.estatusInfraccion.nombreEstatus === 'SOLVENTADA_SIN_PAGO' &&
-    item.pago?.tienePago !== true
+  // El respaldo se conserva al liberar o entregar un vehiculo.
+  // El estatus es respaldo para filas anteriores a esta bandera.
+  return item.pago?.tienePago !== true && (
+    item.pago?.tieneSolventacionSinPago ??
+    (item.estatusInfraccion.nombreEstatus === 'SOLVENTADA_SIN_PAGO')
   );
 }
 

@@ -273,4 +273,86 @@ describe('InfraccionesExcelReportService solventacion sin pago', () => {
     expect(cells.estadoOperativo).toBe('PAGADA_SIN_RETENCION');
     expect(cells.validacionPagoEncierro).toBe('Pago confirmado | Sin encierro');
   });
+
+  it('retiene etiqueta de solventacion en XLSX cuando el estatus avanza a liberacion', async () => {
+    const cells = await exportarFilaXlsx({
+      ...createRow(8),
+      estatusInfraccion: { idEstatusInfraccion: 88, nombreEstatus: 'LIBERACION_GENERADA' },
+      retencion,
+      pago: {
+        tienePago: false,
+        tieneSolventacionSinPago: true,
+        idPagoInfraccion: null,
+        fechaUltimoPago: null,
+        montoPagado: null,
+        clavesConcepto: null,
+      },
+      liberacion: {
+        tieneLiberacion: true,
+        idLiberacionVehiculo: 33,
+        fechaLiberacion: '2026-11-24T11:00:00.000Z',
+      },
+      estadoOperativoCalculado: 'LIBERADO_PENDIENTE_SALIDA',
+    });
+
+    expect(cells).toEqual(expect.objectContaining({
+      pagoAccion: 'Solventada sin pago',
+      tienePago: 'Sin pago',
+      idPagoInfraccion: 'Sin informacion registrada',
+      montoPagado: 'Sin informacion registrada',
+      pagoResumen: 'Solventada sin pago',
+      estadoOperativo: 'LIBERADO_PENDIENTE_SALIDA',
+      validacionPagoEncierro: 'Solventada sin pago | Vehiculo en encierro',
+    }));
+  });
+
+  it('conserva la solventacion en XLSX despues de la salida fisica', async () => {
+    const cells = await exportarFilaXlsx({
+      ...createRow(9),
+      estatusInfraccion: { idEstatusInfraccion: 89, nombreEstatus: 'VEHICULO_ENTREGADO' },
+      retencion,
+      pago: {
+        tienePago: false,
+        tieneSolventacionSinPago: true,
+        idPagoInfraccion: null,
+        fechaUltimoPago: null,
+        montoPagado: null,
+        clavesConcepto: null,
+      },
+      liberacion: {
+        tieneLiberacion: true,
+        idLiberacionVehiculo: 33,
+        fechaLiberacion: '2026-11-24T11:00:00.000Z',
+      },
+      salida: { tieneSalida: true, fechaSalida: '2026-11-24T12:00:00.000Z' },
+      estadoOperativoCalculado: 'VEHICULO_ENTREGADO',
+    });
+
+    expect(cells).toEqual(expect.objectContaining({
+      pagoAccion: 'Solventada sin pago',
+      tienePago: 'Sin pago',
+      montoPagado: 'Sin informacion registrada',
+      pagoResumen: 'Solventada sin pago',
+      estadoOperativo: 'VEHICULO_ENTREGADO',
+      validacionPagoEncierro: 'Solventada sin pago | Vehiculo entregado',
+    }));
+  });
+
+  it('prioriza pago real sobre bandera de solventacion en XLSX', async () => {
+    const cells = await exportarFilaXlsx({
+      ...createRow(10),
+      estatusInfraccion: { idEstatusInfraccion: 89, nombreEstatus: 'VEHICULO_ENTREGADO' },
+      pago: { ...pagoReal, tieneSolventacionSinPago: true },
+      salida: { tieneSalida: true, fechaSalida: '2026-11-24T12:00:00.000Z' },
+      estadoOperativoCalculado: 'VEHICULO_ENTREGADO',
+    });
+
+    expect(cells.tienePago).toBe('Pagada');
+    expect(cells.idPagoInfraccion).toBe('44');
+    expect(cells.montoPagado).toBe('1200.00');
+    expect(cells.pagoResumen).toContain('1200.00');
+    expect(cells.estadoOperativo).toBe('VEHICULO_ENTREGADO');
+    expect(cells.validacionPagoEncierro).toBe('Pago confirmado | Vehiculo entregado');
+  });
+
 });
