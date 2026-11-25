@@ -89,6 +89,11 @@ export class FindInfraccionesQueryDto {
   @ArrayMaxSize(30)
   @ArrayUnique()
   @Type(() => Number)
+  @Transform(({ value }: { value: unknown }): unknown =>
+    value === null || value === undefined || Array.isArray(value)
+      ? value
+      : [value],
+  )
   @IsInt({ each: true })
   @Min(1, { each: true })
   idInfracciones?: number[];

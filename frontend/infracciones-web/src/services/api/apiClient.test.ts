@@ -135,3 +135,35 @@ describe("apiClient.restoreAuthSession", () => {
     expect(refreshAuthSession).not.toHaveBeenCalled();
   });
 });
+
+describe("apiClient.buildQuery arrays", () => {
+  it("conserva un ID seleccionado en una sola clave de consulta", async () => {
+    const { buildQuery } = await import("./apiClient");
+    const query = buildQuery({
+      idInfracciones: [117225],
+      fechaInicio: "2026-11-24",
+      page: 1,
+      search: "",
+    });
+    const params = new URLSearchParams(query.slice(1));
+
+    expect(params.getAll("idInfracciones")).toEqual(["117225"]);
+    expect(params.get("fechaInicio")).toBe("2026-11-24");
+    expect(params.get("page")).toBe("1");
+    expect(params.has("search")).toBe(false);
+  });
+
+  it("envia multiples IDs como parametros repetidos y omite listas vacias", async () => {
+    const { buildQuery } = await import("./apiClient");
+    const query = buildQuery({
+      idInfracciones: [117225, 10, 11],
+      fechaFin: "2026-11-25",
+      ignore: [] as number[],
+    });
+    const params = new URLSearchParams(query.slice(1));
+
+    expect(params.getAll("idInfracciones")).toEqual(["117225", "10", "11"]);
+    expect(params.get("fechaFin")).toBe("2026-11-25");
+    expect(params.has("ignore")).toBe(false);
+  });
+});
