@@ -61,6 +61,18 @@ interface ReportGroupView {
   selectedCount: number;
 }
 
+interface PdfAvailabilityState {
+  queryKey: string;
+  availability: PdfReportAvailability | null;
+  error: string | null;
+  loading: boolean;
+}
+
+interface ExportErrorState {
+  queryKey: string;
+  error: string | null;
+}
+
 const REPORT_FIELD_STORAGE_KEY = 'cie.infracciones.reportFields';
 const PREVIEW_ROW_LIMIT = 8;
 const INITIAL_REPORT_FILTERS: ReportFilters = {
@@ -316,9 +328,15 @@ export function InfraccionesReportModal({
   const [selectedFieldIds, setSelectedFieldIds] = useState<InfraccionesReportFieldId[]>(
     readStoredReportFieldIds,
   );
-  const [pdfError, setPdfError] = useState<string | null>(null);
-  const [availability, setAvailability] = useState<PdfReportAvailability | null>(pdfAvailability);
   const [exporting, setExporting] = useState<ReportFormat | null>(null);
+  const [openCycleState, setOpenCycleState] = useState({ open, cycle: 0 });
+
+  if (openCycleState.open !== open) {
+    setOpenCycleState({
+      open,
+      cycle: open ? openCycleState.cycle + 1 : openCycleState.cycle,
+    });
+  }
 
   const effectiveScope = selectedRowIds.size === 0 && scope === 'selected' ? 'all' : scope;
   const scopeItems = useMemo(
@@ -333,6 +351,33 @@ export function InfraccionesReportModal({
     () => buildReportQuery(reportQuery, reportFilters, effectiveScope, selectedRowIds),
     [effectiveScope, reportFilters, reportQuery, selectedRowIds],
   );
+  const availabilityRequestKey = useMemo(
+    () =>
+      JSON.stringify({
+        query: effectiveQuery,
+        openCycle: openCycleState.cycle,
+        sourceAvailability: pdfAvailability,
+      }),
+    [effectiveQuery, openCycleState.cycle, pdfAvailability],
+  );
+  const [availabilityState, setAvailabilityState] = useState<PdfAvailabilityState>(() => ({
+    queryKey: availabilityRequestKey,
+    availability: pdfAvailability,
+    error: null,
+    loading: true,
+  }));
+  const [exportErrorState, setExportErrorState] = useState<ExportErrorState>(() => ({
+    queryKey: availabilityRequestKey,
+    error: null,
+  }));
+  const isCurrentAvailability = availabilityState.queryKey === availabilityRequestKey;
+  const availability = isCurrentAvailability ? availabilityState.availability : null;
+  const availabilityError = isCurrentAvailability ? availabilityState.error : null;
+  const exportError =
+    exportErrorState.queryKey === availabilityRequestKey ? exportErrorState.error : null;
+  const pdfError = availabilityError ?? exportError;
+  const isAvailabilityLoading =
+    open && (!isCurrentAvailability || availabilityState.loading);
   const reportTable = useMemo(
     () => buildInfraccionesReportTable(exportItems, selectedFieldIds),
     [exportItems, selectedFieldIds],
@@ -340,7 +385,9 @@ export function InfraccionesReportModal({
   const previewRows = reportTable.rows.slice(0, PREVIEW_ROW_LIMIT);
   const reportTotal = availability?.total ?? 0;
   const canExport = reportTotal > 0 && selectedFieldIds.length > 0;
-  const canGeneratePdf = canExport && availability?.permitido === true;
+  const canExportExcel = canExport;
+  const canGeneratePdf =
+    canExport && !isAvailabilityLoading && availability?.permitido === true;
   const previewMessage = getPreviewMessage(canExport, selectedFieldIds.length, exportItems.length);
   const preset = getExactPreset(selectedFieldIds);
   const selectedSummary = getSelectedFieldSummary(selectedFieldIds);
@@ -430,23 +477,52 @@ export function InfraccionesReportModal({
       };
     }
 
+    if (isCurrentAvailability && !availabilityState.loading) {
+      return () => {
+        mounted = false;
+      };
+    }
+
     void onGetReportAvailability(effectiveQuery)
       .then((nextAvailability) => {
         if (mounted) {
-          setAvailability(nextAvailability);
+          setAvailabilityState({
+            queryKey: availabilityRequestKey,
+            availability: nextAvailability,
+            error: null,
+            loading: false,
+          });
         }
       })
       .catch((error) => {
         if (mounted) {
-          setPdfError(getErrorMessage(error));
-          setAvailability(null);
+          setAvailabilityState({
+            queryKey: availabilityRequestKey,
+            availability: null,
+            error: getErrorMessage(error),
+            loading: false,
+          });
         }
       });
 
     return () => {
       mounted = false;
     };
-  }, [effectiveQuery, onGetReportAvailability, open]);
+  }, [
+    availabilityState.loading,
+    availabilityRequestKey,
+    effectiveQuery,
+    isCurrentAvailability,
+    onGetReportAvailability,
+    open,
+  ]);
+
+  function setExportError(error: string | null): void {
+    setExportErrorState({
+      queryKey: availabilityRequestKey,
+      error,
+    });
+  }
 
   function updateSelectedFieldIds(fieldIds: InfraccionesReportFieldId[]): void {
     setSelectedFieldIds(fieldIds);
@@ -489,11 +565,12 @@ export function InfraccionesReportModal({
   }
 
   async function handleExport(format: ReportFormat): Promise<void> {
-    if (!canExport) {
+    if (format === 'excel' ? !canExportExcel : !canExport) {
       return;
     }
 
     if (format === 'excel') {
+      setExportError(null);
       if (!effectiveQuery.fechaInicio && !effectiveQuery.fechaFin) {
         const confirmed = await confirmAction({
           title: 'Exportar historial completo',
@@ -512,7 +589,7 @@ export function InfraccionesReportModal({
         const blob = await onExportExcel({ ...effectiveQuery, campos: selectedFieldIds });
         downloadBlob(blob, buildInfraccionesExcelFileName(effectiveQuery));
       } catch (error) {
-        setPdfError(getErrorMessage(error));
+        setExportError(getErrorMessage(error));
       } finally {
         setExporting(null);
       }
@@ -520,7 +597,7 @@ export function InfraccionesReportModal({
     }
 
     if (!availability?.permitido) {
-      setPdfError(
+      setExportError(
         availability
           ? getPdfLimitMessage(availability)
           : 'No se pudo verificar el límite de registros para PDF.',
@@ -529,15 +606,16 @@ export function InfraccionesReportModal({
     }
 
     try {
+      setExportError(null);
       setExporting('pdf');
       const pdfItems = await onGeneratePdf(effectiveQuery);
-      setPdfError(null);
+      setExportError(null);
       downloadInfraccionesPdfReport({
         ...payload,
         rows: buildInfraccionesReportTable(pdfItems, selectedFieldIds).rows,
       });
     } catch (error) {
-      setPdfError(getErrorMessage(error));
+      setExportError(getErrorMessage(error));
     } finally {
       setExporting(null);
     }
@@ -887,9 +965,9 @@ export function InfraccionesReportModal({
           <span>{selectedFieldIds.length} campos</span>
           <span>{exportItems.length} a exportar</span>
         </header>
-        {pdfAvailability && !pdfAvailability.permitido ? (
+        {availability && !availability.permitido ? (
           <div className="notice notice-error" role="alert">
-            {getPdfLimitMessage(pdfAvailability)}
+            {getPdfLimitMessage(availability)}
           </div>
         ) : null}
         {pdfError ? (
@@ -948,11 +1026,15 @@ export function InfraccionesReportModal({
             <Button type="button" variant="secondary" onClick={onClose}>
               Cancelar
             </Button>
-            <Button type="button" variant="secondary" disabled={!canExport || exporting !== null} onClick={() => void handleExport('excel')}>
+            <Button type="button" variant="secondary" disabled={!canExportExcel || exporting !== null} onClick={() => void handleExport('excel')}>
               {exporting === 'excel' ? 'Exportando Excel...' : 'Exportar Excel'}
             </Button>
             <Button type="button" variant="primary" disabled={!canGeneratePdf || exporting !== null} onClick={() => void handleExport('pdf')}>
-              {exporting === 'pdf' ? 'Generando PDF...' : 'Generar PDF'}
+              {exporting === 'pdf'
+                ? 'Generando PDF...'
+                : isAvailabilityLoading
+                  ? 'Consultando disponibilidad...'
+                  : 'Generar PDF'}
             </Button>
           </div>
         </footer>
