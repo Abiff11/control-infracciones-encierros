@@ -280,10 +280,7 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
   const generatePdf = useCallback(async (reportQuery: InfraccionesQuery): Promise<InfraccionListItem[]> => {
     await validatePdfReport(token, reportQuery);
     const ids = new Set(reportQuery.idInfracciones ?? []);
-    const allItems = await getAllInfracciones(token, {
-      ...reportQuery,
-      idInfracciones: undefined,
-    });
+    const allItems = await getAllInfracciones(token, reportQuery);
 
     return ids.size > 0
       ? allItems.filter((item) => ids.has(item.idInfraccion))

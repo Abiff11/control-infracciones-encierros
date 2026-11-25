@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { InfraccionListItem } from '../../types/infracciones.types';
+import type { InfraccionListItem, InfraccionesQuery } from '../../types/infracciones.types';
 import InfraccionesReportPage from './InfraccionesReportPage';
 
 const apiMocks = vi.hoisted(() => ({
@@ -25,17 +25,35 @@ vi.mock('./InfraccionesReportModal', () => ({
     dateRangeLabel,
     items,
     open,
+    onGeneratePdf,
+    reportQuery,
+    selectedRowIds,
   }: {
     dateRangeLabel: string;
     items: InfraccionListItem[];
     open: boolean;
+    onGeneratePdf: (query: InfraccionesQuery) => Promise<InfraccionListItem[]>;
+    reportQuery: InfraccionesQuery;
+    selectedRowIds: Set<number>;
   }) =>
     open ? (
       <div
         data-testid="report-modal"
         data-count={String(items.length)}
         data-range={dateRangeLabel}
-      />
+      >
+        <button
+          type="button"
+          onClick={() => {
+            void onGeneratePdf({
+              ...reportQuery,
+              idInfracciones: Array.from(selectedRowIds),
+            });
+          }}
+        >
+          Simular PDF de seleccion
+        </button>
+      </div>
     ) : null,
 }));
 
@@ -210,6 +228,29 @@ describe('InfraccionesReportPage', () => {
       ),
     ).toBeInTheDocument();
     expect(apiMocks.getAllInfracciones).not.toHaveBeenCalled();
+  });
+
+  it('recupera exclusivamente los IDs seleccionados al generar un PDF', async () => {
+    render(<InfraccionesReportPage refreshKey={0} token="token-test" />);
+
+    expect(await screen.findByText('INF-10')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Seleccionar INF-10' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Generar reporte' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Simular PDF de seleccion' }));
+
+    await waitFor(() => {
+      expect(apiMocks.validatePdfReport).toHaveBeenCalledWith(
+        'token-test',
+        expect.objectContaining({ idInfracciones: [10] }),
+      );
+      expect(apiMocks.getAllInfracciones).toHaveBeenCalledWith(
+        'token-test',
+        expect.objectContaining({ idInfracciones: [10] }),
+      );
+    });
+
+    expect(apiMocks.getAllInfracciones).toHaveBeenCalledTimes(1);
   });
 
   it('distingue solventacion sin pago real en la tabla', async () => {

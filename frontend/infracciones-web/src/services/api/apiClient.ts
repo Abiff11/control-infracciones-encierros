@@ -33,7 +33,8 @@ export class ApiError extends Error {
   }
 }
 
-type QueryValue = string | number | boolean | null | undefined;
+type QueryScalar = string | number | boolean | null | undefined;
+type QueryValue = QueryScalar | QueryScalar[];
 type ResponseReader<T> = (response: Response) => Promise<T>;
 
 export function buildQuery<T extends object>(params?: T): string {
@@ -46,11 +47,14 @@ export function buildQuery<T extends object>(params?: T): string {
   for (const [key, value] of Object.entries(
     params as Record<string, QueryValue>,
   )) {
-    if (value === null || value === undefined || value === "") {
-      continue;
-    }
+    const values = Array.isArray(value) ? value : [value];
+    for (const item of values) {
+      if (item === null || item === undefined || item === "") {
+        continue;
+      }
 
-    searchParams.set(key, String(value));
+      searchParams.append(key, String(item));
+    }
   }
 
   const query = searchParams.toString();
