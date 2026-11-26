@@ -26,8 +26,6 @@ describe('InfraccionesController disponibilidad generica', () => {
   let httpServer: Parameters<typeof request>[0];
   const reportesService = {
     getReportAvailability: jest.fn(),
-    getPdfAvailability: jest.fn(),
-    assertPdfAllowed: jest.fn(),
   };
 
   beforeAll(async () => {
@@ -74,16 +72,6 @@ describe('InfraccionesController disponibilidad generica', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     reportesService.getReportAvailability.mockResolvedValue({ total: 13_827 });
-    reportesService.getPdfAvailability.mockResolvedValue({
-      total: 13_827,
-      limitePdf: 500,
-      permitido: false,
-    });
-    reportesService.assertPdfAllowed.mockResolvedValue({
-      total: 1,
-      limitePdf: 500,
-      permitido: true,
-    });
   });
 
   afterAll(async () => {
@@ -159,21 +147,19 @@ describe('InfraccionesController disponibilidad generica', () => {
       .expect(404);
   });
 
-  it('conserva las rutas heredadas de disponibilidad y validacion PDF', async () => {
+  it('retira las rutas heredadas de disponibilidad y validacion PDF', async () => {
     await request(httpServer)
       .get('/infracciones/reportes/pdf/disponibilidad')
-      .expect(200)
-      .expect({ total: 13_827, limitePdf: 500, permitido: false });
+      .expect(404);
     await request(httpServer)
       .post('/infracciones/reportes/pdf/disponibilidad')
       .send({ idInfracciones: [10] })
-      .expect(201);
+      .expect(404);
     await request(httpServer)
       .post('/infracciones/reportes/pdf/validacion')
       .send({ idInfracciones: [10] })
-      .expect(201);
+      .expect(404);
 
-    expect(reportesService.getPdfAvailability).toHaveBeenCalledTimes(2);
-    expect(reportesService.assertPdfAllowed).toHaveBeenCalledTimes(1);
+    expect(reportesService.getReportAvailability).not.toHaveBeenCalled();
   });
 });

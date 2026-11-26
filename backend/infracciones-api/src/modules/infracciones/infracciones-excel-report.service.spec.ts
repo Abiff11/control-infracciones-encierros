@@ -32,7 +32,7 @@ function createRow(idInfraccion: number, observaciones = 'Observacion'): object 
 
 function createService(total: number) {
   const infraccionesListService = {
-    countForPdfReport: jest.fn().mockResolvedValue(total),
+    countForReport: jest.fn().mockResolvedValue(total),
     findForReportExportBlock: jest.fn().mockImplementation(
       (_query: unknown, offset: number, limit: number) =>
         Promise.resolve(
@@ -74,7 +74,7 @@ describe('InfraccionesExcelReportService', () => {
 
     expect(buffer.subarray(0, 2).toString()).toBe('PK');
     expect(result).toEqual({ total, rowsWritten: total });
-    expect(infraccionesListService.countForPdfReport).toHaveBeenCalledWith({
+    expect(infraccionesListService.countForReport).toHaveBeenCalledWith({
       campos: ['folioInfraccion', 'observaciones'],
     });
     expect(infraccionesListService.findForReportExportBlock).toHaveBeenCalledTimes(
@@ -110,7 +110,7 @@ describe('InfraccionesExcelReportService', () => {
     await expect(service.write({ campos: ['campoNoPermitido'] }, stream)).rejects.toBeInstanceOf(
       BadRequestException,
     );
-    expect(infraccionesListService.countForPdfReport).not.toHaveBeenCalled();
+    expect(infraccionesListService.countForReport).not.toHaveBeenCalled();
   });
 
   it('procesa 24,000 registros en doce bloques sin acumularlos en memoria', async () => {

@@ -22,7 +22,7 @@ export class InfraccionesExcelReportService {
   ) {}
 
   getTotal(query: ExportInfraccionesExcelDto): Promise<number> {
-    return this.infraccionesListService.countForPdfReport(query);
+    return this.infraccionesListService.countForReport(query);
   }
 
   assertValidFields(fieldIds: string[]): ReturnType<typeof resolveInfraccionesExcelFields> {

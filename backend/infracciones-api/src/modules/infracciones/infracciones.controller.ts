@@ -110,24 +110,6 @@ export class InfraccionesController {
     return this.infraccionesReportesService.getReportAvailability(query);
   }
 
-  @Get('reportes/pdf/disponibilidad')
-  @ApiOperation({ summary: 'Consultar disponibilidad del reporte PDF' })
-  getPdfReportAvailability(@Query() query: FindInfraccionesQueryDto) {
-    return this.infraccionesReportesService.getPdfAvailability(query);
-  }
-
-  @Post('reportes/pdf/disponibilidad')
-  @ApiOperation({ summary: 'Consultar disponibilidad del reporte PDF con seleccion' })
-  getPdfReportAvailabilityForSelection(@Body() query: FindInfraccionesQueryDto) {
-    return this.infraccionesReportesService.getPdfAvailability(query);
-  }
-
-  @Post('reportes/pdf/validacion')
-  @ApiOperation({ summary: 'Validar limite antes de generar reporte PDF' })
-  validatePdfReport(@Body() query: FindInfraccionesQueryDto) {
-    return this.infraccionesReportesService.assertPdfAllowed(query);
-  }
-
   @Post('reportes/excel')
   @ApiOperation({ summary: 'Exportar reporte de infracciones en formato XLSX' })
   async exportExcelReport(
