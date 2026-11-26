@@ -103,12 +103,6 @@ export interface ReportAvailability {
   total: number;
 }
 
-export interface PdfReportAvailability {
-  total: number;
-  limitePdf: number;
-  permitido: boolean;
-}
-
 export interface ExportInfraccionesExcelPayload extends InfraccionesQuery {
   campos: string[];
   idInfracciones?: number[];

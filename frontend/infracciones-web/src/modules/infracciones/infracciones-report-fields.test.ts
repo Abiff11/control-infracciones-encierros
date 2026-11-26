@@ -81,7 +81,7 @@ function getSelectedValues(item: InfraccionListItem): Record<string, string> {
   );
 }
 
-describe('Campos de reportes y PDF: solventacion sin pago', () => {
+describe('Campos de reportes: solventacion sin pago', () => {
   it('sin retencion distingue solventacion y mantiene el dato real sin pago', () => {
     const values = getSelectedValues(createItem({
       estatusInfraccion: { idEstatusInfraccion: 99, nombreEstatus: 'SOLVENTADA_SIN_PAGO' },
@@ -188,7 +188,7 @@ describe('Campos de reportes y PDF: solventacion sin pago', () => {
     expect(values.validacionPagoEncierro).toBe('Pago confirmado | Sin encierro');
   });
 
-  it('conserva solventacion en tabla/PDF despues de generar liberacion', () => {
+  it('conserva solventacion en tabla de reportes despues de generar liberacion', () => {
     const base = createItem();
     const values = getSelectedValues(createItem({
       estatusInfraccion: { idEstatusInfraccion: 88, nombreEstatus: 'LIBERACION_GENERADA' },
@@ -226,7 +226,7 @@ describe('Campos de reportes y PDF: solventacion sin pago', () => {
     }));
   });
 
-  it('conserva solventacion en tabla/PDF despues de entregar el vehiculo', () => {
+  it('conserva solventacion en tabla de reportes despues de entregar el vehiculo', () => {
     const values = getSelectedValues(createItem({
       estatusInfraccion: { idEstatusInfraccion: 89, nombreEstatus: 'VEHICULO_ENTREGADO' },
       pago: {
