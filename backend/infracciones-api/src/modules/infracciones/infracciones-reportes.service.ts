@@ -13,16 +13,28 @@ export interface PdfReportAvailability {
   permitido: boolean;
 }
 
+export interface ReportAvailability {
+  total: number;
+}
+
 @Injectable()
 export class InfraccionesReportesService {
   constructor(
     private readonly infraccionesListService: InfraccionesListService,
   ) {}
 
+  async getReportAvailability(
+    query: FindInfraccionesQueryDto,
+  ): Promise<ReportAvailability> {
+    const total = await this.infraccionesListService.countForPdfReport(query);
+
+    return { total };
+  }
+
   async getPdfAvailability(
     query: FindInfraccionesQueryDto,
   ): Promise<PdfReportAvailability> {
-    const total = await this.infraccionesListService.countForPdfReport(query);
+    const { total } = await this.getReportAvailability(query);
 
     return {
       total,

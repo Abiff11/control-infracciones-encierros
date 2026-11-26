@@ -98,6 +98,18 @@ export class InfraccionesController {
     return this.infraccionesService.getResumenPorEstatus();
   }
 
+  @Get('reportes/disponibilidad')
+  @ApiOperation({ summary: 'Consultar disponibilidad del reporte' })
+  getReportAvailability(@Query() query: FindInfraccionesQueryDto) {
+    return this.infraccionesReportesService.getReportAvailability(query);
+  }
+
+  @Post('reportes/disponibilidad')
+  @ApiOperation({ summary: 'Consultar disponibilidad del reporte con seleccion' })
+  getReportAvailabilityForSelection(@Body() query: FindInfraccionesQueryDto) {
+    return this.infraccionesReportesService.getReportAvailability(query);
+  }
+
   @Get('reportes/pdf/disponibilidad')
   @ApiOperation({ summary: 'Consultar disponibilidad del reporte PDF' })
   getPdfReportAvailability(@Query() query: FindInfraccionesQueryDto) {
