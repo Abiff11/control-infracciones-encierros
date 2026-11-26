@@ -8,11 +8,9 @@ import { PaginationControls } from '../../components/ui/PaginationControls';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { getErrorMessage } from '../../services/api/apiClient';
 import {
-  getAllInfracciones,
   exportInfraccionesExcel,
   getInfracciones,
   getPdfReportAvailability,
-  validatePdfReport,
 } from '../../services/api/infracciones.api';
 import {
   formatCurrencyMxn,
@@ -33,7 +31,6 @@ import type {
 import { InfraccionesReportModal } from './InfraccionesReportModal';
 import { getEstadoVisualListado } from './estado-visual-infraccion';
 import { esSolventadaSinPago } from './infracciones-report-fields';
-import { getPdfLimitMessage } from './pdf-report-limit';
 import './InfraccionesReportPage.css';
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -277,16 +274,6 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
     setReportOpen(true);
   }
 
-  const generatePdf = useCallback(async (reportQuery: InfraccionesQuery): Promise<InfraccionListItem[]> => {
-    await validatePdfReport(token, reportQuery);
-    const ids = new Set(reportQuery.idInfracciones ?? []);
-    const allItems = await getAllInfracciones(token, reportQuery);
-
-    return ids.size > 0
-      ? allItems.filter((item) => ids.has(item.idInfraccion))
-      : allItems;
-  }, [token]);
-
   const getReportAvailability = useCallback(
     (reportQuery: InfraccionesQuery) => getPdfReportAvailability(token, reportQuery),
     [token],
@@ -304,7 +291,7 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
           <p className="eyebrow">Reportes</p>
           <h1>Generar reporte</h1>
           <p className="page-description">
-            Consulta por rango de fecha y exporta todos los resultados a Excel o PDF.
+            Consulta por rango de fecha y exporta todos los resultados a Excel.
           </p>
         </div>
 
@@ -324,12 +311,6 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
           </Button>
         </div>
       </header>
-
-      {pdfAvailability && !pdfAvailability.permitido ? (
-        <div className="notice notice-error" role="alert">
-          {getPdfLimitMessage(pdfAvailability)}
-        </div>
-      ) : null}
 
       <Card>
         <div className="report-date-filter">
@@ -534,12 +515,10 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
         open={reportOpen}
         items={items}
         selectedRowIds={selectedRowIds}
-        dateRangeLabel={appliedDateRangeLabel}
         reportQuery={query}
         pdfAvailability={pdfAvailability}
         onGetReportAvailability={getReportAvailability}
         onExportExcel={exportExcelReport}
-        onGeneratePdf={generatePdf}
         onClose={() => setReportOpen(false)}
       />
     </section>

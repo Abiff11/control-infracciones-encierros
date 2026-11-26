@@ -11,7 +11,6 @@ import { InfraccionesReportModal } from './InfraccionesReportModal';
 
 const reportMocks = vi.hoisted(() => ({
   downloadBlob: vi.fn(),
-  downloadInfraccionesPdfReport: vi.fn(),
 }));
 const alertMocks = vi.hoisted(() => ({
   confirmAction: vi.fn(),
@@ -27,7 +26,6 @@ vi.mock('./infracciones-report-export', () => ({
   })),
   downloadBlob: reportMocks.downloadBlob,
   buildInfraccionesExcelFileName: vi.fn(() => 'reporte-infracciones.xlsx'),
-  downloadInfraccionesPdfReport: reportMocks.downloadInfraccionesPdfReport,
 }));
 
 vi.mock('../../utils/sweetAlert', () => ({
@@ -109,7 +107,6 @@ interface AvailabilityScenarioOptions {
   selectedRowIds?: Set<number>;
   onGetReportAvailability?: (query: InfraccionesQuery) => Promise<PdfReportAvailability>;
   onExportExcel?: (payload: ExportInfraccionesExcelPayload) => Promise<Blob>;
-  onGeneratePdf?: (query: InfraccionesQuery) => Promise<InfraccionListItem[]>;
   open?: boolean;
   reportQuery?: InfraccionesQuery;
 }
@@ -120,13 +117,11 @@ function createAvailabilityScenarioElement({
   selectedRowIds = new Set([10]),
   onGetReportAvailability = vi.fn().mockResolvedValue(availability),
   onExportExcel = vi.fn().mockResolvedValue(new Blob()),
-  onGeneratePdf = vi.fn().mockResolvedValue(items),
   open = true,
   reportQuery = { fechaInicio: '2026-08-01', fechaFin: '2026-08-31' },
 }: AvailabilityScenarioOptions = {}) {
   return (
     <InfraccionesReportModal
-      dateRangeLabel="Agosto 2026"
       reportQuery={reportQuery}
       items={items}
       open={open}
@@ -134,7 +129,6 @@ function createAvailabilityScenarioElement({
       selectedRowIds={selectedRowIds}
       onGetReportAvailability={onGetReportAvailability}
       onExportExcel={onExportExcel}
-      onGeneratePdf={onGeneratePdf}
       onClose={vi.fn()}
     />
   );
@@ -148,13 +142,11 @@ function renderAvailabilityScenario(options: AvailabilityScenarioOptions = {}) {
 
 function renderModal(
   pdfAvailability: PdfReportAvailability,
-  onGeneratePdf = vi.fn().mockResolvedValue([createItem()]),
   onExportExcel = vi.fn().mockResolvedValue(new Blob()),
   reportQuery: InfraccionesQuery = { fechaInicio: '2026-08-01', fechaFin: '2026-08-31' },
 ) {
   render(
     <InfraccionesReportModal
-      dateRangeLabel="Todas las fechas"
       reportQuery={reportQuery}
       items={[createItem()]}
       open
@@ -162,30 +154,24 @@ function renderModal(
       selectedRowIds={new Set()}
       onGetReportAvailability={vi.fn().mockResolvedValue(pdfAvailability)}
       onExportExcel={onExportExcel}
-      onGeneratePdf={onGeneratePdf}
       onClose={vi.fn()}
     />,
   );
 
-  return { onExportExcel, onGeneratePdf };
+  return { onExportExcel };
 }
 
-describe('InfraccionesReportModal limite de PDF', () => {
+describe('InfraccionesReportModal exportacion Excel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('bloquea PDF para 24,000 registros y conserva Excel habilitado', async () => {
+  it('ofrece unicamente Excel y no muestra advertencias PDF para 24,000 registros', async () => {
     renderModal({ total: 24_000, limitePdf: 500, permitido: false });
 
-    await screen.findByRole('button', { name: 'Generar PDF' });
-    expect(screen.getByRole('button', { name: 'Generar PDF' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled();
-    expect(
-      screen.getByText(
-        'PDF no disponible para esta consulta. El reporte contiene 24000 registros y supera el límite de 500 registros para PDF. Reduce el rango o los filtros, o utiliza Exportar Excel.',
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
+    expect(screen.queryByRole('button', { name: 'Generar PDF' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/límite de 500 registros para PDF/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Exportar Excel' }));
     await waitFor(() => {
@@ -193,38 +179,11 @@ describe('InfraccionesReportModal limite de PDF', () => {
     });
   });
 
-  it('muestra el error del servidor si el limite cambia antes de generar PDF', async () => {
-    const { onGeneratePdf } = renderModal(
-      { total: 500, limitePdf: 500, permitido: true },
-      vi
-        .fn()
-        .mockRejectedValue(
-          new Error(
-            'PDF no disponible para esta consulta. El reporte contiene 501 registros y supera el límite de 500 registros para PDF.',
-          ),
-        ),
-    );
-
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Generar PDF' })).toBeEnabled());
-    fireEvent.click(screen.getByRole('button', { name: 'Generar PDF' }));
-
-    await waitFor(() => {
-      expect(onGeneratePdf).toHaveBeenCalledTimes(1);
-    });
-    expect(
-      screen.getByText(
-        'PDF no disponible para esta consulta. El reporte contiene 501 registros y supera el límite de 500 registros para PDF.',
-      ),
-    ).toBeInTheDocument();
-    expect(reportMocks.downloadInfraccionesPdfReport).not.toHaveBeenCalled();
-  });
-
   it('confirma antes de exportar todo el historial sin rango', async () => {
     alertMocks.confirmAction.mockResolvedValue(false);
     const onExportExcel = vi.fn().mockResolvedValue(new Blob());
     renderModal(
       { total: 24_000, limitePdf: 500, permitido: false },
-      vi.fn(),
       onExportExcel,
       {},
     );
@@ -247,7 +206,6 @@ describe('InfraccionesReportModal limite de PDF', () => {
     const onExportExcel = vi.fn().mockResolvedValue(new Blob());
     renderModal(
       { total: 3, limitePdf: 500, permitido: true },
-      vi.fn(),
       onExportExcel,
       { search: '117225' },
     );
@@ -255,14 +213,18 @@ describe('InfraccionesReportModal limite de PDF', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Exportar Excel' }));
 
-    await waitFor(() => expect(onExportExcel).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(onExportExcel).toHaveBeenCalledWith(
+        expect.objectContaining({ search: '117225' }),
+      );
+    });
     expect(alertMocks.confirmAction).not.toHaveBeenCalled();
   });
 
   it.each([
     { selectedIds: new Set([10]), total: 1 },
     { selectedIds: new Set([10, 11]), total: 2 },
-  ])('habilita PDF para una seleccion de $total registro(s) y elimina el aviso anterior', async ({
+  ])('conserva $total identificador(es) al exportar una seleccion', async ({
     selectedIds,
     total,
   }) => {
@@ -273,23 +235,29 @@ describe('InfraccionesReportModal limite de PDF', () => {
           : { total: 13_827, limitePdf: 500, permitido: false },
       ),
     );
-    renderAvailabilityScenario({ onGetReportAvailability, selectedRowIds: selectedIds });
+    const onExportExcel = vi.fn().mockResolvedValue(new Blob());
+    renderAvailabilityScenario({ onExportExcel, onGetReportAvailability, selectedRowIds: selectedIds });
 
-    expect(await screen.findByText(/contiene 13827 registros/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /^Seleccionadas/ }));
 
-    expect(screen.getByRole('button', { name: /Generar PDF|Consultando disponibilidad/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeDisabled();
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Generar PDF' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled();
     });
-    expect(screen.queryByText(/contiene 13827 registros/)).not.toBeInTheDocument();
     expect(onGetReportAvailability).toHaveBeenLastCalledWith(
       expect.objectContaining({ idInfracciones: Array.from(selectedIds) }),
     );
     expect(screen.getByText(new RegExp(`Se exportar.n ${total} registros`))).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar Excel' }));
+    await waitFor(() => {
+      expect(onExportExcel).toHaveBeenCalledWith(
+        expect.objectContaining({ idInfracciones: Array.from(selectedIds) }),
+      );
+    });
   });
 
-  it('restaura el aviso al volver de seleccionadas a todos los resultados', async () => {
+  it('restaura el total al volver de seleccionadas a todos los resultados', async () => {
     const onGetReportAvailability = vi.fn().mockImplementation((query: InfraccionesQuery) =>
       Promise.resolve(
         query.idInfracciones
@@ -299,16 +267,16 @@ describe('InfraccionesReportModal limite de PDF', () => {
     );
     renderAvailabilityScenario({ onGetReportAvailability });
 
-    await screen.findByText(/contiene 13827 registros/);
+    await screen.findByText('13827 registros del alcance');
     fireEvent.click(screen.getByRole('button', { name: /^Seleccionadas/ }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Generar PDF' })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /^Todos los resultados/ }));
 
-    expect(await screen.findByText(/contiene 13827 registros/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Generar PDF' })).toBeDisabled();
+    expect(await screen.findByText('13827 registros del alcance')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled();
   });
 
-  it('mantiene PDF deshabilitado durante la consulta y muestra el error de disponibilidad', async () => {
+  it('mantiene Excel deshabilitado durante la consulta y muestra el error de disponibilidad', async () => {
     const selectedAvailability = createDeferred<PdfReportAvailability>();
     const onGetReportAvailability = vi.fn().mockImplementation((query: InfraccionesQuery) =>
       query.idInfracciones
@@ -317,15 +285,13 @@ describe('InfraccionesReportModal limite de PDF', () => {
     );
     renderAvailabilityScenario({ onGetReportAvailability });
 
-    await screen.findByText(/contiene 13827 registros/);
+    await screen.findByText('13827 registros del alcance');
     fireEvent.click(screen.getByRole('button', { name: /^Seleccionadas/ }));
-    expect(screen.getByRole('button', { name: 'Consultando disponibilidad...' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeDisabled();
-    expect(screen.queryByText(/contiene 13827 registros/)).not.toBeInTheDocument();
 
     selectedAvailability.reject(new Error('No fue posible consultar la disponibilidad PDF.'));
     expect(await screen.findByText('No fue posible consultar la disponibilidad PDF.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Generar PDF' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeDisabled();
   });
 
   it('limpia errores previos al cambiar de alcance', async () => {
@@ -340,9 +306,9 @@ describe('InfraccionesReportModal limite de PDF', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Seleccionadas/ }));
 
     expect(screen.queryByText('Error anterior de disponibilidad.')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Consultando disponibilidad...' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeDisabled();
     selectedAvailability.resolve({ total: 1, limitePdf: 500, permitido: true });
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Generar PDF' })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
   });
 
   it('ignora respuestas antiguas que llegan despues de la consulta vigente', async () => {
@@ -356,11 +322,11 @@ describe('InfraccionesReportModal limite de PDF', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^Seleccionadas/ }));
     selectedAvailability.resolve({ total: 1, limitePdf: 500, permitido: true });
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Generar PDF' })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
     allAvailability.resolve({ total: 13_827, limitePdf: 500, permitido: false });
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Generar PDF' })).toBeEnabled());
-    expect(screen.queryByText(/contiene 13827 registros/)).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
+    expect(screen.queryByText('13827 registros del alcance')).not.toBeInTheDocument();
   });
 
   it('actualiza la disponibilidad al reabrir con la misma consulta', async () => {
@@ -372,11 +338,10 @@ describe('InfraccionesReportModal limite de PDF', () => {
     };
     const { rerender } = renderAvailabilityScenario(props);
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Generar PDF' })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
     expect(onGetReportAvailability).toHaveBeenCalledTimes(1);
     rerender(
       <InfraccionesReportModal
-        dateRangeLabel="Agosto 2026"
         reportQuery={{ fechaInicio: '2026-08-01', fechaFin: '2026-08-31' }}
         items={[createItem(10), createItem(11)]}
         open={false}
@@ -384,13 +349,11 @@ describe('InfraccionesReportModal limite de PDF', () => {
         selectedRowIds={new Set([10])}
         onGetReportAvailability={onGetReportAvailability}
         onExportExcel={vi.fn().mockResolvedValue(new Blob())}
-        onGeneratePdf={vi.fn().mockResolvedValue([createItem(10)])}
         onClose={vi.fn()}
       />,
     );
     rerender(
       <InfraccionesReportModal
-        dateRangeLabel="Agosto 2026"
         reportQuery={{ fechaInicio: '2026-08-01', fechaFin: '2026-08-31' }}
         items={[createItem(10), createItem(11)]}
         open
@@ -398,12 +361,11 @@ describe('InfraccionesReportModal limite de PDF', () => {
         selectedRowIds={new Set([10])}
         onGetReportAvailability={onGetReportAvailability}
         onExportExcel={vi.fn().mockResolvedValue(new Blob())}
-        onGeneratePdf={vi.fn().mockResolvedValue([createItem(10)])}
         onClose={vi.fn()}
       />,
     );
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Generar PDF' })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
     expect(onGetReportAvailability).toHaveBeenCalledTimes(2);
   });
 
@@ -421,7 +383,7 @@ describe('InfraccionesReportModal limite de PDF', () => {
       reportQuery: {},
     });
 
-    await screen.findByText(/contiene 13827 registros/);
+    await screen.findByText('13827 registros del alcance');
     fireEvent.click(screen.getByRole('button', { name: /^Seleccionadas/ }));
 
     expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeDisabled();
@@ -444,7 +406,7 @@ describe('InfraccionesReportModal limite de PDF', () => {
     );
     renderAvailabilityScenario({ onGetReportAvailability });
 
-    await screen.findByText(/contiene 13827 registros/);
+    await screen.findByText('13827 registros del alcance');
     fireEvent.click(screen.getByRole('button', { name: /^Seleccionadas/ }));
 
     await waitFor(() => expect(screen.getByText(/Se exportar.n 0 registros/)).toBeInTheDocument());
@@ -464,10 +426,10 @@ describe('InfraccionesReportModal limite de PDF', () => {
     rerender(createAvailabilityScenarioElement({ ...options, open: false }));
     rerender(createAvailabilityScenarioElement({ ...options, open: true }));
 
-    expect(screen.getByRole('button', { name: 'Consultando disponibilidad...' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeDisabled();
     expect(onGetReportAvailability).toHaveBeenCalledTimes(2);
     retryAvailability.resolve({ total: 1, limitePdf: 500, permitido: true });
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Generar PDF' })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
     expect(onGetReportAvailability).toHaveBeenCalledTimes(2);
   });
 
@@ -491,7 +453,7 @@ describe('InfraccionesReportModal limite de PDF', () => {
       }),
     );
 
-    expect(screen.getByRole('button', { name: 'Consultando disponibilidad...' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeDisabled();
     expect(onGetReportAvailability).toHaveBeenCalledTimes(2);
     refreshedAvailability.resolve({ total: 2, limitePdf: 500, permitido: true });
     await waitFor(() => expect(screen.getByText(/Se exportar.n 2 registros/)).toBeInTheDocument());
@@ -517,7 +479,7 @@ describe('InfraccionesReportModal limite de PDF', () => {
 
     exportResult.reject(new Error('Error tardio de la exportacion anterior.'));
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Generar PDF' })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
     expect(screen.queryByText('Error tardio de la exportacion anterior.')).not.toBeInTheDocument();
     expect(onGetReportAvailability).toHaveBeenCalledTimes(2);
   });
@@ -526,7 +488,7 @@ describe('InfraccionesReportModal limite de PDF', () => {
     const items = Array.from({ length: 30 }, (_, index) => createItem(index + 1));
     renderAvailabilityScenario({ items, selectedRowIds: new Set() });
 
-    await screen.findByText(/contiene 13827 registros/);
+    await screen.findByText('13827 registros del alcance');
 
     expect(screen.getByText('13827 registros del alcance')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: 'Vista previa' }));
@@ -589,24 +551,18 @@ describe('InfraccionesReportModal limite de PDF', () => {
   });
 
   it.each([
-    { availability: { total: 0, limitePdf: 500, permitido: true }, enabled: false, warning: false },
-    { availability: { total: 500, limitePdf: 500, permitido: true }, enabled: true, warning: false },
-    { availability: { total: 501, limitePdf: 500, permitido: false }, enabled: false, warning: true },
-  ])('aplica el limite PDF para $availability.total registros', async ({ availability, enabled, warning }) => {
+    { availability: { total: 0, limitePdf: 500, permitido: true }, enabled: false },
+    { availability: { total: 500, limitePdf: 500, permitido: true }, enabled: true },
+    { availability: { total: 501, limitePdf: 500, permitido: false }, enabled: true },
+  ])('habilita Excel por disponibilidad para $availability.total registros', async ({ availability, enabled }) => {
     renderAvailabilityScenario({ availability });
 
-    await screen.findByRole('button', { name: 'Generar PDF' });
-    const pdfButton = screen.getByRole('button', { name: 'Generar PDF' });
+    const excelButton = await screen.findByRole('button', { name: 'Exportar Excel' });
     if (enabled) {
-      expect(pdfButton).toBeEnabled();
+      expect(excelButton).toBeEnabled();
     } else {
-      expect(pdfButton).toBeDisabled();
+      expect(excelButton).toBeDisabled();
     }
-    const limitWarning = screen.queryByText(/supera el l.mite de 500 registros/);
-    if (warning) {
-      expect(limitWarning).toBeInTheDocument();
-    } else {
-      expect(limitWarning).not.toBeInTheDocument();
-    }
+    expect(screen.queryByText(/supera el l.mite de 500 registros/)).not.toBeInTheDocument();
   });
 });

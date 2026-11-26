@@ -1,59 +1,37 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { InfraccionListItem, InfraccionesQuery } from '../../types/infracciones.types';
+import type { InfraccionListItem } from '../../types/infracciones.types';
 import InfraccionesReportPage from './InfraccionesReportPage';
 
 const apiMocks = vi.hoisted(() => ({
-  getAllInfracciones: vi.fn(),
   exportInfraccionesExcel: vi.fn(),
   getInfracciones: vi.fn(),
   getPdfReportAvailability: vi.fn(),
-  validatePdfReport: vi.fn(),
 }));
 
 vi.mock('../../services/api/infracciones.api', () => ({
-  getAllInfracciones: apiMocks.getAllInfracciones,
   exportInfraccionesExcel: apiMocks.exportInfraccionesExcel,
   getInfracciones: apiMocks.getInfracciones,
   getPdfReportAvailability: apiMocks.getPdfReportAvailability,
-  validatePdfReport: apiMocks.validatePdfReport,
 }));
 
 vi.mock('./InfraccionesReportModal', () => ({
   InfraccionesReportModal: ({
-    dateRangeLabel,
     items,
     open,
-    onGeneratePdf,
     reportQuery,
-    selectedRowIds,
   }: {
-    dateRangeLabel: string;
     items: InfraccionListItem[];
     open: boolean;
-    onGeneratePdf: (query: InfraccionesQuery) => Promise<InfraccionListItem[]>;
-    reportQuery: InfraccionesQuery;
-    selectedRowIds: Set<number>;
+    reportQuery: { fechaInicio?: string; fechaFin?: string };
   }) =>
     open ? (
       <div
         data-testid="report-modal"
         data-count={String(items.length)}
-        data-range={dateRangeLabel}
-      >
-        <button
-          type="button"
-          onClick={() => {
-            void onGeneratePdf({
-              ...reportQuery,
-              idInfracciones: Array.from(selectedRowIds),
-            });
-          }}
-        >
-          Simular PDF de seleccion
-        </button>
-      </div>
+        data-range={`${reportQuery.fechaInicio ?? ''}:${reportQuery.fechaFin ?? ''}`}
+      />
     ) : null,
 }));
 
@@ -142,16 +120,7 @@ describe('InfraccionesReportPage', () => {
         totalPages: 5,
       },
     });
-    apiMocks.getAllInfracciones.mockResolvedValue([
-      createItem(),
-      createItem({ idInfraccion: 11, folioInfraccion: 'INF-11' }),
-    ]);
     apiMocks.getPdfReportAvailability.mockResolvedValue({
-      total: 125,
-      limitePdf: 500,
-      permitido: true,
-    });
-    apiMocks.validatePdfReport.mockResolvedValue({
       total: 125,
       limitePdf: 500,
       permitido: true,
@@ -185,11 +154,9 @@ describe('InfraccionesReportPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Generar reporte' }));
 
-    expect(apiMocks.getAllInfracciones).not.toHaveBeenCalled();
-
     const modal = await screen.findByTestId('report-modal');
     expect(modal).toHaveAttribute('data-count', '1');
-    expect(modal.getAttribute('data-range')).not.toBe('Todas las fechas');
+    expect(modal).toHaveAttribute('data-range', '2026-08-01:2026-08-31');
   });
 
   it('rechaza un rango invertido antes de consultar de nuevo', async () => {
@@ -212,7 +179,7 @@ describe('InfraccionesReportPage', () => {
     expect(apiMocks.getInfracciones).toHaveBeenCalledTimes(callsBeforeInvalidRange);
   });
 
-  it('muestra el limite de PDF con el total disponible sin cargar el reporte completo', async () => {
+  it('no muestra advertencias PDF cuando la disponibilidad supera el limite heredado', async () => {
     apiMocks.getPdfReportAvailability.mockResolvedValueOnce({
       total: 501,
       limitePdf: 500,
@@ -222,35 +189,8 @@ describe('InfraccionesReportPage', () => {
     render(<InfraccionesReportPage refreshKey={0} token="token-test" />);
 
     expect(await screen.findByText('INF-10')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'PDF no disponible para esta consulta. El reporte contiene 501 registros y supera el límite de 500 registros para PDF. Reduce el rango o los filtros, o utiliza Exportar Excel.',
-      ),
-    ).toBeInTheDocument();
-    expect(apiMocks.getAllInfracciones).not.toHaveBeenCalled();
-  });
-
-  it('recupera exclusivamente los IDs seleccionados al generar un PDF', async () => {
-    render(<InfraccionesReportPage refreshKey={0} token="token-test" />);
-
-    expect(await screen.findByText('INF-10')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Seleccionar INF-10' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Generar reporte' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Simular PDF de seleccion' }));
-
-    await waitFor(() => {
-      expect(apiMocks.validatePdfReport).toHaveBeenCalledWith(
-        'token-test',
-        expect.objectContaining({ idInfracciones: [10] }),
-      );
-      expect(apiMocks.getAllInfracciones).toHaveBeenCalledWith(
-        'token-test',
-        expect.objectContaining({ idInfracciones: [10] }),
-      );
-    });
-
-    expect(apiMocks.getAllInfracciones).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/PDF no disponible/)).not.toBeInTheDocument();
+    expect(screen.getByText(/exporta todos los resultados a Excel\./)).toBeInTheDocument();
   });
 
   it('distingue solventacion sin pago real en la tabla', async () => {
