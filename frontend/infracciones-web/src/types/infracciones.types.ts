@@ -99,6 +99,10 @@ export interface InfraccionesResponse {
   meta?: PaginationMeta;
 }
 
+export interface ReportAvailability {
+  total: number;
+}
+
 export interface PdfReportAvailability {
   total: number;
   limitePdf: number;

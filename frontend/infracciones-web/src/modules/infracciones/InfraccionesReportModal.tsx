@@ -7,7 +7,7 @@ import type {
   ExportInfraccionesExcelPayload,
   InfraccionListItem,
   InfraccionesQuery,
-  PdfReportAvailability,
+  ReportAvailability,
 } from '../../types/infracciones.types';
 import { confirmAction } from '../../utils/sweetAlert';
 import {
@@ -34,8 +34,8 @@ interface InfraccionesReportModalProps {
   items: InfraccionListItem[];
   selectedRowIds: Set<number>;
   reportQuery: InfraccionesQuery;
-  pdfAvailability: PdfReportAvailability | null;
-  onGetReportAvailability: (query: InfraccionesQuery) => Promise<PdfReportAvailability>;
+  reportAvailability: ReportAvailability | null;
+  onGetReportAvailability: (query: InfraccionesQuery) => Promise<ReportAvailability>;
   onExportExcel: (payload: ExportInfraccionesExcelPayload) => Promise<Blob>;
   onClose: () => void;
 }
@@ -57,9 +57,9 @@ interface ReportGroupView {
   selectedCount: number;
 }
 
-interface PdfAvailabilityState {
+interface ReportAvailabilityState {
   queryKey: string;
-  availability: PdfReportAvailability | null;
+  availability: ReportAvailability | null;
   error: string | null;
   loading: boolean;
 }
@@ -337,7 +337,7 @@ export function InfraccionesReportModal({
   onGetReportAvailability,
   onClose,
   open,
-  pdfAvailability,
+  reportAvailability,
   reportQuery,
   selectedRowIds,
 }: InfraccionesReportModalProps) {
@@ -376,13 +376,13 @@ export function InfraccionesReportModal({
       JSON.stringify({
         query: effectiveQuery,
         openCycle: openCycleState.cycle,
-        sourceAvailability: pdfAvailability,
+        sourceAvailability: reportAvailability,
       }),
-    [effectiveQuery, openCycleState.cycle, pdfAvailability],
+    [effectiveQuery, openCycleState.cycle, reportAvailability],
   );
-  const [availabilityState, setAvailabilityState] = useState<PdfAvailabilityState>(() => ({
+  const [availabilityState, setAvailabilityState] = useState<ReportAvailabilityState>(() => ({
     queryKey: availabilityRequestKey,
-    availability: pdfAvailability,
+    availability: reportAvailability,
     error: null,
     loading: true,
   }));

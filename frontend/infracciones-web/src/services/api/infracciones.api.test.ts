@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { InfraccionListItem } from '../../types/infracciones.types';
-import { exportInfraccionesExcel, getAllInfracciones } from './infracciones.api';
+import { exportInfraccionesExcel, getAllInfracciones, getReportAvailability } from './infracciones.api';
 
 const apiMocks = vi.hoisted(() => ({
   request: vi.fn(),
@@ -136,5 +136,95 @@ describe('getAllInfracciones', () => {
       idTipoProcedimiento: 5,
       campos: ['folioInfraccion'],
     });
+  });
+});
+
+describe('getReportAvailability', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('consulta disponibilidad general mediante GET sin paginacion', async () => {
+    apiMocks.request.mockResolvedValueOnce({ total: 13_827 });
+
+    await expect(getReportAvailability('token-test', { page: 2, limit: 30 }))
+      .resolves.toEqual({ total: 13_827 });
+
+    expect(apiMocks.request).toHaveBeenCalledExactlyOnceWith(
+      '/infracciones/reportes/disponibilidad',
+      {},
+      'token-test',
+    );
+  });
+
+  it('conserva fechas y filtros en GET sin page ni limit', async () => {
+    apiMocks.request.mockResolvedValueOnce({ total: 6 });
+
+    await expect(getReportAvailability('token-test', {
+      fechaInicio: '2026-11-01',
+      fechaFin: '2026-11-30',
+      idRegion: 10,
+      idDelegacion: 1,
+      idEstatusInfraccion: 1,
+      idTipoProcedimiento: 1,
+      search: '1234567896',
+      page: 3,
+      limit: 30,
+    })).resolves.toEqual({ total: 6 });
+
+    expect(apiMocks.request).toHaveBeenCalledTimes(1);
+    const [url, options, token] = apiMocks.request.mock.calls[0] ?? [];
+    const parsed = new URL(String(url), 'http://localhost');
+    expect(parsed.pathname).toBe('/infracciones/reportes/disponibilidad');
+    expect(Object.fromEntries(parsed.searchParams)).toEqual({
+      fechaInicio: '2026-11-01',
+      fechaFin: '2026-11-30',
+      idRegion: '10',
+      idDelegacion: '1',
+      idEstatusInfraccion: '1',
+      idTipoProcedimiento: '1',
+      search: '1234567896',
+    });
+    expect(options).toEqual({});
+    expect(token).toBe('token-test');
+  });
+
+  it.each([[10], [10, 11]].map((ids) => ({ ids })))(
+    'consulta por POST conservando los identificadores $ids y filtros',
+    async ({ ids }) => {
+      apiMocks.request.mockResolvedValueOnce({ total: ids.length });
+      const filters = {
+        idInfracciones: ids,
+        idEstatusInfraccion: 1,
+        idRegion: 10,
+        fechaInicio: '2026-11-01',
+        fechaFin: '2026-11-30',
+      };
+
+      await expect(getReportAvailability('token-test', {
+        ...filters,
+        page: 2,
+        limit: 30,
+      })).resolves.toEqual({ total: ids.length });
+
+      expect(apiMocks.request).toHaveBeenCalledExactlyOnceWith(
+        '/infracciones/reportes/disponibilidad',
+        { method: 'POST', body: JSON.stringify(filters) },
+        'token-test',
+      );
+    },
+  );
+
+  it('propaga errores sin recurrir al contrato anterior', async () => {
+    const error = new Error('Disponibilidad no disponible.');
+    apiMocks.request.mockRejectedValueOnce(error);
+
+    await expect(getReportAvailability('token-test')).rejects.toBe(error);
+
+    expect(apiMocks.request).toHaveBeenCalledExactlyOnceWith(
+      '/infracciones/reportes/disponibilidad',
+      {},
+      'token-test',
+    );
   });
 });

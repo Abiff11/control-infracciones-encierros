@@ -7,13 +7,13 @@ import InfraccionesReportPage from './InfraccionesReportPage';
 const apiMocks = vi.hoisted(() => ({
   exportInfraccionesExcel: vi.fn(),
   getInfracciones: vi.fn(),
-  getPdfReportAvailability: vi.fn(),
+  getReportAvailability: vi.fn(),
 }));
 
 vi.mock('../../services/api/infracciones.api', () => ({
   exportInfraccionesExcel: apiMocks.exportInfraccionesExcel,
   getInfracciones: apiMocks.getInfracciones,
-  getPdfReportAvailability: apiMocks.getPdfReportAvailability,
+  getReportAvailability: apiMocks.getReportAvailability,
 }));
 
 vi.mock('./InfraccionesReportModal', () => ({
@@ -120,10 +120,8 @@ describe('InfraccionesReportPage', () => {
         totalPages: 5,
       },
     });
-    apiMocks.getPdfReportAvailability.mockResolvedValue({
+    apiMocks.getReportAvailability.mockResolvedValue({
       total: 125,
-      limitePdf: 500,
-      permitido: true,
     });
   });
 
@@ -154,6 +152,11 @@ describe('InfraccionesReportPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Generar reporte' }));
 
+    expect(apiMocks.getReportAvailability).toHaveBeenLastCalledWith(
+      'token-test',
+      expect.objectContaining({ fechaInicio: '2026-08-01', fechaFin: '2026-08-31' }),
+    );
+
     const modal = await screen.findByTestId('report-modal');
     expect(modal).toHaveAttribute('data-count', '1');
     expect(modal).toHaveAttribute('data-range', '2026-08-01:2026-08-31');
@@ -179,11 +182,9 @@ describe('InfraccionesReportPage', () => {
     expect(apiMocks.getInfracciones).toHaveBeenCalledTimes(callsBeforeInvalidRange);
   });
 
-  it('no muestra advertencias PDF cuando la disponibilidad supera el limite heredado', async () => {
-    apiMocks.getPdfReportAvailability.mockResolvedValueOnce({
+  it('no muestra advertencias PDF para una disponibilidad de 501 registros', async () => {
+    apiMocks.getReportAvailability.mockResolvedValueOnce({
       total: 501,
-      limitePdf: 500,
-      permitido: false,
     });
 
     render(<InfraccionesReportPage refreshKey={0} token="token-test" />);

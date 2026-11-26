@@ -10,7 +10,7 @@ import { getErrorMessage } from '../../services/api/apiClient';
 import {
   exportInfraccionesExcel,
   getInfracciones,
-  getPdfReportAvailability,
+  getReportAvailability as fetchReportAvailability,
 } from '../../services/api/infracciones.api';
 import {
   formatCurrencyMxn,
@@ -26,7 +26,7 @@ import type {
   InfraccionesResponse,
   InfraccionListItem,
   PaginationMeta,
-  PdfReportAvailability,
+  ReportAvailability,
 } from '../../types/infracciones.types';
 import { InfraccionesReportModal } from './InfraccionesReportModal';
 import { getEstadoVisualListado } from './estado-visual-infraccion';
@@ -137,8 +137,8 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
   const [selectedRowIds, setSelectedRowIds] = useState<Set<number>>(() => new Set());
   const [reportOpen, setReportOpen] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
-  const [pdfAvailability, setPdfAvailability] =
-    useState<PdfReportAvailability | null>(null);
+  const [reportAvailability, setReportAvailability] =
+    useState<ReportAvailability | null>(null);
   const [dateRangeDraft, setDateRangeDraft] = useState<DateRangeFilters>(INITIAL_DATE_RANGE);
   const [dateRange, setDateRange] = useState<DateRangeFilters>(INITIAL_DATE_RANGE);
   const [dateRangeError, setDateRangeError] = useState<string | null>(null);
@@ -171,7 +171,7 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
       try {
         const [response, availability] = await Promise.all([
           getInfracciones(token, query),
-          getPdfReportAvailability(token, query),
+          fetchReportAvailability(token, query),
         ]);
 
         if (!mounted) {
@@ -183,7 +183,7 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
           data: response,
           error: null,
         });
-        setPdfAvailability(availability);
+        setReportAvailability(availability);
       } catch (error) {
         if (!mounted) {
           return;
@@ -194,7 +194,7 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
           data: null,
           error: getErrorMessage(error),
         });
-        setPdfAvailability(null);
+        setReportAvailability(null);
       }
     }
 
@@ -275,7 +275,7 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
   }
 
   const getReportAvailability = useCallback(
-    (reportQuery: InfraccionesQuery) => getPdfReportAvailability(token, reportQuery),
+    (reportQuery: InfraccionesQuery) => fetchReportAvailability(token, reportQuery),
     [token],
   );
   const exportExcelReport = useCallback(
@@ -516,7 +516,7 @@ export function InfraccionesReportPage({ refreshKey, token }: InfraccionesReport
         items={items}
         selectedRowIds={selectedRowIds}
         reportQuery={query}
-        pdfAvailability={pdfAvailability}
+        reportAvailability={reportAvailability}
         onGetReportAvailability={getReportAvailability}
         onExportExcel={exportExcelReport}
         onClose={() => setReportOpen(false)}
