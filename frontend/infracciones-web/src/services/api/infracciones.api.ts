@@ -12,17 +12,14 @@ import type {
   CreateInfraccionCompletaPayload,
   InfraccionDetalleResponse,
   InfraccionFlujoResponse,
-  InfraccionListItem,
   InfraccionesQuery,
   ExportInfraccionesExcelPayload,
   InfraccionesResponse,
-  PdfReportAvailability,
   ReportAvailability,
 } from '../../types/infracciones.types';
 
 const DEFAULT_INFRACCIONES_LIMIT = 30;
 const LEGACY_INFRACCIONES_LIMIT = 10;
-const REPORT_INFRACCIONES_LIMIT = 100;
 const adminExpedienteVersions = new Map<number, string>();
 
 function getReportFilters<T extends InfraccionesQuery>(query?: T): T {
@@ -67,41 +64,6 @@ export function getInfracciones(
     {},
     token,
   );
-}
-
-export async function getAllInfracciones(
-  token: string,
-  query?: InfraccionesQuery,
-): Promise<InfraccionListItem[]> {
-  const filters = getReportFilters(query);
-
-  const firstResponse = await getInfracciones(token, {
-    ...filters,
-    page: 1,
-    limit: REPORT_INFRACCIONES_LIMIT,
-  });
-
-  const allItems = [...firstResponse.data];
-  const totalPages = firstResponse.meta?.totalPages ?? 1;
-
-  for (let page = 2; page <= totalPages; page += 1) {
-    const response = await getInfracciones(token, {
-      ...filters,
-      page,
-      limit: REPORT_INFRACCIONES_LIMIT,
-    });
-    allItems.push(...response.data);
-  }
-
-  const seenIds = new Set<number>();
-  return allItems.filter((item) => {
-    if (seenIds.has(item.idInfraccion)) {
-      return false;
-    }
-
-    seenIds.add(item.idInfraccion);
-    return true;
-  });
 }
 
 export function getInfraccionFlujo(
@@ -254,42 +216,6 @@ export function getReportAvailability(
   return request<ReportAvailability>(
     `/infracciones/reportes/disponibilidad${buildQuery(getReportFilters(query))}`,
     {},
-    token,
-  );
-}
-
-export function getPdfReportAvailability(
-  token: string,
-  query?: InfraccionesQuery,
-): Promise<PdfReportAvailability> {
-  if (query?.idInfracciones?.length) {
-    return request<PdfReportAvailability>(
-      '/infracciones/reportes/pdf/disponibilidad',
-      {
-        method: 'POST',
-        body: JSON.stringify(getReportFilters(query)),
-      },
-      token,
-    );
-  }
-
-  return request<PdfReportAvailability>(
-    `/infracciones/reportes/pdf/disponibilidad${buildQuery(getReportFilters(query))}`,
-    {},
-    token,
-  );
-}
-
-export function validatePdfReport(
-  token: string,
-  query?: InfraccionesQuery,
-): Promise<PdfReportAvailability> {
-  return request<PdfReportAvailability>(
-    '/infracciones/reportes/pdf/validacion',
-    {
-      method: 'POST',
-      body: JSON.stringify(getReportFilters(query)),
-    },
     token,
   );
 }
