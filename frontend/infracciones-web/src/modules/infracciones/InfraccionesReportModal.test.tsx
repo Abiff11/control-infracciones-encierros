@@ -5,7 +5,7 @@ import type {
   ExportInfraccionesExcelPayload,
   InfraccionListItem,
   InfraccionesQuery,
-  PdfReportAvailability,
+  ReportAvailability,
 } from '../../types/infracciones.types';
 import { InfraccionesReportModal } from './InfraccionesReportModal';
 
@@ -102,17 +102,17 @@ function createDeferred<T>() {
 }
 
 interface AvailabilityScenarioOptions {
-  availability?: PdfReportAvailability;
+  availability?: ReportAvailability;
   items?: InfraccionListItem[];
   selectedRowIds?: Set<number>;
-  onGetReportAvailability?: (query: InfraccionesQuery) => Promise<PdfReportAvailability>;
+  onGetReportAvailability?: (query: InfraccionesQuery) => Promise<ReportAvailability>;
   onExportExcel?: (payload: ExportInfraccionesExcelPayload) => Promise<Blob>;
   open?: boolean;
   reportQuery?: InfraccionesQuery;
 }
 
 function createAvailabilityScenarioElement({
-  availability = { total: 13_827, limitePdf: 500, permitido: false },
+  availability = { total: 13_827 },
   items = [createItem(10), createItem(11)],
   selectedRowIds = new Set([10]),
   onGetReportAvailability = vi.fn().mockResolvedValue(availability),
@@ -125,7 +125,7 @@ function createAvailabilityScenarioElement({
       reportQuery={reportQuery}
       items={items}
       open={open}
-      pdfAvailability={availability}
+      reportAvailability={availability}
       selectedRowIds={selectedRowIds}
       onGetReportAvailability={onGetReportAvailability}
       onExportExcel={onExportExcel}
@@ -141,7 +141,7 @@ function renderAvailabilityScenario(options: AvailabilityScenarioOptions = {}) {
 }
 
 function renderModal(
-  pdfAvailability: PdfReportAvailability,
+  reportAvailability: ReportAvailability,
   onExportExcel = vi.fn().mockResolvedValue(new Blob()),
   reportQuery: InfraccionesQuery = { fechaInicio: '2026-08-01', fechaFin: '2026-08-31' },
 ) {
@@ -150,9 +150,9 @@ function renderModal(
       reportQuery={reportQuery}
       items={[createItem()]}
       open
-      pdfAvailability={pdfAvailability}
+      reportAvailability={reportAvailability}
       selectedRowIds={new Set()}
-      onGetReportAvailability={vi.fn().mockResolvedValue(pdfAvailability)}
+      onGetReportAvailability={vi.fn().mockResolvedValue(reportAvailability)}
       onExportExcel={onExportExcel}
       onClose={vi.fn()}
     />,
@@ -167,7 +167,7 @@ describe('InfraccionesReportModal exportacion Excel', () => {
   });
 
   it('ofrece unicamente Excel y no muestra advertencias PDF para 24,000 registros', async () => {
-    renderModal({ total: 24_000, limitePdf: 500, permitido: false });
+    renderModal({ total: 24_000 });
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
     expect(screen.queryByRole('button', { name: 'Generar PDF' })).not.toBeInTheDocument();
@@ -183,7 +183,7 @@ describe('InfraccionesReportModal exportacion Excel', () => {
     alertMocks.confirmAction.mockResolvedValue(false);
     const onExportExcel = vi.fn().mockResolvedValue(new Blob());
     renderModal(
-      { total: 24_000, limitePdf: 500, permitido: false },
+      { total: 24_000 },
       onExportExcel,
       {},
     );
@@ -205,7 +205,7 @@ describe('InfraccionesReportModal exportacion Excel', () => {
   it('no llama historial completo a una exportacion filtrada sin fechas', async () => {
     const onExportExcel = vi.fn().mockResolvedValue(new Blob());
     renderModal(
-      { total: 3, limitePdf: 500, permitido: true },
+      { total: 3 },
       onExportExcel,
       { search: '117225' },
     );
@@ -231,8 +231,8 @@ describe('InfraccionesReportModal exportacion Excel', () => {
     const onGetReportAvailability = vi.fn().mockImplementation((query: InfraccionesQuery) =>
       Promise.resolve(
         query.idInfracciones
-          ? { total: query.idInfracciones.length, limitePdf: 500, permitido: true }
-          : { total: 13_827, limitePdf: 500, permitido: false },
+          ? { total: query.idInfracciones.length }
+          : { total: 13_827 },
       ),
     );
     const onExportExcel = vi.fn().mockResolvedValue(new Blob());
@@ -261,8 +261,8 @@ describe('InfraccionesReportModal exportacion Excel', () => {
     const onGetReportAvailability = vi.fn().mockImplementation((query: InfraccionesQuery) =>
       Promise.resolve(
         query.idInfracciones
-          ? { total: 1, limitePdf: 500, permitido: true }
-          : { total: 13_827, limitePdf: 500, permitido: false },
+          ? { total: 1 }
+          : { total: 13_827 },
       ),
     );
     renderAvailabilityScenario({ onGetReportAvailability });
@@ -277,11 +277,11 @@ describe('InfraccionesReportModal exportacion Excel', () => {
   });
 
   it('mantiene Excel deshabilitado durante la consulta y muestra el error de disponibilidad', async () => {
-    const selectedAvailability = createDeferred<PdfReportAvailability>();
+    const selectedAvailability = createDeferred<ReportAvailability>();
     const onGetReportAvailability = vi.fn().mockImplementation((query: InfraccionesQuery) =>
       query.idInfracciones
         ? selectedAvailability.promise
-        : Promise.resolve({ total: 13_827, limitePdf: 500, permitido: false }),
+        : Promise.resolve({ total: 13_827 }),
     );
     renderAvailabilityScenario({ onGetReportAvailability });
 
@@ -289,13 +289,13 @@ describe('InfraccionesReportModal exportacion Excel', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Seleccionadas/ }));
     expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeDisabled();
 
-    selectedAvailability.reject(new Error('No fue posible consultar la disponibilidad PDF.'));
-    expect(await screen.findByText('No fue posible consultar la disponibilidad PDF.')).toBeInTheDocument();
+    selectedAvailability.reject(new Error('No fue posible consultar la disponibilidad del reporte.'));
+    expect(await screen.findByText('No fue posible consultar la disponibilidad del reporte.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeDisabled();
   });
 
   it('limpia errores previos al cambiar de alcance', async () => {
-    const selectedAvailability = createDeferred<PdfReportAvailability>();
+    const selectedAvailability = createDeferred<ReportAvailability>();
     const onGetReportAvailability = vi
       .fn()
       .mockRejectedValueOnce(new Error('Error anterior de disponibilidad.'))
@@ -307,13 +307,13 @@ describe('InfraccionesReportModal exportacion Excel', () => {
 
     expect(screen.queryByText('Error anterior de disponibilidad.')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeDisabled();
-    selectedAvailability.resolve({ total: 1, limitePdf: 500, permitido: true });
+    selectedAvailability.resolve({ total: 1 });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
   });
 
   it('ignora respuestas antiguas que llegan despues de la consulta vigente', async () => {
-    const allAvailability = createDeferred<PdfReportAvailability>();
-    const selectedAvailability = createDeferred<PdfReportAvailability>();
+    const allAvailability = createDeferred<ReportAvailability>();
+    const selectedAvailability = createDeferred<ReportAvailability>();
     const onGetReportAvailability = vi
       .fn()
       .mockReturnValueOnce(allAvailability.promise)
@@ -321,16 +321,16 @@ describe('InfraccionesReportModal exportacion Excel', () => {
     renderAvailabilityScenario({ onGetReportAvailability });
 
     fireEvent.click(screen.getByRole('button', { name: /^Seleccionadas/ }));
-    selectedAvailability.resolve({ total: 1, limitePdf: 500, permitido: true });
+    selectedAvailability.resolve({ total: 1 });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
-    allAvailability.resolve({ total: 13_827, limitePdf: 500, permitido: false });
+    allAvailability.resolve({ total: 13_827 });
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
     expect(screen.queryByText('13827 registros del alcance')).not.toBeInTheDocument();
   });
 
   it('actualiza la disponibilidad al reabrir con la misma consulta', async () => {
-    const availability = { total: 1, limitePdf: 500, permitido: true };
+    const availability = { total: 1 };
     const onGetReportAvailability = vi.fn().mockResolvedValue(availability);
     const props = {
       availability,
@@ -345,7 +345,7 @@ describe('InfraccionesReportModal exportacion Excel', () => {
         reportQuery={{ fechaInicio: '2026-08-01', fechaFin: '2026-08-31' }}
         items={[createItem(10), createItem(11)]}
         open={false}
-        pdfAvailability={availability}
+        reportAvailability={availability}
         selectedRowIds={new Set([10])}
         onGetReportAvailability={onGetReportAvailability}
         onExportExcel={vi.fn().mockResolvedValue(new Blob())}
@@ -357,7 +357,7 @@ describe('InfraccionesReportModal exportacion Excel', () => {
         reportQuery={{ fechaInicio: '2026-08-01', fechaFin: '2026-08-31' }}
         items={[createItem(10), createItem(11)]}
         open
-        pdfAvailability={availability}
+        reportAvailability={availability}
         selectedRowIds={new Set([10])}
         onGetReportAvailability={onGetReportAvailability}
         onExportExcel={vi.fn().mockResolvedValue(new Blob())}
@@ -370,11 +370,11 @@ describe('InfraccionesReportModal exportacion Excel', () => {
   });
 
   it('espera la disponibilidad vigente y no confunde una seleccion sin fechas con todo el historial', async () => {
-    const selectedAvailability = createDeferred<PdfReportAvailability>();
+    const selectedAvailability = createDeferred<ReportAvailability>();
     const onGetReportAvailability = vi.fn().mockImplementation((query: InfraccionesQuery) =>
       query.idInfracciones
         ? selectedAvailability.promise
-        : Promise.resolve({ total: 13_827, limitePdf: 500, permitido: false }),
+        : Promise.resolve({ total: 13_827 }),
     );
     const onExportExcel = vi.fn().mockResolvedValue(new Blob());
     renderAvailabilityScenario({
@@ -388,7 +388,7 @@ describe('InfraccionesReportModal exportacion Excel', () => {
 
     expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeDisabled();
     expect(alertMocks.confirmAction).not.toHaveBeenCalled();
-    selectedAvailability.resolve({ total: 1, limitePdf: 500, permitido: true });
+    selectedAvailability.resolve({ total: 1 });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Exportar Excel' }));
 
@@ -400,8 +400,8 @@ describe('InfraccionesReportModal exportacion Excel', () => {
     const onGetReportAvailability = vi.fn().mockImplementation((query: InfraccionesQuery) =>
       Promise.resolve(
         query.idInfracciones
-          ? { total: 0, limitePdf: 500, permitido: true }
-          : { total: 13_827, limitePdf: 500, permitido: false },
+          ? { total: 0 }
+          : { total: 13_827 },
       ),
     );
     renderAvailabilityScenario({ onGetReportAvailability });
@@ -414,7 +414,7 @@ describe('InfraccionesReportModal exportacion Excel', () => {
   });
 
   it('reintenta una disponibilidad fallida al reabrir sin crear un ciclo de solicitudes', async () => {
-    const retryAvailability = createDeferred<PdfReportAvailability>();
+    const retryAvailability = createDeferred<ReportAvailability>();
     const onGetReportAvailability = vi
       .fn()
       .mockRejectedValueOnce(new Error('Disponibilidad temporalmente no disponible.'))
@@ -428,34 +428,34 @@ describe('InfraccionesReportModal exportacion Excel', () => {
 
     expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeDisabled();
     expect(onGetReportAvailability).toHaveBeenCalledTimes(2);
-    retryAvailability.resolve({ total: 1, limitePdf: 500, permitido: true });
+    retryAvailability.resolve({ total: 1 });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
     expect(onGetReportAvailability).toHaveBeenCalledTimes(2);
   });
 
   it('actualiza la disponibilidad cuando cambian los datos de la pagina con los mismos filtros', async () => {
-    const refreshedAvailability = createDeferred<PdfReportAvailability>();
+    const refreshedAvailability = createDeferred<ReportAvailability>();
     const onGetReportAvailability = vi
       .fn()
-      .mockResolvedValueOnce({ total: 1, limitePdf: 500, permitido: true })
+      .mockResolvedValueOnce({ total: 1 })
       .mockImplementationOnce(() => refreshedAvailability.promise);
     const options = { onGetReportAvailability };
     const { rerender } = renderAvailabilityScenario({
       ...options,
-      availability: { total: 1, limitePdf: 500, permitido: true },
+      availability: { total: 1 },
     });
 
     await waitFor(() => expect(screen.getByText(/Se exportar.n 1 registros/)).toBeInTheDocument());
     rerender(
       createAvailabilityScenarioElement({
         ...options,
-        availability: { total: 2, limitePdf: 500, permitido: true },
+        availability: { total: 2 },
       }),
     );
 
     expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeDisabled();
     expect(onGetReportAvailability).toHaveBeenCalledTimes(2);
-    refreshedAvailability.resolve({ total: 2, limitePdf: 500, permitido: true });
+    refreshedAvailability.resolve({ total: 2 });
     await waitFor(() => expect(screen.getByText(/Se exportar.n 2 registros/)).toBeInTheDocument());
   });
 
@@ -465,8 +465,8 @@ describe('InfraccionesReportModal exportacion Excel', () => {
     const onGetReportAvailability = vi.fn().mockImplementation((query: InfraccionesQuery) =>
       Promise.resolve(
         query.idInfracciones
-          ? { total: 1, limitePdf: 500, permitido: true }
-          : { total: 13_827, limitePdf: 500, permitido: false },
+          ? { total: 1 }
+          : { total: 13_827 },
       ),
     );
     renderAvailabilityScenario({ onExportExcel, onGetReportAvailability });
@@ -499,7 +499,7 @@ describe('InfraccionesReportModal exportacion Excel', () => {
   });
 
   it('no presenta ceros definitivos mientras consulta la disponibilidad', async () => {
-    const availability = createDeferred<PdfReportAvailability>();
+    const availability = createDeferred<ReportAvailability>();
     renderAvailabilityScenario({ onGetReportAvailability: vi.fn(() => availability.promise) });
 
     expect(screen.getAllByText('Consultando disponibilidad...').length).toBeGreaterThan(1);
@@ -508,14 +508,14 @@ describe('InfraccionesReportModal exportacion Excel', () => {
     expect(screen.queryByText(/filas de muestra/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeDisabled();
 
-    availability.resolve({ total: 2, limitePdf: 500, permitido: true });
+    availability.resolve({ total: 2 });
     expect(await screen.findByText('2 registros del alcance')).toBeInTheDocument();
   });
 
   it('distingue un alcance vacio confirmado de una consulta pendiente', async () => {
     renderAvailabilityScenario({
-      availability: { total: 0, limitePdf: 500, permitido: true },
-      onGetReportAvailability: vi.fn().mockResolvedValue({ total: 0, limitePdf: 500, permitido: true }),
+      availability: { total: 0 },
+      onGetReportAvailability: vi.fn().mockResolvedValue({ total: 0 }),
     });
 
     expect(await screen.findByText('0 registros del alcance')).toBeInTheDocument();
@@ -524,10 +524,10 @@ describe('InfraccionesReportModal exportacion Excel', () => {
 
   it('permite exportar un total positivo aunque las filas no esten cargadas en la pagina', async () => {
     renderAvailabilityScenario({
-      availability: { total: 1, limitePdf: 500, permitido: true },
+      availability: { total: 1 },
       items: [createItem(10)],
       selectedRowIds: new Set([999]),
-      onGetReportAvailability: vi.fn().mockResolvedValue({ total: 1, limitePdf: 500, permitido: true }),
+      onGetReportAvailability: vi.fn().mockResolvedValue({ total: 1 }),
     });
 
     fireEvent.click(screen.getByRole('button', { name: /^Seleccionadas/ }));
@@ -551,9 +551,10 @@ describe('InfraccionesReportModal exportacion Excel', () => {
   });
 
   it.each([
-    { availability: { total: 0, limitePdf: 500, permitido: true }, enabled: false },
-    { availability: { total: 500, limitePdf: 500, permitido: true }, enabled: true },
-    { availability: { total: 501, limitePdf: 500, permitido: false }, enabled: true },
+    { availability: { total: 0 }, enabled: false },
+    { availability: { total: 500 }, enabled: true },
+    { availability: { total: 501 }, enabled: true },
+    { availability: { total: 13_827 }, enabled: true },
   ])('habilita Excel por disponibilidad para $availability.total registros', async ({ availability, enabled }) => {
     renderAvailabilityScenario({ availability });
 

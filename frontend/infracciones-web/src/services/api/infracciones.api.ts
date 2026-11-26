@@ -17,6 +17,7 @@ import type {
   ExportInfraccionesExcelPayload,
   InfraccionesResponse,
   PdfReportAvailability,
+  ReportAvailability,
 } from '../../types/infracciones.types';
 
 const DEFAULT_INFRACCIONES_LIMIT = 30;
@@ -231,6 +232,28 @@ export function createInfraccion(
       method: 'POST',
       body: JSON.stringify(payload),
     },
+    token,
+  );
+}
+
+export function getReportAvailability(
+  token: string,
+  query?: InfraccionesQuery,
+): Promise<ReportAvailability> {
+  if (query?.idInfracciones?.length) {
+    return request<ReportAvailability>(
+      '/infracciones/reportes/disponibilidad',
+      {
+        method: 'POST',
+        body: JSON.stringify(getReportFilters(query)),
+      },
+      token,
+    );
+  }
+
+  return request<ReportAvailability>(
+    `/infracciones/reportes/disponibilidad${buildQuery(getReportFilters(query))}`,
+    {},
     token,
   );
 }
