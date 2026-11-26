@@ -110,7 +110,7 @@ export class InfraccionesListService {
     };
   }
 
-  countForPdfReport(query: FindInfraccionesQueryDto): Promise<number> {
+  countForReport(query: FindInfraccionesQueryDto): Promise<number> {
     return this.buildBaseQuery(query).getCount();
   }
 

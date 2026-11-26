@@ -146,7 +146,7 @@ describe('InfraccionesListService filtros relacionales con metadatos reales', ()
     });
     const service = new InfraccionesListService(dataSource);
 
-    await service.countForPdfReport(query as FindInfraccionesQueryDto);
+    await service.countForReport(query as FindInfraccionesQueryDto);
 
     for (const predicate of expectedPredicates) {
       expect(generatedSql).toContain(predicate);
@@ -182,7 +182,7 @@ describe('InfraccionesListService filtros relacionales con metadatos reales', ()
     } as FindInfraccionesQueryDto;
 
     await service.findAll({ ...query, page: 1, limit: 2 });
-    await service.countForPdfReport(query);
+    await service.countForReport(query);
     await service.findForReportExportBlock(query, 0, 2);
 
     expect(generatedQueries).toHaveLength(4);

@@ -1,10 +1,8 @@
-import { UnprocessableEntityException } from '@nestjs/common';
-
 import { InfraccionesReportesService } from './infracciones-reportes.service';
 
 function createService(total: number) {
   const infraccionesListService = {
-    countForPdfReport: jest.fn().mockResolvedValue(total),
+    countForReport: jest.fn().mockResolvedValue(total),
   };
 
   return {
@@ -37,7 +35,7 @@ describe('InfraccionesReportesService', () => {
     await expect(service.getReportAvailability(query)).resolves.toEqual({
       total,
     });
-    expect(infraccionesListService.countForPdfReport).toHaveBeenCalledWith(
+    expect(infraccionesListService.countForReport).toHaveBeenCalledWith(
       query,
     );
   });
@@ -45,45 +43,12 @@ describe('InfraccionesReportesService', () => {
   it('propaga el error del contador sin devolver una disponibilidad falsa', async () => {
     const error = new Error('No fue posible contar las infracciones.');
     const infraccionesListService = {
-      countForPdfReport: jest.fn().mockRejectedValue(error),
+      countForReport: jest.fn().mockRejectedValue(error),
     };
     const service = new InfraccionesReportesService(
       infraccionesListService as never,
     );
 
     await expect(service.getReportAvailability({})).rejects.toBe(error);
-  });
-
-  it.each([499, 500])('permite PDF con %i registros', async (total) => {
-    const { service, infraccionesListService } = createService(total);
-
-    await expect(service.assertPdfAllowed({})).resolves.toEqual({
-      total,
-      limitePdf: 500,
-      permitido: true,
-    });
-    expect(infraccionesListService.countForPdfReport).toHaveBeenCalledWith({});
-  });
-
-  it.each([501, 24_000])('bloquea PDF con %i registros', async (total) => {
-    const { service } = createService(total);
-
-    await expect(service.assertPdfAllowed({})).rejects.toBeInstanceOf(
-      UnprocessableEntityException,
-    );
-
-    try {
-      await service.assertPdfAllowed({});
-    } catch (error) {
-      const response = (error as UnprocessableEntityException).getResponse() as {
-        limitePdf: number;
-        message: string;
-        total: number;
-      };
-
-      expect(response).toMatchObject({ total, limitePdf: 500 });
-      expect(response.message).toContain(`${total} registros`);
-      expect(response.message).toContain('500 registros para PDF');
-    }
   });
 });
