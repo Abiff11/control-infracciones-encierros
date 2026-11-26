@@ -431,7 +431,7 @@ export class InfraccionesListService {
 
     if (query.idEstatusInfraccion) {
       builder.andWhere(
-        'infraccion.idEstatusInfraccion = :idEstatusInfraccion',
+        'estatusInfraccion.idEstatusInfraccion = :idEstatusInfraccion',
         {
           idEstatusInfraccion: query.idEstatusInfraccion,
         },
@@ -439,7 +439,7 @@ export class InfraccionesListService {
     }
 
     if (query.idDelegacion) {
-      builder.andWhere('infraccion.idDelegacion = :idDelegacion', {
+      builder.andWhere('delegacion.idDelegacion = :idDelegacion', {
         idDelegacion: query.idDelegacion,
       });
     }
@@ -452,7 +452,7 @@ export class InfraccionesListService {
 
     if (query.idTipoProcedimiento) {
       builder.andWhere(
-        'infraccion.idTipoProcedimiento = :idTipoProcedimiento',
+        'tipoProcedimiento.idTipoProcedimiento = :idTipoProcedimiento',
         {
           idTipoProcedimiento: query.idTipoProcedimiento,
         },
