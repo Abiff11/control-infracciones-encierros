@@ -30,6 +30,7 @@ import './InfraccionesReportModal.css';
 
 type ReportScope = 'all' | 'selected';
 type ReportFormat = 'excel' | 'pdf';
+type AvailabilityStatus = 'loading' | 'error' | 'empty' | 'ready';
 
 interface InfraccionesReportModalProps {
   open: boolean;
@@ -278,16 +279,30 @@ function getExactPreset(
   return null;
 }
 
-function getPreviewMessage(canExport: boolean, selectedFieldIdsLength: number, exportCount: number): string {
-  if (!canExport) {
-    if (selectedFieldIdsLength === 0) {
-      return 'Selecciona al menos un campo para ver la vista previa.';
-    }
-
-    return 'No hay registros para exportar con el alcance actual.';
+function getPreviewMessage(
+  availabilityStatus: AvailabilityStatus,
+  selectedFieldIdsLength: number,
+  loadedItemCount: number,
+): string {
+  if (availabilityStatus === 'loading') {
+    return 'Consultando disponibilidad...';
   }
 
-  return exportCount === 0 ? 'No hay registros para exportar con el alcance actual.' : '';
+  if (availabilityStatus === 'error') {
+    return 'No se pudo confirmar la disponibilidad del alcance.';
+  }
+
+  if (selectedFieldIdsLength === 0) {
+    return 'Selecciona al menos un campo para ver la vista previa.';
+  }
+
+  if (availabilityStatus === 'empty') {
+    return 'No hay registros en el alcance actual.';
+  }
+
+  return loadedItemCount === 0
+    ? 'Hay registros en el alcance, pero no están cargados para la vista previa.'
+    : '';
 }
 
 function buildReportQuery(
@@ -307,6 +322,18 @@ function buildReportQuery(
     idInfracciones:
       scope === 'selected' ? Array.from(selectedRowIds) : undefined,
   };
+}
+
+function isFullHistoryQuery(query: InfraccionesQuery): boolean {
+  const nonFilterKeys = new Set(['page', 'limit', 'sortBy', 'sortOrder']);
+
+  return Object.entries(query).every(([key, value]) => {
+    if (nonFilterKeys.has(key) || value === undefined || value === null || value === '') {
+      return true;
+    }
+
+    return Array.isArray(value) && value.length === 0;
+  });
 }
 
 export function InfraccionesReportModal({
@@ -384,11 +411,23 @@ export function InfraccionesReportModal({
   );
   const previewRows = reportTable.rows.slice(0, PREVIEW_ROW_LIMIT);
   const reportTotal = availability?.total ?? 0;
-  const canExport = reportTotal > 0 && selectedFieldIds.length > 0;
+  const availabilityStatus: AvailabilityStatus = isAvailabilityLoading
+    ? 'loading'
+    : availabilityError
+      ? 'error'
+      : reportTotal === 0
+        ? 'empty'
+        : 'ready';
+  const canExport =
+    availabilityStatus === 'ready' && reportTotal > 0 && selectedFieldIds.length > 0;
   const canExportExcel = canExport;
   const canGeneratePdf =
     canExport && !isAvailabilityLoading && availability?.permitido === true;
-  const previewMessage = getPreviewMessage(canExport, selectedFieldIds.length, exportItems.length);
+  const previewMessage = getPreviewMessage(
+    availabilityStatus,
+    selectedFieldIds.length,
+    exportItems.length,
+  );
   const preset = getExactPreset(selectedFieldIds);
   const selectedSummary = getSelectedFieldSummary(selectedFieldIds);
   const normalizedSearch = fieldSearch.trim().toLowerCase();
@@ -571,7 +610,7 @@ export function InfraccionesReportModal({
 
     if (format === 'excel') {
       setExportError(null);
-      if (!effectiveQuery.fechaInicio && !effectiveQuery.fechaFin) {
+      if (isFullHistoryQuery(effectiveQuery)) {
         const confirmed = await confirmAction({
           title: 'Exportar historial completo',
           text: `Este reporte incluirá todo el historial disponible: ${reportTotal} registros. ¿Deseas continuar?`,
@@ -636,7 +675,13 @@ export function InfraccionesReportModal({
                 <p className="section-label">Alcance</p>
                 <h3>Qué registros se exportarán</h3>
               </div>
-              <p className="report-inline-note">Se exportarán {reportTotal} registros.</p>
+              <p className="report-inline-note">
+                {availabilityStatus === 'loading'
+                  ? 'Consultando disponibilidad...'
+                  : availabilityStatus === 'error'
+                    ? 'Total no disponible'
+                    : `Se exportarán ${reportTotal} registros.`}
+              </p>
             </div>
 
             <div className="report-scope-switch" role="group" aria-label="Alcance del reporte">
@@ -915,8 +960,9 @@ export function InfraccionesReportModal({
               <h3>Resultado antes de exportar</h3>
             </div>
             <p className="report-inline-note">
-              {previewRows.length} filas mostradas · {exportItems.length} registros a exportar ·{' '}
-              {reportTable.columns.length} columnas
+              {previewMessage
+                ? 'Vista previa no disponible'
+                : `${previewRows.length} filas de muestra · ${exportItems.length} registros cargados para vista previa · ${reportTotal} registros a exportar · ${reportTable.columns.length} columnas`}
             </p>
           </div>
 
@@ -960,12 +1006,18 @@ export function InfraccionesReportModal({
     >
       <div className="report-modal-shell">
         <header className="report-modal-summary" aria-label="Resumen del reporte">
-          <span>{items.length} disponibles</span>
+          <span>
+            {availabilityStatus === 'loading'
+              ? 'Consultando disponibilidad...'
+              : availabilityStatus === 'error'
+                ? 'Total no disponible'
+                : `${reportTotal} registros del alcance`}
+          </span>
           <span>{selectedRowIds.size} seleccionadas</span>
           <span>{selectedFieldIds.length} campos</span>
-          <span>{exportItems.length} a exportar</span>
+          <span>{previewMessage ? 'Vista previa no disponible' : `${previewRows.length} filas de muestra`}</span>
         </header>
-        {availability && !availability.permitido ? (
+        {availabilityStatus === 'ready' && availability && !availability.permitido ? (
           <div className="notice notice-error" role="alert">
             {getPdfLimitMessage(availability)}
           </div>
@@ -1015,11 +1067,15 @@ export function InfraccionesReportModal({
 
         <footer className="report-modal-footer">
           <div className="report-footer-note">
-            {selectedFieldIds.length === 0
-              ? 'Selecciona al menos un campo.'
-              : exportItems.length === 0
-                ? 'No hay registros para exportar.'
-                : 'Listo para exportar.'}
+            {availabilityStatus === 'loading'
+              ? 'Consultando disponibilidad...'
+              : availabilityStatus === 'error'
+                ? 'No se pudo confirmar la disponibilidad.'
+                : selectedFieldIds.length === 0
+                  ? 'Selecciona al menos un campo.'
+                  : availabilityStatus === 'empty'
+                    ? 'No hay registros en el alcance actual.'
+                    : 'Listo para exportar.'}
           </div>
 
           <div className="report-footer-actions">

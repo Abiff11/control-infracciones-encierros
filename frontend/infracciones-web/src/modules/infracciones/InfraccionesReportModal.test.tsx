@@ -18,9 +18,12 @@ const alertMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./infracciones-report-export', () => ({
-  buildInfraccionesReportTable: vi.fn(() => ({
+  buildInfraccionesReportTable: vi.fn((items: InfraccionListItem[]) => ({
     columns: [{ id: 'folioInfraccion', label: 'Folio' }],
-    rows: [{ id: '10', cells: ['INF-10'] }],
+    rows: items.map((item) => ({
+      id: String(item.idInfraccion),
+      cells: [item.folioInfraccion],
+    })),
   })),
   downloadBlob: reportMocks.downloadBlob,
   buildInfraccionesExcelFileName: vi.fn(() => 'reporte-infracciones.xlsx'),
@@ -240,6 +243,22 @@ describe('InfraccionesReportModal limite de PDF', () => {
     expect(onExportExcel).not.toHaveBeenCalled();
   });
 
+  it('no llama historial completo a una exportacion filtrada sin fechas', async () => {
+    const onExportExcel = vi.fn().mockResolvedValue(new Blob());
+    renderModal(
+      { total: 3, limitePdf: 500, permitido: true },
+      vi.fn(),
+      onExportExcel,
+      { search: '117225' },
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar Excel' }));
+
+    await waitFor(() => expect(onExportExcel).toHaveBeenCalledTimes(1));
+    expect(alertMocks.confirmAction).not.toHaveBeenCalled();
+  });
+
   it.each([
     { selectedIds: new Set([10]), total: 1 },
     { selectedIds: new Set([10, 11]), total: 2 },
@@ -388,8 +407,7 @@ describe('InfraccionesReportModal limite de PDF', () => {
     expect(onGetReportAvailability).toHaveBeenCalledTimes(2);
   });
 
-  it('espera la disponibilidad vigente antes de habilitar Excel y confirmar el total', async () => {
-    alertMocks.confirmAction.mockResolvedValue(false);
+  it('espera la disponibilidad vigente y no confunde una seleccion sin fechas con todo el historial', async () => {
     const selectedAvailability = createDeferred<PdfReportAvailability>();
     const onGetReportAvailability = vi.fn().mockImplementation((query: InfraccionesQuery) =>
       query.idInfracciones
@@ -412,15 +430,8 @@ describe('InfraccionesReportModal limite de PDF', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Exportar Excel' }));
 
-    await waitFor(() => {
-      expect(alertMocks.confirmAction).toHaveBeenCalledWith(
-        expect.objectContaining({ text: expect.stringContaining('1 registros') }),
-      );
-    });
-    expect(alertMocks.confirmAction).not.toHaveBeenCalledWith(
-      expect.objectContaining({ text: expect.stringContaining('0 registros') }),
-    );
-    expect(onExportExcel).not.toHaveBeenCalled();
+    await waitFor(() => expect(onExportExcel).toHaveBeenCalledTimes(1));
+    expect(alertMocks.confirmAction).not.toHaveBeenCalled();
   });
 
   it('deshabilita Excel cuando la consulta vigente resuelve cero registros', async () => {
@@ -509,6 +520,72 @@ describe('InfraccionesReportModal limite de PDF', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Generar PDF' })).toBeEnabled());
     expect(screen.queryByText('Error tardio de la exportacion anterior.')).not.toBeInTheDocument();
     expect(onGetReportAvailability).toHaveBeenCalledTimes(2);
+  });
+
+  it('usa el total confirmado del backend y separa la muestra local de 30 registros', async () => {
+    const items = Array.from({ length: 30 }, (_, index) => createItem(index + 1));
+    renderAvailabilityScenario({ items, selectedRowIds: new Set() });
+
+    await screen.findByText(/contiene 13827 registros/);
+
+    expect(screen.getByText('13827 registros del alcance')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Vista previa' }));
+    expect(screen.getAllByText(/8 filas de muestra/)).toHaveLength(2);
+    expect(screen.getByText(/30 registros cargados para vista previa/)).toBeInTheDocument();
+    expect(screen.getByText(/13827 registros a exportar/)).toBeInTheDocument();
+    expect(screen.queryByText(/30 registros a exportar/)).not.toBeInTheDocument();
+  });
+
+  it('no presenta ceros definitivos mientras consulta la disponibilidad', async () => {
+    const availability = createDeferred<PdfReportAvailability>();
+    renderAvailabilityScenario({ onGetReportAvailability: vi.fn(() => availability.promise) });
+
+    expect(screen.getAllByText('Consultando disponibilidad...').length).toBeGreaterThan(1);
+    expect(screen.queryByText('0 registros del alcance')).not.toBeInTheDocument();
+    expect(screen.getByText('Vista previa no disponible')).toBeInTheDocument();
+    expect(screen.queryByText(/filas de muestra/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeDisabled();
+
+    availability.resolve({ total: 2, limitePdf: 500, permitido: true });
+    expect(await screen.findByText('2 registros del alcance')).toBeInTheDocument();
+  });
+
+  it('distingue un alcance vacio confirmado de una consulta pendiente', async () => {
+    renderAvailabilityScenario({
+      availability: { total: 0, limitePdf: 500, permitido: true },
+      onGetReportAvailability: vi.fn().mockResolvedValue({ total: 0, limitePdf: 500, permitido: true }),
+    });
+
+    expect(await screen.findByText('0 registros del alcance')).toBeInTheDocument();
+    expect(screen.getByText('No hay registros en el alcance actual.')).toBeInTheDocument();
+  });
+
+  it('permite exportar un total positivo aunque las filas no esten cargadas en la pagina', async () => {
+    renderAvailabilityScenario({
+      availability: { total: 1, limitePdf: 500, permitido: true },
+      items: [createItem(10)],
+      selectedRowIds: new Set([999]),
+      onGetReportAvailability: vi.fn().mockResolvedValue({ total: 1, limitePdf: 500, permitido: true }),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /^Seleccionadas/ }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('tab', { name: 'Vista previa' }));
+    expect(
+      screen.getByText('Hay registros en el alcance, pero no están cargados para la vista previa.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('No hay registros para exportar.')).not.toBeInTheDocument();
+  });
+
+  it('muestra el error de disponibilidad sin presentarlo como un alcance vacio', async () => {
+    renderAvailabilityScenario({
+      onGetReportAvailability: vi.fn().mockRejectedValue(new Error('Disponibilidad no disponible.')),
+    });
+
+    expect(await screen.findByText('Disponibilidad no disponible.')).toBeInTheDocument();
+    expect(screen.getAllByText('Total no disponible')).toHaveLength(2);
+    expect(screen.queryByText('No hay registros en el alcance actual.')).not.toBeInTheDocument();
   });
 
   it.each([
