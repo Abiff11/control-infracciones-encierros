@@ -165,6 +165,18 @@ function buildQuery(filters: FiltersForm): InfraccionesQuery {
   };
 }
 
+function getDateRangeError(filters: FiltersForm): string | null {
+  if (
+    filters.fechaDesde &&
+    filters.fechaHasta &&
+    filters.fechaDesde > filters.fechaHasta
+  ) {
+    return "La fecha inicial no puede ser posterior a la fecha final.";
+  }
+
+  return null;
+}
+
 function getInfractorLabel(item: InfraccionListItem): string {
   return formatFullName([
     item.infractor.nombre,
@@ -442,6 +454,7 @@ function InfraccionesListPage({
   >([]);
   const [conceptSearchLoading, setConceptSearchLoading] = useState(false);
   const [conceptSearchError, setConceptSearchError] = useState(false);
+  const [dateRangeError, setDateRangeError] = useState<string | null>(null);
   const puedeConsultarObservaciones =
     roleName?.toUpperCase() === "INFRACCIONES" ||
     roleName?.toUpperCase() === "ADMIN";
@@ -591,6 +604,10 @@ function InfraccionesListPage({
       ...current,
       [field]: value,
     }));
+
+    if (field === "fechaDesde" || field === "fechaHasta") {
+      setDateRangeError(null);
+    }
   }
 
   function updateConceptFilter(value: string): void {
@@ -606,11 +623,18 @@ function InfraccionesListPage({
 
   function applyFilters(event?: FormEvent<HTMLFormElement>): void {
     event?.preventDefault();
+    const validationError = getDateRangeError(draftFilters);
+    if (validationError) {
+      setDateRangeError(validationError);
+      return;
+    }
+
     const nextFilters = {
       ...draftFilters,
       page: "1",
       limit: draftFilters.limit || "30",
     };
+    setDateRangeError(null);
     setDraftFilters(nextFilters);
     setActiveFilters(nextFilters);
   }
@@ -621,15 +645,23 @@ function InfraccionesListPage({
     setConceptSuggestions([]);
     setConceptSearchError(false);
     setConceptSearchLoading(false);
+    setDateRangeError(null);
   }
 
   function applyQuickStatusFilter(value: EstadoOperativoVehiculo | ""): void {
+    const validationError = getDateRangeError(draftFilters);
+    if (validationError) {
+      setDateRangeError(validationError);
+      return;
+    }
+
     const nextFilters = {
       ...draftFilters,
       estadoOperativo: value,
       page: "1",
       limit: draftFilters.limit || "30",
     };
+    setDateRangeError(null);
     setDraftFilters(nextFilters);
     setActiveFilters(nextFilters);
   }
@@ -877,6 +909,8 @@ function InfraccionesListPage({
               </SelectField>
             </Field>
           </div>
+
+          <ErrorMessage message={dateRangeError} />
 
           <div className="form-grid form-grid-3">
             <Field htmlFor="infracciones-placas" label="Placas">
