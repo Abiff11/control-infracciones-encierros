@@ -3,6 +3,7 @@ const { randomUUID } = require('node:crypto');
 const { isDeepStrictEqual } = require('node:util');
 
 const tables = [
+  'delegacion',
   'infracciones',
   'retencion_vehiculo',
   'pago_infraccion',
@@ -16,6 +17,7 @@ const tables = [
 ];
 
 const uniqueKeys = {
+  delegacion: [['id_region', 'nombre_delegacion']],
   infracciones: [['folio_infraccion']],
   retencion_vehiculo: [['id_infraccion']],
   pago_infraccion: [['folio_linea_captura']],
@@ -310,10 +312,145 @@ async function assertMovementAndAudit(runner, fixture, paymentId) {
   });
 }
 
+async function assertDelegacionBehavior(runner, fixtures) {
+  const { AddActivoToDelegacion2010000000000 } = require(
+    '../dist/database/migrations/2010000000000-AddActivoToDelegacion'
+  );
+  const migration = new AddActivoToDelegacion2010000000000();
+  const ids = fixtures.map((fixture) => fixture.id_infraccion);
+
+  const readDelegaciones = () => runner.query(
+    `SELECT id_delegacion, id_region, nombre_delegacion
+      FROM delegacion ORDER BY id_delegacion`,
+  );
+  const readExpedientes = () => runner.query(
+    `SELECT id_infraccion, id_delegacion, folio_infraccion
+      FROM infracciones WHERE id_infraccion = ANY($1::int[])
+      ORDER BY id_infraccion`,
+    [ids],
+  );
+  const readForeignKeys = () => runner.query(
+    `SELECT conrelid::regclass::text AS tabla,
+        conname, pg_get_constraintdef(oid) AS definicion
+      FROM pg_constraint
+      WHERE contype = 'f'
+        AND (confrelid = 'delegacion'::regclass
+          OR conrelid = 'delegacion'::regclass)
+      ORDER BY conrelid::regclass::text, conname`,
+  );
+  const before = await readDelegaciones();
+  const expedientes = await readExpedientes();
+  assert.equal(expedientes.length, ids.length);
+  const idDelegacion = expedientes[0].id_delegacion;
+  assert(expedientes.every((row) => row.id_delegacion === idDelegacion));
+
+  const [delegacion] = await runner.query(
+    'SELECT id_region, activo FROM delegacion WHERE id_delegacion = $1',
+    [idDelegacion],
+  );
+  assert.equal(delegacion.activo, true, 'Q5.2b-03: default true');
+
+  const [importacion] = await runner.query(
+    `INSERT INTO importacion_infracciones (
+        anio, id_region, id_delegacion_default, nombre_archivo, nombre_hoja,
+        estado, modo_duplicados, creado_por_usuario_id
+      ) VALUES (2026, $1, $2, $3, 'INFRACCIONES', 'IMPORTADA', 'OMITIR', $4)
+      RETURNING id_importacion_infracciones, id_region, id_delegacion_default`,
+    [delegacion.id_region, idDelegacion, fixtures[0].folio_infraccion + '.xlsx',
+      fixtures[0].id_usuario],
+  );
+  const readImportacion = async () => {
+    const [row] = await runner.query(
+      `SELECT id_importacion_infracciones, id_region, id_delegacion_default
+        FROM importacion_infracciones WHERE id_importacion_infracciones = $1`,
+      [importacion.id_importacion_infracciones],
+    );
+    return row;
+  };
+  const foreignKeys = await readForeignKeys();
+  for (const [tabla, columna, destino, action] of [
+    ['delegacion', 'id_region', 'region', 'RESTRICT'],
+    ['infracciones', 'id_delegacion', 'delegacion', 'RESTRICT'],
+    ['importacion_infracciones', 'id_delegacion_default', 'delegacion', 'SET NULL'],
+  ]) {
+    assert(
+      foreignKeys.some((fk) =>
+        fk.tabla === tabla &&
+        fk.definicion.includes(`FOREIGN KEY (${columna}) REFERENCES ${destino}(`) &&
+        fk.definicion.includes('ON UPDATE CASCADE') &&
+        fk.definicion.includes(`ON DELETE ${action}`),
+      ),
+      `Q5.2b-05: falta la FK ${tabla}.${columna}`,
+    );
+  }
+
+  // El fixture ya existe: reproducir la migracion sobre datos previos,
+  // dentro de la transaccion desechable que se revierte al terminar.
+  await migration.down(runner);
+  assert.equal(await runner.hasColumn('delegacion', 'activo'), false);
+  assert.deepEqual(await readDelegaciones(), before);
+  assert.deepEqual(await readExpedientes(), expedientes);
+  assert.deepEqual(await readImportacion(), importacion);
+
+  await migration.up(runner);
+  assert.equal(await runner.hasColumn('delegacion', 'activo'), true);
+  assert.deepEqual(await readDelegaciones(), before, 'Q5.2b-04');
+  assert.deepEqual(await readExpedientes(), expedientes);
+  assert.deepEqual(await readImportacion(), importacion);
+  assert.deepEqual(await readForeignKeys(), foreignKeys, 'Q5.2b-05');
+  const [defaults] = await runner.query(
+    'SELECT COUNT(*)::int AS total FROM delegacion WHERE activo IS DISTINCT FROM true',
+  );
+  assert.equal(defaults.total, 0, 'Q5.2b-03: filas existentes activas');
+
+  await assertRejected(
+    runner,
+    'UPDATE delegacion SET activo = NULL WHERE id_delegacion = $1',
+    [idDelegacion],
+    '23502',
+  );
+  await runner.query(
+    'UPDATE delegacion SET activo = false WHERE id_delegacion = $1',
+    [idDelegacion],
+  );
+  const [inactiva] = await runner.query(
+    'SELECT activo FROM delegacion WHERE id_delegacion = $1',
+    [idDelegacion],
+  );
+  assert.equal(inactiva.activo, false, 'Q5.2b-06');
+  assert.deepEqual(await readDelegaciones(), before);
+  assert.deepEqual(await readExpedientes(), expedientes);
+  assert.deepEqual(await readImportacion(), importacion);
+  await assertRejected(
+    runner,
+    'DELETE FROM delegacion WHERE id_delegacion = $1',
+    [idDelegacion],
+    '23503',
+  );
+
+  await assert.rejects(
+    migration.down(runner),
+    /existen delegaciones inactivas/,
+  );
+  assert.equal(await runner.hasColumn('delegacion', 'activo'), true);
+  const [preservada] = await runner.query(
+    'SELECT activo FROM delegacion WHERE id_delegacion = $1',
+    [idDelegacion],
+  );
+  assert.equal(preservada.activo, false);
+  assert.deepEqual(await readExpedientes(), expedientes);
+  assert.deepEqual(await readImportacion(), importacion);
+
+  console.log(
+    'Q5.2b: default, NOT NULL, referencias, desactivacion y reversion segura aprobados',
+  );
+}
+
 async function assertDatabaseBehavior(runner) {
   await runner.startTransaction();
   try {
     const [paid, exempt, early] = await createFixture(runner);
+    await assertDelegacionBehavior(runner, [paid, exempt, early]);
 
     const hold = `INSERT INTO retencion_vehiculo
       (id_infraccion, id_encierro, fecha_ingreso, recibido_por)
