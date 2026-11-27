@@ -20,6 +20,7 @@ import {
   getInfracciones,
 } from "../../services/api/infracciones.api";
 import { findConceptosPago } from "../../services/api/pagos.api";
+import { formatDelegacionLabel } from "../../utils/delegacion-label";
 import {
   formatCurrencyMxn,
   formatDate,
@@ -903,7 +904,7 @@ function InfraccionesListPage({
                     key={delegacion.idDelegacion}
                     value={delegacion.idDelegacion}
                   >
-                    {delegacion.nombreDelegacion}
+                    {formatDelegacionLabel(delegacion)}
                   </option>
                 ))}
               </SelectField>

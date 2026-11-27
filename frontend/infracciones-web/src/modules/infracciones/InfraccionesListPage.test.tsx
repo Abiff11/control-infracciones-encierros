@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { CatalogosBundle } from "../../types/catalogos.types";
 import type { InfraccionListItem } from "../../types/infracciones.types";
 import InfraccionesListPage from "./InfraccionesListPage";
 
@@ -169,6 +170,83 @@ function getMainStatusBadge(): HTMLElement {
     selector: ".status-badge",
   });
 }
+
+describe("InfraccionesListPage identificacion de delegaciones", () => {
+  const plaza = { idRegion: 1, nombreRegion: "PLAZA" };
+  const cuenca = { idRegion: 10, nombreRegion: "CUENCA" };
+  const catalogs: CatalogosBundle = {
+    roles: [],
+    regiones: [plaza, cuenca],
+    delegaciones: [
+      { idDelegacion: 1, nombreDelegacion: "CENTRO", region: plaza },
+      { idDelegacion: 10, nombreDelegacion: "CENTRO", region: cuenca },
+      { idDelegacion: 11, nombreDelegacion: "EL RETIRO", region: plaza },
+      { idDelegacion: 99, nombreDelegacion: "CENTRO" },
+    ],
+    sexos: [],
+    servicios: [],
+    clasesVehiculo: [],
+    marcasVehiculo: [],
+    lineasVehiculo: [],
+    tiposProcedimiento: [],
+    operativos: [],
+    estatusInfraccion: [],
+    motivos: [],
+    encierros: [],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    apiMocks.findConceptosPago.mockResolvedValue([]);
+    apiMocks.getInfracciones.mockResolvedValue({
+      data: [createItem()],
+      meta: { page: 1, limit: 30, total: 1, totalPages: 1 },
+    });
+  });
+
+  async function renderDelegationFilters() {
+    render(
+      <InfraccionesListPage
+        catalogs={catalogs}
+        token="token-test"
+        refreshKey={0}
+        onNavigateCreate={vi.fn()}
+      />,
+    );
+    await screen.findByText("INF-10");
+    return screen.getByRole("combobox", { name: "Delegacion" });
+  }
+
+  it("Q5.1-01 distingue delegaciones homonimas y conserva sus identificadores", async () => {
+    const select = await renderDelegationFilters();
+    expect(within(select).getByRole("option", { name: "PLAZA - CENTRO" })).toHaveValue("1");
+    expect(within(select).getByRole("option", { name: "CUENCA - CENTRO" })).toHaveValue("10");
+    expect(within(select).getByRole("option", { name: "PLAZA - EL RETIRO" })).toHaveValue("11");
+    expect(within(select).queryByRole("option", { name: "CENTRO" })).not.toBeInTheDocument();
+
+    for (const idDelegacion of [1, 10]) {
+      fireEvent.change(select, { target: { value: String(idDelegacion) } });
+      fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+      await waitFor(() => expect(apiMocks.getInfracciones).toHaveBeenLastCalledWith(
+        "token-test",
+        expect.objectContaining({ idDelegacion, page: 1 }),
+      ));
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+    await waitFor(() => expect(apiMocks.getInfracciones).toHaveBeenLastCalledWith(
+      "token-test",
+      expect.objectContaining({ idDelegacion: undefined, page: 1 }),
+    ));
+    expect(select).toHaveValue("");
+  });
+
+  it("Q5.1-02 usa el ID como respaldo cuando no existe region en el catalogo", async () => {
+    const select = await renderDelegationFilters();
+    expect(within(select).getByRole("option", { name: "CENTRO (ID: 99)" })).toHaveValue("99");
+    expect(within(select).getByRole("option", { name: "Todas" })).toHaveValue("");
+  });
+});
 
 describe("InfraccionesListPage validacion de rango de fechas", () => {
   beforeEach(() => {
