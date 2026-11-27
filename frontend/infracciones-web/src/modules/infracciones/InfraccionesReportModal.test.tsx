@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -178,6 +178,63 @@ describe('InfraccionesReportModal exportacion Excel', () => {
   afterEach(() => {
     document.cookie = `${CSRF_COOKIE}=; Path=/; Max-Age=0`;
     vi.unstubAllGlobals();
+  });
+
+  it.each([
+    { idDelegacion: 1, label: 'PLAZA - CENTRO', total: 13_755 },
+    { idDelegacion: 10, label: 'CUENCA - CENTRO', total: 6 },
+  ])('Q5.1 distingue $label y conserva el ID en disponibilidad y Excel', async ({
+    idDelegacion,
+    label,
+    total,
+  }) => {
+    const plaza = {
+      ...createItem(10),
+      region: { idRegion: 1, nombreRegion: 'PLAZA' },
+      delegacion: { idDelegacion: 1, nombreDelegacion: 'CENTRO' },
+    };
+    const cuenca = {
+      ...createItem(11),
+      region: { idRegion: 10, nombreRegion: 'CUENCA' },
+      delegacion: { idDelegacion: 10, nombreDelegacion: 'CENTRO' },
+    };
+    const onGetReportAvailability = vi.fn().mockImplementation((query: InfraccionesQuery) =>
+      Promise.resolve({ total: query.idDelegacion === idDelegacion ? total : 13_827 }),
+    );
+    const onExportExcel = vi.fn().mockResolvedValue(new Blob());
+
+    renderAvailabilityScenario({
+      items: [plaza, cuenca, { ...plaza, idInfraccion: 12, folioInfraccion: 'INF-12' }],
+      onGetReportAvailability,
+      onExportExcel,
+      reportQuery: {},
+    });
+
+    await screen.findByText('13827 registros del alcance');
+    const select = screen.getByRole('combobox', { name: 'Delegación' });
+    expect(within(select).getByRole('option', { name: 'PLAZA - CENTRO' })).toHaveValue('1');
+    expect(within(select).getByRole('option', { name: 'CUENCA - CENTRO' })).toHaveValue('10');
+    expect(within(select).getAllByRole('option')).toHaveLength(3);
+
+    fireEvent.change(select, { target: { value: String(idDelegacion) } });
+    expect(within(select).getByRole('option', { name: label })).toHaveProperty('selected', true);
+    await screen.findByText(`${total} registros del alcance`);
+    expect(onGetReportAvailability).toHaveBeenLastCalledWith(
+      expect.objectContaining({ idDelegacion }),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar Excel' }));
+    await waitFor(() => expect(onExportExcel).toHaveBeenCalledWith(
+      expect.objectContaining({ idDelegacion, campos: expect.any(Array) }),
+    ));
+    expect(alertMocks.confirmAction).not.toHaveBeenCalled();
+    expect(reportMocks.downloadBlob).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(select, { target: { value: '' } });
+    await screen.findByText('13827 registros del alcance');
+    expect(onGetReportAvailability).toHaveBeenLastCalledWith(
+      expect.objectContaining({ idDelegacion: undefined }),
+    );
   });
 
   it('ofrece unicamente Excel y no muestra advertencias PDF para 24,000 registros', async () => {

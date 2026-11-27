@@ -9,6 +9,7 @@ import type {
   InfraccionesQuery,
   ReportAvailability,
 } from '../../types/infracciones.types';
+import { formatDelegacionLabel } from '../../utils/delegacion-label';
 import { confirmAction } from '../../utils/sweetAlert';
 import {
   DEFAULT_INFRACCIONES_FIELD_IDS,
@@ -427,7 +428,7 @@ export function InfraccionesReportModal({
         item.delegacion
           ? {
               value: String(item.delegacion.idDelegacion),
-              label: item.delegacion.nombreDelegacion,
+              label: formatDelegacionLabel(item.delegacion, item.region),
             }
           : null,
       ),
