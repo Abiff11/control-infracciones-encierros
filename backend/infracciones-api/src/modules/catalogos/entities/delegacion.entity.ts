@@ -24,4 +24,11 @@ export class Delegacion {
 
   @Column({ name: 'nombre_delegacion', type: 'varchar', length: 120 })
   nombreDelegacion!: string;
+
+  @Column({
+    name: 'activo',
+    type: 'boolean',
+    default: true,
+  })
+  activo!: boolean;
 }
