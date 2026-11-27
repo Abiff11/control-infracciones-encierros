@@ -10,6 +10,7 @@ const EXPECTED_MESSAGE =
   "Se alcanzó temporalmente el límite de solicitudes. Espera un momento e intenta nuevamente.";
 const TECHNICAL_MESSAGE = "ThrottlerException: Too Many Requests";
 const CSRF_COOKIE = "cie_csrf_token";
+const FETCH_INTERCEPTOR_FLAG = "__cieSweetAlertFetchErrorsInstalled__";
 
 function rateLimitedResponse(body: string | null = TECHNICAL_MESSAGE): Response {
   return new Response(body, { status: 429 });
@@ -23,6 +24,7 @@ describe("normalizacion HTTP 429", () => {
   });
 
   afterEach(() => {
+    Reflect.deleteProperty(window, FETCH_INTERCEPTOR_FLAG);
     document.cookie = `${CSRF_COOKIE}=; Path=/; Max-Age=0`;
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
@@ -271,5 +273,32 @@ describe("normalizacion HTTP 429", () => {
       meta: { total: 0 },
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("Q4-I01 integra request, interceptor global y SweetAlert2 ante HTTP 429", async () => {
+    const originalFetch = vi.fn().mockResolvedValue(
+      rateLimitedResponse(JSON.stringify({ message: TECHNICAL_MESSAGE })),
+    );
+    vi.stubGlobal("fetch", originalFetch);
+    await import("./sweetalert-fetch-errors");
+    const { request, ApiError } = await import("./apiClient");
+
+    const error = await request("/infracciones?q4Integration=1").catch(
+      (reason: unknown) => reason,
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ status: 429, message: EXPECTED_MESSAGE });
+    await vi.waitFor(() => {
+      expect(fire).toHaveBeenCalledExactlyOnceWith({
+        icon: "warning",
+        title: "Demasiadas solicitudes",
+        text: EXPECTED_MESSAGE,
+        confirmButtonText: "Entendido",
+        heightAuto: false,
+      });
+    });
+    expect(originalFetch).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(fire.mock.calls)).not.toContain(TECHNICAL_MESSAGE);
   });
 });

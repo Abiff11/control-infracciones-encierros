@@ -1,5 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  exportInfraccionesExcel,
+  getReportAvailability,
+} from '../../services/api/infracciones.api';
 
 import type {
   ExportInfraccionesExcelPayload,
@@ -15,6 +20,10 @@ const reportMocks = vi.hoisted(() => ({
 const alertMocks = vi.hoisted(() => ({
   confirmAction: vi.fn(),
 }));
+const EXPECTED_RATE_LIMIT_MESSAGE =
+  'Se alcanzó temporalmente el límite de solicitudes. Espera un momento e intenta nuevamente.';
+const TECHNICAL_RATE_LIMIT_MESSAGE = 'ThrottlerException: Too Many Requests';
+const CSRF_COOKIE = 'cie_csrf_token';
 
 vi.mock('./infracciones-report-export', () => ({
   buildInfraccionesReportTable: vi.fn((items: InfraccionListItem[]) => ({
@@ -164,6 +173,11 @@ function renderModal(
 describe('InfraccionesReportModal exportacion Excel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    document.cookie = `${CSRF_COOKIE}=; Path=/; Max-Age=0`;
+    vi.unstubAllGlobals();
   });
 
   it('ofrece unicamente Excel y no muestra advertencias PDF para 24,000 registros', async () => {
@@ -548,6 +562,72 @@ describe('InfraccionesReportModal exportacion Excel', () => {
     expect(await screen.findByText('Disponibilidad no disponible.')).toBeInTheDocument();
     expect(screen.getAllByText('Total no disponible')).toHaveLength(2);
     expect(screen.queryByText('No hay registros en el alcance actual.')).not.toBeInTheDocument();
+  });
+
+  it('Q4-I02 integra disponibilidad HTTP 429 con el estado de error del modal', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ message: TECHNICAL_RATE_LIMIT_MESSAGE }), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const onGetReportAvailability = vi.fn((query: InfraccionesQuery) =>
+      getReportAvailability('test-token', query),
+    );
+    const onExportExcel = vi.fn().mockResolvedValue(new Blob());
+
+    renderAvailabilityScenario({
+      onExportExcel,
+      onGetReportAvailability,
+      reportQuery: { search: 'q4-i02' },
+    });
+
+    expect(await screen.findByText(EXPECTED_RATE_LIMIT_MESSAGE)).toBeInTheDocument();
+    expect(screen.getAllByText('Total no disponible')).toHaveLength(2);
+    expect(screen.queryByText('No hay registros en el alcance actual.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeDisabled();
+    expect(onExportExcel).not.toHaveBeenCalled();
+    expect(reportMocks.downloadBlob).not.toHaveBeenCalled();
+    expect(onGetReportAvailability).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('Q4-I03 recupera la exportacion despues de un rechazo HTTP 429 sin descargar', async () => {
+    document.cookie = `${CSRF_COOKIE}=test-csrf; Path=/; SameSite=Lax`;
+    const response = new Response(
+      JSON.stringify({ message: TECHNICAL_RATE_LIMIT_MESSAGE }),
+      { status: 429, headers: { 'Content-Type': 'application/json' } },
+    );
+    const readBlob = vi.spyOn(response, 'blob');
+    const exportResult = createDeferred<Response>();
+    const fetchMock = vi.fn(() => exportResult.promise);
+    vi.stubGlobal('fetch', fetchMock);
+    const onExportExcel = vi.fn((payload: ExportInfraccionesExcelPayload) =>
+      exportInfraccionesExcel('test-token', payload),
+    );
+
+    renderAvailabilityScenario({
+      availability: { total: 1 },
+      onExportExcel,
+      onGetReportAvailability: vi.fn().mockResolvedValue({ total: 1 }),
+      reportQuery: { search: 'q4-i03' },
+    });
+
+    const exportButton = await screen.findByRole('button', { name: 'Exportar Excel' });
+    expect(exportButton).toBeEnabled();
+    fireEvent.click(exportButton);
+    expect(await screen.findByRole('button', { name: 'Exportando Excel...' })).toBeDisabled();
+
+    exportResult.resolve(response);
+
+    expect(await screen.findByText(EXPECTED_RATE_LIMIT_MESSAGE)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Exportando Excel...' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeEnabled();
+    expect(reportMocks.downloadBlob).not.toHaveBeenCalled();
+    expect(readBlob).not.toHaveBeenCalled();
+    expect(onExportExcel).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it.each([
