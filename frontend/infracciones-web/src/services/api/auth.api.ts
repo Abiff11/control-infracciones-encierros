@@ -4,6 +4,7 @@ import type {
   LoginResponseUsuario,
 } from "../../types/auth.types";
 import { apiUrl } from "./apiConfig";
+import { normalizeApiErrorMessage } from "./api-error-messages";
 
 const CSRF_COOKIE_NAME = "cie_csrf_token";
 const CSRF_HEADER_NAME = "x-csrf-token";
@@ -12,7 +13,7 @@ export class AuthApiError extends Error {
   status: number;
 
   constructor(status: number, message: string) {
-    super(message);
+    super(normalizeApiErrorMessage(status, message));
     this.name = "AuthApiError";
     this.status = status;
   }
