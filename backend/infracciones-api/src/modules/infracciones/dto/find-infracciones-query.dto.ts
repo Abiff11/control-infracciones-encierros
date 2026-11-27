@@ -8,12 +8,55 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
+  Validate,
+  ValidationArguments,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
 } from 'class-validator';
 
 import { ESTADOS_OPERATIVOS_VEHICULO } from '../constants/estado-operativo-vehiculo.constants';
+
+const CALENDAR_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const DATE_RANGE_ERROR =
+  'La fecha inicial no puede ser posterior a la fecha final.';
+
+@ValidatorConstraint({ name: 'validDateRange', async: false })
+class ValidDateRangeConstraint implements ValidatorConstraintInterface {
+  validate(_value: unknown, args: ValidationArguments): boolean {
+    const query = args.object as FindInfraccionesQueryDto;
+    const initialDates = [query.fechaInicio, query.fechaDesde].filter(
+      this.isCalendarDate,
+    );
+    const finalDates = [query.fechaFin, query.fechaHasta].filter(
+      this.isCalendarDate,
+    );
+
+    if (initialDates.length === 0 || finalDates.length === 0) {
+      return true;
+    }
+
+    const effectiveInitialDate = initialDates.reduce((latest, current) =>
+      current > latest ? current : latest,
+    );
+    const effectiveFinalDate = finalDates.reduce((earliest, current) =>
+      current < earliest ? current : earliest,
+    );
+
+    return effectiveInitialDate <= effectiveFinalDate;
+  }
+
+  defaultMessage(): string {
+    return DATE_RANGE_ERROR;
+  }
+
+  private isCalendarDate(this: void, value: unknown): value is string {
+    return typeof value === 'string' && CALENDAR_DATE_PATTERN.test(value);
+  }
+}
 
 export class FindInfraccionesQueryDto {
   @IsOptional()
@@ -45,19 +88,23 @@ export class FindInfraccionesQueryDto {
   claveConcepto?: string;
 
   @IsOptional()
-  @IsDateString()
+  @Matches(CALENDAR_DATE_PATTERN)
+  @IsDateString({ strict: true, strictSeparator: true })
   fechaInicio?: string;
 
   @IsOptional()
-  @IsDateString()
+  @Matches(CALENDAR_DATE_PATTERN)
+  @IsDateString({ strict: true, strictSeparator: true })
   fechaFin?: string;
 
   @IsOptional()
-  @IsDateString()
+  @Matches(CALENDAR_DATE_PATTERN)
+  @IsDateString({ strict: true, strictSeparator: true })
   fechaDesde?: string;
 
   @IsOptional()
-  @IsDateString()
+  @Matches(CALENDAR_DATE_PATTERN)
+  @IsDateString({ strict: true, strictSeparator: true })
   fechaHasta?: string;
 
   @IsOptional()
@@ -161,6 +208,7 @@ export class FindInfraccionesQueryDto {
   sortOrder?: string;
 
   @Type(() => Number)
+  @Validate(ValidDateRangeConstraint)
   @IsInt()
   @Min(1)
   page = 1;

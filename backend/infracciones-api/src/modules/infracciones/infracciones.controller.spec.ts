@@ -24,6 +24,13 @@ import { InfraccionesService } from './infracciones.service';
 describe('InfraccionesController disponibilidad generica', () => {
   let app: INestApplication;
   let httpServer: Parameters<typeof request>[0];
+  const listService = {
+    findAll: jest.fn(),
+  };
+  const excelService = {
+    assertValidFields: jest.fn(),
+    write: jest.fn(),
+  };
   const reportesService = {
     getReportAvailability: jest.fn(),
   };
@@ -33,8 +40,8 @@ describe('InfraccionesController disponibilidad generica', () => {
       controllers: [InfraccionesController],
       providers: [
         { provide: InfraccionesService, useValue: {} },
-        { provide: InfraccionesListService, useValue: {} },
-        { provide: InfraccionesExcelReportService, useValue: {} },
+        { provide: InfraccionesListService, useValue: listService },
+        { provide: InfraccionesExcelReportService, useValue: excelService },
         { provide: InfraccionesReportesService, useValue: reportesService },
         { provide: InfraccionesAdminService, useValue: {} },
         { provide: InfraccionesAdminOperacionesService, useValue: {} },
@@ -71,7 +78,17 @@ describe('InfraccionesController disponibilidad generica', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    listService.findAll.mockResolvedValue({
+      data: [],
+      meta: { page: 1, limit: 10, total: 0, totalPages: 0 },
+    });
     reportesService.getReportAvailability.mockResolvedValue({ total: 13_827 });
+    excelService.write.mockImplementation(
+      (_query: unknown, response: { end: (body: string) => void }) => {
+        response.end('xlsx-test');
+        return Promise.resolve();
+      },
+    );
   });
 
   afterAll(async () => {
@@ -161,5 +178,129 @@ describe('InfraccionesController disponibilidad generica', () => {
       .expect(404);
 
     expect(reportesService.getReportAvailability).not.toHaveBeenCalled();
+  });
+
+  it('Q3.2-09 rechaza rangos invalidos en el listado sin ejecutar el servicio', async () => {
+    const response = await request(httpServer)
+      .get('/infracciones')
+      .query({ fechaDesde: '2026-08-24', fechaHasta: '2026-08-20' })
+      .expect(400);
+
+    expect((response.body as { message: unknown }).message).toContain(
+      'La fecha inicial no puede ser posterior a la fecha final.',
+    );
+    expect(listService.findAll).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['GET', { fechaInicio: '2026-08-24', fechaFin: '2026-08-20' }],
+    ['POST', { fechaDesde: '2026-08-24', fechaFin: '2026-08-20' }],
+  ] as const)(
+    'Q3.2-10 rechaza %s de disponibilidad sin ejecutar el servicio',
+    async (method, values) => {
+      const pendingRequest =
+        method === 'GET'
+          ? request(httpServer)
+              .get('/infracciones/reportes/disponibilidad')
+              .query(values)
+          : request(httpServer)
+              .post('/infracciones/reportes/disponibilidad')
+              .send(values);
+      const response = await pendingRequest.expect(400);
+
+      expect((response.body as { message: unknown }).message).toContain(
+        'La fecha inicial no puede ser posterior a la fecha final.',
+      );
+      expect(reportesService.getReportAvailability).not.toHaveBeenCalled();
+    },
+  );
+
+  it('Q3.2-11 rechaza Excel antes de validar campos o escribir la respuesta', async () => {
+    const response = await request(httpServer)
+      .post('/infracciones/reportes/excel')
+      .send({
+        campos: ['folioInfraccion'],
+        fechaInicio: '2026-08-24',
+        fechaHasta: '2026-08-20',
+      })
+      .expect(400);
+
+    expect((response.body as { message: unknown }).message).toContain(
+      'La fecha inicial no puede ser posterior a la fecha final.',
+    );
+    expect(response.headers['content-type']).not.toContain(
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    expect(response.headers['content-disposition']).toBeUndefined();
+    expect(excelService.assertValidFields).not.toHaveBeenCalled();
+    expect(excelService.write).not.toHaveBeenCalled();
+  });
+
+  it('Q3.2-12 conserva listado valido y sus fechas', async () => {
+    await request(httpServer)
+      .get('/infracciones')
+      .query({ fechaDesde: '2026-08-20', fechaHasta: '2026-08-24' })
+      .expect(200);
+
+    expect(listService.findAll).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fechaDesde: '2026-08-20',
+        fechaHasta: '2026-08-24',
+      }),
+    );
+  });
+
+  it('Q3.2-12 conserva disponibilidad valida en GET y POST', async () => {
+    await request(httpServer)
+      .get('/infracciones/reportes/disponibilidad')
+      .query({ fechaInicio: '2026-08-20', fechaHasta: '2026-08-24' })
+      .expect(200);
+    await request(httpServer)
+      .post('/infracciones/reportes/disponibilidad')
+      .send({
+        idInfracciones: [10, 11],
+        fechaInicio: '2026-08-20',
+        fechaHasta: '2026-08-24',
+      })
+      .expect(201);
+
+    expect(reportesService.getReportAvailability).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        fechaInicio: '2026-08-20',
+        fechaHasta: '2026-08-24',
+      }),
+    );
+    expect(reportesService.getReportAvailability).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        idInfracciones: [10, 11],
+        fechaInicio: '2026-08-20',
+        fechaHasta: '2026-08-24',
+      }),
+    );
+  });
+
+  it('Q3.2-12 conserva Excel valido y finaliza la respuesta simulada', async () => {
+    const query = {
+      campos: ['folioInfraccion'],
+      idInfracciones: [10, 11],
+      fechaInicio: '2026-08-20',
+      fechaHasta: '2026-08-24',
+    };
+
+    const response = await request(httpServer)
+      .post('/infracciones/reportes/excel')
+      .send(query)
+      .expect(200);
+
+    expect(response.headers['content-type']).toContain(
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    expect(excelService.assertValidFields).toHaveBeenCalledWith(query.campos);
+    expect(excelService.write).toHaveBeenCalledWith(
+      expect.objectContaining(query),
+      expect.anything(),
+    );
   });
 });
