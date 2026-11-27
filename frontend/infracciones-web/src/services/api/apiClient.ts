@@ -5,6 +5,7 @@ import {
   updateAuthSession,
 } from "./authSession";
 import { apiUrl, swaggerUrl } from "./apiConfig";
+import { normalizeApiErrorMessage } from "./api-error-messages";
 import type { SessionState } from "../../types/auth.types";
 
 const CSRF_COOKIE_NAME = "cie_csrf_token";
@@ -27,7 +28,7 @@ export class ApiError extends Error {
   status: number;
 
   constructor(status: number, message: string) {
-    super(message);
+    super(normalizeApiErrorMessage(status, message));
     this.status = status;
     this.name = "ApiError";
   }
