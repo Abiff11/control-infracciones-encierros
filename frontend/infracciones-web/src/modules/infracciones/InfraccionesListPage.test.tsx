@@ -170,6 +170,178 @@ function getMainStatusBadge(): HTMLElement {
   });
 }
 
+describe("InfraccionesListPage validacion de rango de fechas", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    apiMocks.findConceptosPago.mockResolvedValue([]);
+  });
+
+  async function renderDateFilters(): Promise<number> {
+    await renderWithItem(createItem());
+    return apiMocks.getInfracciones.mock.calls.length;
+  }
+
+  function setDateRange(fechaDesde: string, fechaHasta: string): void {
+    fireEvent.change(screen.getByLabelText("Fecha desde"), {
+      target: { value: fechaDesde },
+    });
+    fireEvent.change(screen.getByLabelText("Fecha hasta"), {
+      target: { value: fechaHasta },
+    });
+  }
+
+  it("Q3.1-01 envia un rango valido", async () => {
+    await renderDateFilters();
+    setDateRange("2026-08-20", "2026-08-24");
+
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+
+    await waitFor(() => expect(apiMocks.getInfracciones).toHaveBeenLastCalledWith(
+      "token-test",
+      expect.objectContaining({
+        fechaDesde: "2026-08-20",
+        fechaHasta: "2026-08-24",
+        page: 1,
+      }),
+    ));
+  });
+
+  it("Q3.1-02 permite ambas fechas iguales", async () => {
+    await renderDateFilters();
+    setDateRange("2026-08-22", "2026-08-22");
+
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+
+    await waitFor(() => expect(apiMocks.getInfracciones).toHaveBeenLastCalledWith(
+      "token-test",
+      expect.objectContaining({
+        fechaDesde: "2026-08-22",
+        fechaHasta: "2026-08-22",
+      }),
+    ));
+  });
+
+  it("Q3.1-03 permite solo fecha inicial", async () => {
+    await renderDateFilters();
+    fireEvent.change(screen.getByLabelText("Fecha desde"), {
+      target: { value: "2026-08-22" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+
+    await waitFor(() => expect(apiMocks.getInfracciones).toHaveBeenLastCalledWith(
+      "token-test",
+      expect.objectContaining({
+        fechaDesde: "2026-08-22",
+        fechaHasta: undefined,
+      }),
+    ));
+  });
+
+  it("Q3.1-04 permite solo fecha final", async () => {
+    await renderDateFilters();
+    fireEvent.change(screen.getByLabelText("Fecha hasta"), {
+      target: { value: "2026-08-22" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+
+    await waitFor(() => expect(apiMocks.getInfracciones).toHaveBeenLastCalledWith(
+      "token-test",
+      expect.objectContaining({
+        fechaDesde: undefined,
+        fechaHasta: "2026-08-22",
+      }),
+    ));
+  });
+
+  it("Q3.1-05 bloquea un rango invertido mediante Buscar", async () => {
+    const initialCallCount = await renderDateFilters();
+    setDateRange("2026-08-24", "2026-08-20");
+
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+
+    expect(screen.getByText(
+      "La fecha inicial no puede ser posterior a la fecha final.",
+    )).toBeInTheDocument();
+    expect(screen.getByLabelText("Fecha desde")).toHaveValue("2026-08-24");
+    expect(screen.getByLabelText("Fecha hasta")).toHaveValue("2026-08-20");
+    expect(screen.getByText("INF-10")).toBeInTheDocument();
+    expect(apiMocks.getInfracciones).toHaveBeenCalledTimes(initialCallCount);
+  });
+
+  it("Q3.1-06 bloquea un rango invertido mediante filtro rapido", async () => {
+    const initialCallCount = await renderDateFilters();
+    setDateRange("2026-08-24", "2026-08-20");
+
+    fireEvent.click(screen.getByRole("button", { name: "Pagada sin retencion" }));
+
+    expect(screen.getByText(
+      "La fecha inicial no puede ser posterior a la fecha final.",
+    )).toBeInTheDocument();
+    expect(screen.getByLabelText("Fecha desde")).toHaveValue("2026-08-24");
+    expect(screen.getByLabelText("Fecha hasta")).toHaveValue("2026-08-20");
+    expect(screen.getByText("INF-10")).toBeInTheDocument();
+    expect(apiMocks.getInfracciones).toHaveBeenCalledTimes(initialCallCount);
+  });
+
+  it("Q3.1-07 elimina el error al corregir y aplica el rango valido", async () => {
+    const initialCallCount = await renderDateFilters();
+    setDateRange("2026-08-24", "2026-08-20");
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+    expect(screen.getByText(
+      "La fecha inicial no puede ser posterior a la fecha final.",
+    )).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Fecha hasta"), {
+      target: { value: "2026-08-26" },
+    });
+    expect(screen.queryByText(
+      "La fecha inicial no puede ser posterior a la fecha final.",
+    )).not.toBeInTheDocument();
+    expect(apiMocks.getInfracciones).toHaveBeenCalledTimes(initialCallCount);
+
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+    await waitFor(() => expect(apiMocks.getInfracciones).toHaveBeenCalledTimes(
+      initialCallCount + 1,
+    ));
+    expect(apiMocks.getInfracciones).toHaveBeenLastCalledWith(
+      "token-test",
+      expect.objectContaining({
+        fechaDesde: "2026-08-24",
+        fechaHasta: "2026-08-26",
+      }),
+    );
+  });
+
+  it("Q3.1-08 limpiar filtros restablece fechas, error y alcance", async () => {
+    const initialCallCount = await renderDateFilters();
+    setDateRange("2026-08-24", "2026-08-20");
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+    expect(screen.getByText(
+      "La fecha inicial no puede ser posterior a la fecha final.",
+    )).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+
+    expect(screen.getByLabelText("Fecha desde")).toHaveValue("");
+    expect(screen.getByLabelText("Fecha hasta")).toHaveValue("");
+    expect(screen.queryByText(
+      "La fecha inicial no puede ser posterior a la fecha final.",
+    )).not.toBeInTheDocument();
+    expect(apiMocks.getInfracciones).toHaveBeenCalledTimes(initialCallCount);
+    expect(apiMocks.getInfracciones).toHaveBeenLastCalledWith(
+      "token-test",
+      expect.objectContaining({
+        fechaDesde: undefined,
+        fechaHasta: undefined,
+        estadoOperativo: undefined,
+        page: 1,
+      }),
+    );
+  });
+});
+
 describe("InfraccionesListPage notificaciones por expediente", () => {
   const observacion = {
     idObservacion: 12,
