@@ -187,15 +187,23 @@ jobs:
           });
           NODE
 
-      - name: Revert concurrency, security, dashboard and payment migrations
+      - name: Revert and verify nine expected migrations
         run: |
-          npm run migration:revert
-          npm run migration:revert
-          npm run migration:revert
-          npm run migration:revert
-          npm run migration:revert
-          npm run migration:revert
-          npm run migration:revert
+          set -euo pipefail
+          for migration in \
+            RegularizeTerritorialCatalog2020000000000 \
+            AddActivoToDelegacion2010000000000 \
+            ExpandirCamposObservados2000000000000 \
+            AddObservacionesExpediente1990000000000 \
+            EnableEarlyVehicleExit1980000000000 \
+            FlexibleExpedienteCapture1970000000000 \
+            AddSolventacionSinPago1960000000000 \
+            AddEncierroToInfracciones1950000000000 \
+            ClassifyHistoricalInfraccionesWithoutRetention1940000000000
+          do
+            npm run migration:revert | tee /tmp/territorial-migration-revert.log
+            grep -F "Migration ${migration} has been reverted successfully." /tmp/territorial-migration-revert.log
+          done
 
       - name: Re-run reverted migrations
         run: npm run migration:run

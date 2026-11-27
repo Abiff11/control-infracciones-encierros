@@ -446,9 +446,196 @@ async function assertDelegacionBehavior(runner, fixtures) {
   );
 }
 
+function territorialMigration() {
+  const { RegularizeTerritorialCatalog2020000000000 } = require(
+    '../dist/database/migrations/2020000000000-RegularizeTerritorialCatalog'
+  );
+  return new RegularizeTerritorialCatalog2020000000000();
+}
+
+async function assertTerritorialMigration(runner) {
+  const { CATALOGO_TERRITORIAL_V1 } = require(
+    '../dist/database/migrations/territorial/catalogo-territorial-v1'
+  );
+  const { CATALOGO_TERRITORIAL_OFICIAL } = require(
+    '../dist/modules/catalogos/constants/catalogo-territorial.constants'
+  );
+  assert.deepEqual(CATALOGO_TERRITORIAL_V1, CATALOGO_TERRITORIAL_OFICIAL);
+  const migration = territorialMigration();
+  const read = async () => ({
+    regiones: await runner.query('SELECT * FROM region ORDER BY id_region'),
+    delegaciones: await runner.query('SELECT * FROM delegacion ORDER BY id_delegacion'),
+  });
+  const assertOfficial = async (expectedTotal) => {
+    const rows = await runner.query(
+      'SELECT r.nombre_region, d.nombre_delegacion FROM delegacion d ' +
+      'JOIN region r ON r.id_region = d.id_region WHERE d.activo',
+    );
+    const actual = rows.map((row) =>
+      row.nombre_region + '|' + row.nombre_delegacion).sort();
+    const expected = CATALOGO_TERRITORIAL_V1.flatMap((r) =>
+      r.delegaciones.map((d) => r.nombreRegion + '|' + d)).sort();
+    assert.deepEqual(actual, expected, 'Q5.2c-03');
+    assert.equal((await read()).delegaciones.length, expectedTotal);
+  };
+
+  await runner.startTransaction();
+  try {
+    await assertOfficial(46);
+    const initial = await read();
+    await migration.up(runner);
+    assert.deepEqual(await read(), initial, 'Q5.2c-10');
+    await migration.down(runner);
+    assert.deepEqual(await read(), { regiones: [], delegaciones: [] }, 'Q5.2c-01');
+
+    // Reproducir las once delegaciones legadas sin usar IDs reales.
+    const fixtures = await createFixture(runner);
+    const [fixture] = await runner.query(
+      'SELECT d.id_delegacion, d.id_region FROM delegacion d ' +
+      'JOIN infracciones i ON i.id_delegacion = d.id_delegacion WHERE i.id_infraccion = $1',
+      [fixtures[0].id_infraccion],
+    );
+    await runner.query("UPDATE region SET nombre_region = 'PLAZA' WHERE id_region = $1", [fixture.id_region]);
+    await runner.query("UPDATE delegacion SET nombre_delegacion = 'CENTRO' WHERE id_delegacion = $1", [fixture.id_delegacion]);
+    const ids = new Map([['PLAZA', fixture.id_region]]);
+    const centros = new Map([['PLAZA', fixture.id_delegacion]]);
+    for (const { nombreRegion } of CATALOGO_TERRITORIAL_V1) {
+      if (nombreRegion === 'PLAZA') continue;
+      const [region] = await runner.query(
+        'INSERT INTO region (nombre_region) VALUES ($1) RETURNING id_region', [nombreRegion]);
+      ids.set(nombreRegion, region.id_region);
+      const [delegacion] = await runner.query(
+        "INSERT INTO delegacion (id_region, nombre_delegacion) VALUES ($1, 'CENTRO') RETURNING id_delegacion",
+        [region.id_region]);
+      centros.set(nombreRegion, delegacion.id_delegacion);
+    }
+    const [retiro] = await runner.query(
+      "INSERT INTO delegacion (id_region, nombre_delegacion) VALUES ($1, 'EL RETIRO') RETURNING id_delegacion",
+      [fixture.id_region]);
+    await runner.query('UPDATE infracciones SET id_delegacion = $1 WHERE id_infraccion = $2',
+      [retiro.id_delegacion, fixtures[1].id_infraccion]);
+    await runner.query('UPDATE infracciones SET id_delegacion = $1 WHERE id_infraccion = $2',
+      [centros.get('CUENCA'), fixtures[2].id_infraccion]);
+    const [imp] = await runner.query(
+      `INSERT INTO importacion_infracciones
+        (anio, id_region, id_delegacion_default, nombre_archivo, nombre_hoja, estado,
+         modo_duplicados, creado_por_usuario_id, filas_importadas)
+        VALUES (2026, $1, $2, $3, 'INFRACCIONES', 'IMPORTADA', 'OMITIR', $4, 3)
+        RETURNING id_importacion_infracciones`,
+      [fixture.id_region, fixture.id_delegacion, fixtures[0].folio_infraccion + '.xlsx',
+        fixtures[0].id_usuario]);
+    const readRefs = async () => ({
+      infracciones: await runner.query('SELECT * FROM infracciones ORDER BY id_infraccion'),
+      importaciones: await runner.query('SELECT * FROM importacion_infracciones ORDER BY id_importacion_infracciones'),
+    });
+    const previous = await read();
+    const refs = await readRefs();
+    assert.equal(previous.delegaciones.length, 11, 'Q5.2c-02');
+
+    // Colisiones y referencias incompatibles deben fallar sin cambios.
+    const [collision] = await runner.query(
+      "INSERT INTO delegacion (id_region, nombre_delegacion) VALUES ($1, 'RETIRO') RETURNING id_delegacion",
+      [ids.get('VALLES CENTRALES ZONA NORTE')]);
+    const duplicate = await read();
+    await assert.rejects(migration.up(runner), /colision territorial/);
+    assert.deepEqual(await read(), duplicate);
+    await runner.query('DELETE FROM delegacion WHERE id_delegacion = $1', [collision.id_delegacion]);
+
+    const [duplicateCentro] = await runner.query(
+      "INSERT INTO delegacion (id_region, nombre_delegacion) VALUES ($1, ' centro ') RETURNING id_delegacion",
+      [fixture.id_region]);
+    await assert.rejects(migration.up(runner), /normalizadas duplicadas/);
+    await runner.query('DELETE FROM delegacion WHERE id_delegacion = $1', [duplicateCentro.id_delegacion]);
+    const [wrongRegion] = await runner.query(
+      "INSERT INTO delegacion (id_region, nombre_delegacion) VALUES ($1, 'TUXTEPEC') RETURNING id_delegacion",
+      [fixture.id_region]);
+    await assert.rejects(migration.up(runner), /asociacion oficial incompatible/);
+    await runner.query('DELETE FROM delegacion WHERE id_delegacion = $1', [wrongRegion.id_delegacion]);
+    await runner.query('UPDATE importacion_infracciones SET id_delegacion_default = $1 WHERE id_importacion_infracciones = $2',
+      [retiro.id_delegacion, imp.id_importacion_infracciones]);
+    await assert.rejects(migration.up(runner), /importaciones incompatibles/);
+    await runner.query('UPDATE importacion_infracciones SET id_delegacion_default = $1 WHERE id_importacion_infracciones = $2',
+      [fixture.id_delegacion, imp.id_importacion_infracciones]);
+    assert.deepEqual(await read(), previous, 'Q5.2c-08');
+    assert.deepEqual(await readRefs(), refs);
+
+    // Forzar un error despues de varias inserciones/actualizaciones.
+    await runner.query(`CREATE FUNCTION q52c_test_reject() RETURNS trigger LANGUAGE plpgsql AS $q52c$
+      BEGIN
+        IF NEW.nombre_delegacion = 'TUXTEPEC' THEN RAISE EXCEPTION 'Q5.2c fallo inducido'; END IF;
+        RETURN NEW;
+      END; $q52c$`);
+    await runner.query('CREATE TRIGGER q52c_test_reject BEFORE INSERT ON delegacion FOR EACH ROW EXECUTE FUNCTION q52c_test_reject()');
+    await assert.rejects(migration.up(runner), /fallo inducido/);
+    assert.deepEqual(await read(), previous, 'Q5.2c-11');
+    assert.deepEqual(await readRefs(), refs);
+    assert.equal(await runner.hasTable('regularizacion_territorial_v1'), false);
+    await runner.query('DROP TRIGGER q52c_test_reject ON delegacion');
+    await runner.query('DROP FUNCTION q52c_test_reject()');
+
+    await migration.up(runner);
+    await assertOfficial(55);
+    const after = await read();
+    assert.equal(after.delegaciones.filter((d) => !d.activo).length, 9, 'Q5.2c-04');
+    assert.deepEqual(after.delegaciones.find((d) => d.id_delegacion === retiro.id_delegacion), {
+      id_delegacion: retiro.id_delegacion,
+      id_region: ids.get('VALLES CENTRALES ZONA NORTE'),
+      nombre_delegacion: 'RETIRO', activo: true,
+    }, 'Q5.2c-05');
+    assert.deepEqual(await readRefs(), refs, 'Q5.2c-06/07');
+    await migration.up(runner);
+    assert.deepEqual(await read(), after, 'Q5.2c-10');
+
+    const created = after.delegaciones.find((d) => d.nombre_delegacion === 'TUXTEPEC');
+    await runner.query('UPDATE infracciones SET id_delegacion = $1 WHERE id_infraccion = $2',
+      [created.id_delegacion, fixtures[0].id_infraccion]);
+    await assert.rejects(migration.down(runner), /nuevas delegaciones referenciadas/);
+    assert.deepEqual(await read(), after);
+    await runner.query('UPDATE infracciones SET id_delegacion = $1 WHERE id_infraccion = $2',
+      [fixture.id_delegacion, fixtures[0].id_infraccion]);
+    await runner.query('UPDATE importacion_infracciones SET id_delegacion_default = $1 WHERE id_importacion_infracciones = $2',
+      [created.id_delegacion, imp.id_importacion_infracciones]);
+    await assert.rejects(migration.down(runner), /nuevas delegaciones referenciadas/);
+    await runner.query('UPDATE importacion_infracciones SET id_delegacion_default = $1 WHERE id_importacion_infracciones = $2',
+      [fixture.id_delegacion, imp.id_importacion_infracciones]);
+    await runner.query('UPDATE infracciones SET id_delegacion = $1 WHERE id_infraccion = $2',
+      [retiro.id_delegacion, fixtures[0].id_infraccion]);
+    await assert.rejects(migration.down(runner), /referencias historicas modificadas/);
+    await runner.query('UPDATE infracciones SET id_delegacion = $1 WHERE id_infraccion = $2',
+      [fixture.id_delegacion, fixtures[0].id_infraccion]);
+    await runner.query('UPDATE delegacion SET activo = false WHERE id_delegacion = $1', [created.id_delegacion]);
+    await assert.rejects(migration.down(runner), /catalogo modificado/);
+    await runner.query('UPDATE delegacion SET activo = true WHERE id_delegacion = $1', [created.id_delegacion]);
+    assert.deepEqual(await read(), after, 'Q5.2c-13');
+
+    await migration.down(runner);
+    assert.deepEqual(await read(), previous, 'Q5.2c-12');
+    assert.deepEqual(await readRefs(), refs);
+    const [unknown] = await runner.query(
+      "INSERT INTO delegacion (id_region, nombre_delegacion) VALUES ($1, 'LEGADO DESCONOCIDO') RETURNING id_delegacion",
+      [fixture.id_region]);
+    const withUnknown = await read();
+    await migration.up(runner);
+    await assertOfficial(56);
+    assert.deepEqual((await read()).delegaciones.find((row) =>
+      row.id_delegacion === unknown.id_delegacion), {
+      id_delegacion: unknown.id_delegacion, id_region: fixture.id_region,
+      nombre_delegacion: 'LEGADO DESCONOCIDO', activo: false,
+    }, 'Q5.2c-09');
+    await migration.down(runner);
+    assert.deepEqual(await read(), withUnknown);
+    assert.deepEqual(await readRefs(), refs);
+    console.log('Q5.2c: base nueva, legado, 46 activas, referencias, colisiones, atomicidad, idempotencia y reversion aprobados');
+  } finally {
+    await runner.rollbackTransaction();
+  }
+}
+
 async function assertDatabaseBehavior(runner) {
   await runner.startTransaction();
   try {
+    // Aislar Q5.2b del catalogo regularizado sin cambiar la base persistente.
+    await territorialMigration().down(runner);
     const [paid, exempt, early] = await createFixture(runner);
     await assertDelegacionBehavior(runner, [paid, exempt, early]);
 
@@ -694,7 +881,9 @@ async function main() {
 
   try {
     await assertSchema(dataSource, runner);
+    await assertTerritorialMigration(runner);
     await assertDatabaseBehavior(runner);
+    await assertSchema(dataSource, runner);
   } finally {
     await runner.release();
     await dataSource.destroy();
