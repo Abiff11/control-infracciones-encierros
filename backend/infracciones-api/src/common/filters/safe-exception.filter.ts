@@ -49,6 +49,15 @@ function getDatabaseErrorCode(exception: unknown): string | null {
 function getExceptionPayload(exception: unknown): ErrorPayload {
   if (exception instanceof HttpException) {
     const statusCode = exception.getStatus();
+    if (statusCode === Number(HttpStatus.TOO_MANY_REQUESTS)) {
+      return {
+        statusCode,
+        message:
+          'Se alcanzó temporalmente el límite de solicitudes. Espera un momento e intenta nuevamente.',
+        error: 'Too Many Requests',
+      };
+    }
+
     const response = exception.getResponse();
 
     if (typeof response === 'object' && response !== null) {
